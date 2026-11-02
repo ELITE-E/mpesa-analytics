@@ -1,0 +1,5 @@
+:root { --bg: #fff; --fg: #1a1a1a; --line: #ccc; color-scheme: light dark; }
+@media (prefers-color-scheme: dark) { :root { --bg: #161616; --fg: #eee; --line: #444; } }
+body { background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; margin: 0 auto; max-width: 48rem; padding: 16px; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: left; overflow-wrap: anywhere; }

@@ -1,0 +1,60 @@
+# Local hooks only: every guard lives in this repo and needs no download at commit time.
+minimum_pre_commit_version: "4.0.0"
+repos:
+  - repo: local
+    hooks:
+      - id: scan-patterns
+        name: scan phone and receipt patterns
+        entry: uv run --frozen python tools/guards/scan_patterns.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: pdf-location
+        name: PDF location
+        entry: uv run --frozen python tools/guards/check_pdf_location.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: risky-types
+        name: risky file types
+        entry: uv run --frozen python tools/guards/check_risky_types.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: fixture-provenance
+        name: fixture provenance
+        entry: uv run --frozen python tools/guards/check_fixture_provenance.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: gitleaks-staged
+        name: gitleaks (staged)
+        entry: uv run --frozen python tools/guards/check_secrets.py --mode staged
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: gitleaks-history
+        name: gitleaks (full history)
+        entry: uv run --frozen python tools/guards/check_secrets.py --mode history
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: import-linter
+        name: import-linter
+        entry: uv run --frozen python tools/guards/check_imports.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        
+      - id: core-purity
+        name: core purity
+        entry: uv run --frozen python tools/guards/check_core_purity.py
+        language: system
+        pass_filenames: false
+        always_run: true

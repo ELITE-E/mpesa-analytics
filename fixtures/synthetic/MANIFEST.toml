@@ -1,0 +1,5 @@
+# Every file in this directory must be listed here and regenerate byte-identically
+# from its seed (tools/guards/check_fixture_provenance.py). No fixtures exist in CP0.
+generator_version = "0.0.0-stub"
+default_seed = 0
+fake_password = "synthetic-only"

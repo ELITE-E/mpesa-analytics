@@ -1,0 +1,28 @@
+[importlinter]
+root_package = mpesa_core
+include_external_packages = true
+
+[importlinter:contract:core-external]
+name = Core has no forbidden external dependencies
+type = forbidden
+source_modules =
+    mpesa_core
+forbidden_modules =
+    fastapi
+    sqlalchemy
+    requests
+    httpx
+    urllib3
+    pydantic
+    streamlit
+    pdfplumber
+    pypdf
+
+[importlinter:contract:analytics-isolation]
+name = Analytics does not reach the bridge or raw rows
+type = forbidden
+source_modules =
+    mpesa_core.analytics
+forbidden_modules =
+    mpesa_core.bridge
+    mpesa_core.rows

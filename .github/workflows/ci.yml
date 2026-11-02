@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  guards:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      UV_FROZEN: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # gitleaks scans the full history
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - run: uv sync
+      - name: Fetch and verify pinned runtime
+        run: uv run python tools/vendor.py fetch
+      - name: Guard 1, patterns
+        run: uv run python tools/guards/scan_patterns.py
+      - name: Guard 2, PDF location
+        run: uv run python tools/guards/check_pdf_location.py
+      - name: Guard 3, risky types
+        run: uv run python tools/guards/check_risky_types.py
+      - name: Guard 4, fixture provenance
+        run: uv run python tools/guards/check_fixture_provenance.py
+      - name: Guard 5, gitleaks staged
+        run: uv run python tools/guards/check_secrets.py --mode staged
+      - name: Guard 5, gitleaks full history
+        run: uv run python tools/guards/check_secrets.py --mode history
+      - name: Guard 6, import-linter
+        run: uv run python tools/guards/check_imports.py
+      - name: Guard 7, core purity
+        run: uv run python tools/guards/check_core_purity.py
+      - name: Tests
+        run: uv run pytest
+      - name: Core imports under Pyodide
+        run: node tools/run_pyodide_tests.mjs
+      - name: Build wheel
+        run: uv build --wheel --out-dir dist
+      - name: Guard 8, wheel
+        run: uv run python tools/guards/check_wheel.py dist/*.whl
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: wheel
+          path: dist/*.whl
+          retention-days: 1
+          if-no-files-found: error

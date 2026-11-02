@@ -1,0 +1,25 @@
+# Statement-shaped and personal data: denied everywhere except fixtures/synthetic/.
+*.pdf
+*.csv
+*.xlsx
+*.xls
+*.db
+*.sqlite*
+*.log
+*.ipynb
+*.jsonl
+*.dump
+.env*
+!fixtures/synthetic/
+!fixtures/synthetic/**
+
+# Local tooling. Everything here is pruned by the guard walk (tools/guards/guards.toml).
+.venv/
+.cache/
+node_modules/
+__pycache__/
+.pytest_cache/
+.import_linter_cache/
+dist/
+build/
+web/public/vendor/
