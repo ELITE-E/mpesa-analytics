@@ -1,12 +1,20 @@
 import shutil
 
 import pytest
+
 from conftest import REPO, assert_fails_quietly, plant, run_guard
 
 GUARD = "check_imports.py"
 EXTERNAL = [
-    "fastapi", "sqlalchemy", "requests", "httpx", "urllib3",
-    "pydantic", "streamlit", "pdfplumber", "pypdf",
+    "fastapi",
+    "sqlalchemy",
+    "requests",
+    "httpx",
+    "urllib3",
+    "pydantic",
+    "streamlit",
+    "pdfplumber",
+    "pypdf",
 ]
 
 
@@ -21,8 +29,8 @@ def package(tmp_path):
 
 
 def test_clean_package_passes(package):
-    result = run_guard(GUARD, "--root", package)
-    assert result.returncode == 0, result.stdout + result.stderr
+    guard_run = run_guard(GUARD, "--root", package)
+    assert guard_run.returncode == 0, guard_run.stdout + guard_run.stderr
 
 
 @pytest.mark.parametrize("name", EXTERNAL)
@@ -36,9 +44,7 @@ def test_forbidden_external_import_fails(package, name):
 @pytest.mark.parametrize("name", ["bridge", "rows"])
 def test_analytics_may_not_import(package, name):
     plant(package, "src/mpesa_core/analytics/summary.py", f"from mpesa_core import {name}\n")
-    assert_fails_quietly(
-        run_guard(GUARD, "--root", package), "src/mpesa_core/analytics/summary.py"
-    )
+    assert_fails_quietly(run_guard(GUARD, "--root", package), "src/mpesa_core/analytics/summary.py")
 
 
 def test_analytics_may_not_import_bridge_indirectly(package):
@@ -48,5 +54,5 @@ def test_analytics_may_not_import_bridge_indirectly(package):
 
 
 def test_real_repo_passes():
-    result = run_guard(GUARD)
-    assert result.returncode == 0, result.stdout + result.stderr
+    guard_run = run_guard(GUARD)
+    assert guard_run.returncode == 0, guard_run.stdout + guard_run.stderr

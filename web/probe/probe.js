@@ -1,8 +1,12 @@
 // Everything lives in this file because the CSP under test forbids inline script.
 const INDEX_URL = "/public/vendor/pyodide/";
 const COLD_BYTES = 1_000_000;
-const start = performance.now();
+const SAMPLE_INTERVAL_MS = 100;
 const VIOLATION_GRACE_MS = 5_000;
+const ERROR_MESSAGE_LIMIT = 200;
+const EXPECTED_GROUPBY = "{'a': 4, 'b': 6}";
+const EXPECTED_FFI = 5;
+const start = performance.now();
 const violations = [];
 // A blocked wasm compile leaves loadPyodide pending forever, so a violation must end the run.
 const blocked = new Promise((_, reject) => {
@@ -13,10 +17,7 @@ const blocked = new Promise((_, reject) => {
 });
 
 let peakHeap = 0;
-const samplePeak = () => {
-  if (performance.memory) peakHeap = Math.max(peakHeap, performance.memory.usedJSHeapSize);
-};
-const sampler = setInterval(samplePeak, 100);
+const sampler = setInterval(samplePeak, SAMPLE_INTERVAL_MS);
 
 const GROUPBY = `
 import pandas as pd
@@ -29,19 +30,53 @@ from js import Math
 from pyodide.ffi import create_proxy, to_js
 proxy = create_proxy(lambda value: value + 1)
 try:
-    result = proxy(1) + int(Math.abs(-1)) + to_js([1, 2]).length
+    outcome = proxy(1) + int(Math.abs(-1)) + to_js([1, 2]).length
 finally:
     proxy.destroy()
-result
+outcome
 `;
 
-function networkTotals() {
-  const entries = performance.getEntriesByType("resource");
-  const transfer = entries.reduce((sum, e) => sum + e.transferSize, 0);
-  const decoded = entries.reduce((sum, e) => sum + e.decodedBodySize, 0);
-  return { requests: entries.length, transferBytes: transfer, decodedBytes: decoded };
+await finishProbe();
+
+/**
+ * Run the probe, then publish and display its outcome.
+ *
+ * Side effects: updates the page, localStorage and `window.__probeResult`.
+ *
+ * @returns {Promise<void>} Resolves when the outcome has been published.
+ */
+async function finishProbe() {
+  let outcome;
+  try {
+    outcome = await Promise.race([run(), blocked]);
+  } catch (error) {
+    outcome = {
+      status: "error",
+      error: String(error?.message ?? error).slice(0, ERROR_MESSAGE_LIMIT),
+    };
+  }
+  clearInterval(sampler);
+  const network = networkTotals();
+  Object.assign(outcome, network, {
+    kind: network.transferBytes > COLD_BYTES ? "cold" : "warm",
+    peakJsHeapBytes: performance.memory ? peakHeap : null,
+    violations: violations.length,
+    violationDetail: violations.slice(0, 5),
+    cores: navigator.hardwareConcurrency,
+    userAgent: navigator.userAgent,
+  });
+  render(outcome, remember(outcome));
+  window.__probeResult = outcome;
 }
 
+/**
+ * Load Pyodide and pandas, then time a groupby and a trip across the FFI.
+ *
+ * Side effects: downloads the runtime and samples memory.
+ *
+ * @returns {Promise<object>} Timings in milliseconds and the WASM heap size.
+ * @throws {Error} If the groupby or the FFI check gives the wrong answer.
+ */
 async function run() {
   const { loadPyodide } = await import(`${INDEX_URL}pyodide.mjs`);
   const t0 = performance.now();
@@ -52,7 +87,9 @@ async function run() {
   const groupby = pyodide.runPython(GROUPBY);
   const t3 = performance.now();
   const ffi = pyodide.runPython(FFI);
-  if (groupby !== "{'a': 4, 'b': 6}" || ffi !== 5) throw new Error("unexpected probe result");
+  if (groupby !== EXPECTED_GROUPBY || ffi !== EXPECTED_FFI) {
+    throw new Error("unexpected probe outcome");
+  }
   samplePeak();
   return {
     status: "ok",
@@ -65,11 +102,42 @@ async function run() {
   };
 }
 
-function remember(result) {
+/**
+ * Record the current JS heap if it is the largest seen.
+ *
+ * Side effects: updates `peakHeap`.
+ */
+function samplePeak() {
+  if (performance.memory) peakHeap = Math.max(peakHeap, performance.memory.usedJSHeapSize);
+}
+
+/**
+ * Total what the page fetched, from the Resource Timing buffer.
+ *
+ * Side effects: none.
+ *
+ * @returns {{requests: number, transferBytes: number, decodedBytes: number}} Network totals.
+ */
+function networkTotals() {
+  const entries = performance.getEntriesByType("resource");
+  const transfer = entries.reduce((sum, entry) => sum + entry.transferSize, 0);
+  const decoded = entries.reduce((sum, entry) => sum + entry.decodedBodySize, 0);
+  return { requests: entries.length, transferBytes: transfer, decodedBytes: decoded };
+}
+
+/**
+ * Keep the last successful cold and warm outcome for side-by-side display.
+ *
+ * Side effects: reads and writes localStorage.
+ *
+ * @param {object} outcome This load's outcome.
+ * @returns {object} Saved outcomes keyed by kind; empty if storage is unavailable.
+ */
+function remember(outcome) {
   let saved = {};
   try {
     saved = JSON.parse(localStorage.getItem("probe") ?? "{}");
-    if (result.status === "ok") saved[result.kind] = result;
+    if (outcome.status === "ok") saved[outcome.kind] = outcome;
     localStorage.setItem("probe", JSON.stringify(saved));
   } catch {
     // Storage is a convenience here; the current run still renders.
@@ -77,9 +145,17 @@ function remember(result) {
   return saved;
 }
 
-function render(result, saved) {
+/**
+ * Show this load and the saved loads in the results table.
+ *
+ * Side effects: updates the page.
+ *
+ * @param {object} outcome This load's outcome.
+ * @param {object} saved Saved outcomes keyed by kind.
+ */
+function render(outcome, saved) {
   document.getElementById("status").textContent =
-    result.status === "ok" ? `Done: ${result.kind} load.` : `Failed: ${result.error}`;
+    outcome.status === "ok" ? `Done: ${outcome.kind} load.` : `Failed: ${outcome.error}`;
   const metrics = [
     ["totalMs", "Total, ms"],
     ["loadPyodideMs", "loadPyodide, ms"],
@@ -91,31 +167,23 @@ function render(result, saved) {
     ["wasmHeapBytes", "WASM heap, bytes"],
     ["violations", "CSP violations"],
   ];
-  const format = (value) => (typeof value === "number" ? String(Math.round(value)) : (value ?? "–"));
   const body = document.getElementById("rows");
   for (const [key, label] of metrics) {
     const row = body.insertRow();
-    for (const text of [label, result[key], saved.cold?.[key], saved.warm?.[key]]) {
-      row.insertCell().textContent = format(text);
+    for (const text of [label, outcome[key], saved.cold?.[key], saved.warm?.[key]]) {
+      row.insertCell().textContent = formatCell(text);
     }
   }
 }
 
-let result;
-try {
-  result = await Promise.race([run(), blocked]);
-} catch (error) {
-  result = { status: "error", error: String(error?.message ?? error).slice(0, 200) };
+/**
+ * Format one table cell.
+ *
+ * Side effects: none.
+ *
+ * @param {number|string|null|undefined} value Cell value.
+ * @returns {string} Rounded number, the text itself, or a dash when missing.
+ */
+function formatCell(value) {
+  return typeof value === "number" ? String(Math.round(value)) : (value ?? "–");
 }
-clearInterval(sampler);
-const network = networkTotals();
-Object.assign(result, network, {
-  kind: network.transferBytes > COLD_BYTES ? "cold" : "warm",
-  peakJsHeapBytes: performance.memory ? peakHeap : null,
-  violations: violations.length,
-  violationDetail: violations.slice(0, 5),
-  cores: navigator.hardwareConcurrency,
-  userAgent: navigator.userAgent,
-});
-render(result, remember(result));
-window.__probeResult = result;

@@ -12,7 +12,9 @@ dependencies = []
 dev = [
     "import-linter>=2.15",
     "pre-commit>=4.7.0",
+    "pydoclint>=0.12.0",
     "pytest>=9.2.0",
+    "ruff>=0.17.3",
 ]
 
 [build-system]
@@ -24,5 +26,47 @@ packages = ["src/mpesa_core"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["tests/guards"]
+pythonpath = ["tests/guards", "tools/guards"]
 addopts = "--import-mode=importlib -p no:cacheprovider"
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+src = ["src", "tools", "tools/guards", "tests/guards"]
+
+[tool.ruff.lint]
+select = [
+  "D", "E", "F", "I", "B", "B904", "BLE", "S110", "E722", "FBT", "C901",
+  "PLR0912", "PLR0913", "PLR0915", "N", "T20",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# The only exemption: test names carry the contract (docs/CODING_STANDARDS.md, section 3).
+"tests/**" = ["D"]
+# Guards and tool scripts exist to print file names and counts to the terminal.
+"tools/**" = ["T201"]
+
+[tool.ruff.lint.flake8-bandit]
+# S110 ignores typed excepts by default; those swallow errors just as silently.
+check-typed-exception = true
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 5
+
+[tool.pydoclint]
+style = "google"
+arg-type-hints-in-signature = false
+arg-type-hints-in-docstring = false
+check-return-types = false
+check-yield-types = false
+skip-checking-short-docstrings = false
+skip-checking-raises = false
+# The standards require a docstring on every method, __init__ included.
+allow-init-docstring = true
+check-class-attributes = false

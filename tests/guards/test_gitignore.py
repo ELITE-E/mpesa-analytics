@@ -3,6 +3,7 @@ import subprocess
 import tomllib
 
 import pytest
+
 from conftest import GUARDS, REPO, git
 
 
@@ -14,9 +15,7 @@ def repo(tmp_path):
 
 
 def ignored(repo, rel):
-    return (
-        subprocess.run(["git", "check-ignore", "-q", rel], cwd=repo).returncode == 0
-    )
+    return subprocess.run(["git", "check-ignore", "-q", rel], cwd=repo).returncode == 0
 
 
 @pytest.mark.parametrize(

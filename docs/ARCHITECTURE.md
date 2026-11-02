@@ -16,10 +16,17 @@
 | 2 | `check_pdf_location.py` | yes | yes |
 | 3 | `check_risky_types.py` | yes | yes |
 | 4 | `check_fixture_provenance.py` | yes | yes |
-| 5 | `check_secrets.py` (gitleaks) | staged, history | staged, history |
+| 5 | `check_secrets.py` (gitleaks) | staged | staged, history |
 | 6 | `check_imports.py` (import-linter) | yes | yes |
 | 7 | `check_core_purity.py` | yes | yes |
 | 8 | `check_wheel.py` | no | yes |
+| - | `check_function_docstrings.py` | yes | yes |
+| - | `check_banned_names.py` | yes | yes |
+| - | ruff lint and format, pydoclint | yes | yes |
+| - | ESLint, Prettier | yes | yes |
+| - | Guard tests, Pyodide import check | no | yes |
+
+`tools/guards/error_message_safety.py` is a test helper rather than a guard (ADR 0004).
 
 The file walk prunes tooling directories such as `.venv` and the vendored runtime. Each pruned
 location must also be gitignored, and anything git tracks is checked even under a pruned path.

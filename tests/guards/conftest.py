@@ -46,11 +46,11 @@ def plant(root, rel, content=""):
     return path
 
 
-def assert_fails_quietly(result, name, *secrets):
+def assert_fails_quietly(guard_run, name, *secrets):
     """Guard must exit 1, name the file, and never echo the matched text."""
-    assert result.returncode == 1, result.stdout + result.stderr
-    assert name in result.stdout
-    output = result.stdout + result.stderr
+    assert guard_run.returncode == 1, guard_run.stdout + guard_run.stderr
+    assert name in guard_run.stdout
+    output = guard_run.stdout + guard_run.stderr
     for secret in secrets:
         assert secret not in output
 

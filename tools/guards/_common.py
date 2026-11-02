@@ -12,10 +12,12 @@ from pathlib import Path
 
 GUARDS_DIR = Path(__file__).resolve().parent
 REPO = GUARDS_DIR.parents[1]
-CONFIG = tomllib.loads((GUARDS_DIR / "guards.toml").read_text(encoding="utf-8"))
+CONFIG_PATH = GUARDS_DIR / "guards.toml"
+CONFIG = tomllib.loads(CONFIG_PATH.read_text(encoding="utf-8"))
 SYNTHETIC = "fixtures/synthetic/"
 
 MASK_CHARS = "Xx*#•"
+MIN_MASK_CHARS = 2
 # (name, pattern, exempt in lockfiles)
 RULES = [
     ("phone", re.compile(r"(?<!\d)\+?2547\d{8}(?!\d)"), True),
@@ -26,7 +28,8 @@ RULES = [
     (
         "masked",
         re.compile(
-            rf"(?<![0-9A-Za-z])(?:\+?254[ -]?|0)[17](?:[ -]?[0-9{MASK_CHARS}]){{5,10}}(?![0-9A-Za-z])"
+            r"(?<![0-9A-Za-z])(?:\+?254[ -]?|0)[17]"
+            rf"(?:[ -]?[0-9{MASK_CHARS}]){{5,10}}(?![0-9A-Za-z])"
         ),
         False,
     ),
@@ -34,84 +37,194 @@ RULES = [
 ]
 # Hex digests hold 10-digit runs often enough (about 1 sha256 in 4) to need excluding.
 _DIGEST = re.compile(r"(?<![0-9A-Za-z])(?:[0-9a-f]{40}|[0-9a-f]{64})(?![0-9A-Za-z])")
-_FAKE = [re.compile(p) for p in CONFIG["patterns"]["fake_ranges"]]
+_FAKE = [re.compile(pattern) for pattern in CONFIG["patterns"]["fake_ranges"]]
 _LOCKFILES = set(CONFIG["patterns"]["lockfiles"])
 
 
-def _is_token(name, text):
-    # A masked token needs real masking, otherwise it is only a run of digits.
-    return name != "masked" or sum(text.count(c) for c in MASK_CHARS) >= 2
-
-
-def _is_fake(token):
-    plain = re.sub(r"[ +-]", "", token)
-    return any(p.fullmatch(plain) for p in _FAKE)
-
-
-def find_tokens(text, rel=None):
-    """Return the set of spans holding a finding. `rel` selects path-based exemptions."""
-    is_lock = rel is not None and rel.rsplit("/", 1)[-1] in _LOCKFILES
-    in_fixtures = rel is not None and rel.startswith(SYNTHETIC)
-    digests = [m.span() for m in _DIGEST.finditer(text)]
-    spans = set()
-    for name, pattern, lock_exempt in RULES:
-        if is_lock and lock_exempt:
-            continue
-        for match in pattern.finditer(text):
-            if not _is_token(name, match.group()):
-                continue
-            if in_fixtures and _is_fake(match.group()):
-                continue
-            if any(start <= match.start() and match.end() <= end for start, end in digests):
-                continue
-            spans.add(match.span())
-    return spans
-
-
-def display_name(rel):
-    """Redact any token in a file name before it reaches the terminal."""
-    spans = sorted(find_tokens(rel), reverse=True)
-    for start, end in spans:
-        rel = f"{rel[:start]}[redacted]{rel[end:]}"
-    return rel
-
-
 def parse_root(description):
+    """Build the argument parser every guard shares.
+
+    Args:
+        description: Help text for the guard.
+
+    Returns:
+        A parser that accepts ``--root``, defaulting to this repo.
+
+    Side Effects:
+        None.
+    """
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--root", type=Path, default=REPO)
     return parser
 
 
 def iter_files(root):
-    """Yield repo-relative POSIX paths: the pruned walk plus everything git tracks."""
+    """List the files a guard must check: the pruned walk plus everything git tracks.
+
+    Args:
+        root: Directory to walk.
+
+    Returns:
+        Sorted repo-relative POSIX paths.
+
+    Side Effects:
+        Reads the directory tree and runs ``git ls-files`` when ``root`` is a repo.
+    """
     root = Path(root).resolve()
-    walk = CONFIG["walk"]
-    names, paths = {".git", *walk["prune_names"]}, set(walk["prune_paths"])
-    found = set()
-    for directory, subdirs, files in root.walk():
-        rel_dir = directory.relative_to(root).as_posix()
-        subdirs[:] = [
-            d
-            for d in subdirs
-            if d not in names and (d if rel_dir == "." else f"{rel_dir}/{d}") not in paths
-        ]
-        found.update((directory / f).relative_to(root).as_posix() for f in files)
+    found = _walk_unpruned(root)
     if (root / ".git").exists():
-        tracked = subprocess.run(
-            ["git", "-C", str(root), "ls-files", "-c", "-z"],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout
-        found.update(p for p in tracked.split("\0") if p)
+        found.update(_tracked_files(root))
     return sorted(found)
 
 
 def report(guard, findings, noun="finding(s)"):
-    """Print one `file: count noun` line per file and return the exit code."""
+    """Print one line per file and a verdict.
+
+    Args:
+        guard: Guard name shown on the verdict line.
+        findings: Map of repo-relative path to finding count.
+        noun: What the counts are counting.
+
+    Returns:
+        Process exit code: 1 when there are findings, otherwise 0.
+
+    Side Effects:
+        Writes to stdout.
+    """
     for rel, count in sorted(findings.items()):
         print(f"{display_name(rel)}: {count} {noun}")
     total = sum(findings.values())
     status = "FAIL" if findings else "PASS"
     print(f"{guard}: {status} ({total} in {len(findings)} file(s))")
     return 1 if findings else 0
+
+
+def find_tokens(text, rel=None):
+    """Locate phone numbers, masked phones and receipt-like tokens.
+
+    Args:
+        text: Text to search.
+        rel: Repo-relative path of the text, which selects path-based exemptions.
+
+    Returns:
+        Set of ``(start, end)`` spans, one per distinct token.
+
+    Side Effects:
+        None.
+    """
+    is_lock = rel is not None and rel.rsplit("/", 1)[-1] in _LOCKFILES
+    in_fixtures = rel is not None and rel.startswith(SYNTHETIC)
+    digests = [match.span() for match in _DIGEST.finditer(text)]
+    spans = set()
+    for name, pattern, lock_exempt in RULES:
+        if is_lock and lock_exempt:
+            continue
+        for match in pattern.finditer(text):
+            if _is_exempt(match, name, in_fixtures=in_fixtures, digests=digests):
+                continue
+            spans.add(match.span())
+    return spans
+
+
+def display_name(rel):
+    """Redact any token in a file name before it reaches the terminal.
+
+    Args:
+        rel: Repo-relative path.
+
+    Returns:
+        The path with every token replaced by ``[redacted]``.
+
+    Side Effects:
+        None.
+    """
+    for start, end in sorted(find_tokens(rel), reverse=True):
+        rel = f"{rel[:start]}[redacted]{rel[end:]}"
+    return rel
+
+
+def _is_exempt(match, name, *, in_fixtures, digests):
+    """Decide whether a pattern match is not a real finding.
+
+    Args:
+        match: The regex match.
+        name: Name of the rule that matched.
+        in_fixtures: Whether the text lives in the synthetic fixtures directory.
+        digests: Spans of complete hex digests in the same text.
+
+    Returns:
+        True if the match should be ignored.
+
+    Side Effects:
+        None.
+    """
+    token = match.group()
+    if name == "masked" and sum(token.count(mask) for mask in MASK_CHARS) < MIN_MASK_CHARS:
+        return True
+    if in_fixtures and _is_fake(token):
+        return True
+    return any(start <= match.start() and match.end() <= end for start, end in digests)
+
+
+def _is_fake(token):
+    """Check a token against the declared fake phone ranges.
+
+    Args:
+        token: Matched text, possibly with separators.
+
+    Returns:
+        True if the token falls inside a declared fake range.
+
+    Side Effects:
+        None.
+    """
+    plain = re.sub(r"[ +-]", "", token)
+    return any(pattern.fullmatch(plain) for pattern in _FAKE)
+
+
+def _walk_unpruned(root):
+    """Walk a directory, skipping the tooling locations listed in guards.toml.
+
+    Args:
+        root: Resolved directory to walk.
+
+    Returns:
+        Set of repo-relative POSIX paths.
+
+    Side Effects:
+        Reads the directory tree.
+    """
+    walk = CONFIG["walk"]
+    names, paths = {".git", *walk["prune_names"]}, set(walk["prune_paths"])
+    found = set()
+    for directory, subdirs, files in root.walk():
+        rel_dir = directory.relative_to(root).as_posix()
+        subdirs[:] = [
+            subdir
+            for subdir in subdirs
+            if subdir not in names
+            and (subdir if rel_dir == "." else f"{rel_dir}/{subdir}") not in paths
+        ]
+        found.update((directory / name).relative_to(root).as_posix() for name in files)
+    return found
+
+
+def _tracked_files(root):
+    """List what git tracks, so a force-added file cannot hide in a pruned location.
+
+    Args:
+        root: Resolved repository root.
+
+    Returns:
+        Repo-relative POSIX paths.
+
+    Side Effects:
+        Runs ``git ls-files``.
+    """
+    tracked = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "-c", "-z"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    return [path for path in tracked.split("\0") if path]

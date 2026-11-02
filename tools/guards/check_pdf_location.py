@@ -7,6 +7,14 @@ from _common import SYNTHETIC, iter_files, parse_root, report
 
 
 def main():
+    """Report every PDF outside the synthetic fixtures directory.
+
+    Returns:
+        Process exit code: 1 when a PDF is misplaced, otherwise 0.
+
+    Side Effects:
+        Reads the tree and writes the report to stdout.
+    """
     args = parse_root(__doc__).parse_args()
     findings = {
         rel: 1

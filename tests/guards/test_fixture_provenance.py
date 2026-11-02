@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 
 import pytest
+
 from conftest import REPO, assert_fails_quietly, plant, run_guard
 
 GUARD = "check_fixture_provenance.py"
@@ -27,12 +28,12 @@ def manifest(entries, version):
 @pytest.fixture
 def tree(tmp_path):
     gen = stub()
-    data = gen.generate(7, "dummy.txt")
-    plant(tmp_path, f"{FIXTURES}/dummy.txt", data)
+    fixture_bytes = gen.generate(7, "dummy.txt")
+    plant(tmp_path, f"{FIXTURES}/dummy.txt", fixture_bytes)
     plant(
         tmp_path,
         f"{FIXTURES}/MANIFEST.toml",
-        manifest([("dummy.txt", 7, hashlib.sha256(data).hexdigest())], gen.VERSION),
+        manifest([("dummy.txt", 7, hashlib.sha256(fixture_bytes).hexdigest())], gen.VERSION),
     )
     return tmp_path
 
@@ -44,8 +45,8 @@ def test_generator_is_deterministic_and_seed_sensitive():
 
 
 def test_matching_fixture_passes(tree):
-    result = run_guard(GUARD, "--root", tree)
-    assert result.returncode == 0, result.stdout
+    guard_run = run_guard(GUARD, "--root", tree)
+    assert guard_run.returncode == 0, guard_run.stdout
 
 
 def test_hand_edited_fixture_fails(tree):
@@ -98,5 +99,5 @@ def test_missing_manifest_fails(tree):
 
 
 def test_real_repo_passes():
-    result = run_guard(GUARD)
-    assert result.returncode == 0, result.stdout
+    guard_run = run_guard(GUARD)
+    assert guard_run.returncode == 0, guard_run.stdout

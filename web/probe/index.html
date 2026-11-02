@@ -1,20 +1,32 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pandas Probe</title>
-<link rel="stylesheet" href="probe.css">
-</head>
-<body>
-<h1>Pandas probe</h1>
-<p>Loads Pyodide and pandas and runs one DataFrame groupby. Synthetic data only; nothing leaves this page.</p>
-<p id="status">Running…</p>
-<table>
-<thead><tr><th>Metric</th><th>This load</th><th>Last cold</th><th>Last warm</th></tr></thead>
-<tbody id="rows"></tbody>
-</table>
-<p>Cold load: DevTools Network tab, tick “Disable cache”, reload. Warm load: untick it, reload.</p>
-<script type="module" src="probe.js"></script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pandas Probe</title>
+    <link rel="stylesheet" href="probe.css" />
+  </head>
+  <body>
+    <h1>Pandas probe</h1>
+    <p>
+      Loads Pyodide and pandas and runs one DataFrame groupby. Synthetic data only; nothing leaves
+      this page.
+    </p>
+    <p id="status">Running…</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>This load</th>
+          <th>Last cold</th>
+          <th>Last warm</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p>
+      Cold load: DevTools Network tab, tick “Disable cache”, reload. Warm load: untick it, reload.
+    </p>
+    <script type="module" src="probe.js"></script>
+  </body>
 </html>

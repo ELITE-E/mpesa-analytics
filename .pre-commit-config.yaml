@@ -1,4 +1,5 @@
 # Local hooks only: every guard lives in this repo and needs no download at commit time.
+# Fast checks only. Full gitleaks history, tests, Pyodide and the wheel run in CI.
 minimum_pre_commit_version: "4.0.0"
 repos:
   - repo: local
@@ -38,12 +39,6 @@ repos:
         pass_filenames: false
         always_run: true
 
-      - id: gitleaks-history
-        name: gitleaks (full history)
-        entry: uv run --frozen python tools/guards/check_secrets.py --mode history
-        language: system
-        pass_filenames: false
-        always_run: true
 
       - id: import-linter
         name: import-linter
@@ -55,6 +50,48 @@ repos:
       - id: core-purity
         name: core purity
         entry: uv run --frozen python tools/guards/check_core_purity.py
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: function-docstrings
+        name: function docstrings
+        entry: uv run --frozen python tools/guards/check_function_docstrings.py
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: banned-names
+        name: banned names
+        entry: uv run --frozen python tools/guards/check_banned_names.py
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: ruff-check
+        name: ruff lint
+        entry: uv run --frozen ruff check .
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --frozen ruff format --check .
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: pydoclint
+        name: pydoclint
+        entry: uv run --frozen pydoclint src tools web/probe
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: eslint
+        name: eslint
+        entry: uv run --frozen python tools/guards/run_node_tool.py eslint .
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: prettier
+        name: prettier
+        entry: uv run --frozen python tools/guards/run_node_tool.py prettier --check .
         language: system
         pass_filenames: false
         always_run: true

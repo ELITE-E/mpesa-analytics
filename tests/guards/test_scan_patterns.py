@@ -1,4 +1,5 @@
 import pytest
+
 from conftest import assert_fails_quietly, git, plant, run_guard
 
 GUARD = "scan_patterns.py"
@@ -41,9 +42,9 @@ def test_count_is_reported_once_per_token(clean_tree):
     # The local form also looks like a receipt; it must still count once.
     text = " ".join(["2547" + "12345678", "07" + "12345678", "QGH" + "1234ABC"])
     plant(clean_tree, "a.txt", text)
-    result = run_guard(GUARD, "--root", clean_tree)
-    assert result.returncode == 1
-    assert "a.txt: 3 " in result.stdout
+    guard_run = run_guard(GUARD, "--root", clean_tree)
+    assert guard_run.returncode == 1
+    assert "a.txt: 3 " in guard_run.stdout
 
 
 @pytest.mark.parametrize(
@@ -62,8 +63,8 @@ def test_count_is_reported_once_per_token(clean_tree):
 )
 def test_lookarounds_reject_near_misses(clean_tree, text):
     plant(clean_tree, "a.txt", f"x {text} y\n")
-    result = run_guard(GUARD, "--root", clean_tree)
-    assert result.returncode == 0, result.stdout
+    guard_run = run_guard(GUARD, "--root", clean_tree)
+    assert guard_run.returncode == 0, guard_run.stdout
 
 
 @pytest.mark.parametrize("token", [FAKE_INTL, FAKE_LOCAL])
@@ -104,8 +105,8 @@ def test_non_lockfile_with_lock_in_name_is_not_exempt(clean_tree):
 def test_token_in_file_name_fails_and_name_is_redacted(clean_tree):
     token = "2547" + "12345678"
     plant(clean_tree, f"docs/statement_{token}.txt", "nothing\n")
-    result = run_guard(GUARD, "--root", clean_tree)
-    assert_fails_quietly(result, "docs/statement_", token)
+    guard_run = run_guard(GUARD, "--root", clean_tree)
+    assert_fails_quietly(guard_run, "docs/statement_", token)
 
 
 def test_force_tracked_file_in_pruned_dir_is_scanned(clean_tree):
@@ -124,8 +125,8 @@ DIGITS = "1234" + "567890"
 def test_digit_run_inside_full_hex_digest_passes(clean_tree, length):
     digest = "a" * 16 + DIGITS + "b" * (length - 26)
     plant(clean_tree, "docs/hashes.md", f"sha256 `{digest}`\n")
-    result = run_guard(GUARD, "--root", clean_tree)
-    assert result.returncode == 0, result.stdout
+    guard_run = run_guard(GUARD, "--root", clean_tree)
+    assert guard_run.returncode == 0, guard_run.stdout
 
 
 @pytest.mark.parametrize("length", [39, 41, 63, 65], ids=str)
@@ -144,6 +145,13 @@ def test_token_glued_to_lowercase_still_fails(clean_tree, token):
     assert_fails_quietly(run_guard(GUARD, "--root", clean_tree), "docs/note.md", token)
 
 
+@pytest.mark.parametrize("separator", [" ", "", "-"], ids=["space", "glued", "hyphen"])
+def test_receipt_like_token_next_to_a_hash_still_fails(clean_tree, separator):
+    token = "QGH" + "1234ABC"
+    plant(clean_tree, "docs/hashes.md", "a" * 64 + separator + token)
+    assert_fails_quietly(run_guard(GUARD, "--root", clean_tree), "docs/hashes.md", token)
+
+
 def test_real_repo_has_zero_findings():
-    result = run_guard(GUARD)
-    assert result.returncode == 0, result.stdout
+    guard_run = run_guard(GUARD)
+    assert guard_run.returncode == 0, guard_run.stdout

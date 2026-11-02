@@ -7,6 +7,14 @@ from _common import find_tokens, iter_files, parse_root, report
 
 
 def main():
+    """Scan every file's name and contents.
+
+    Returns:
+        Process exit code: 1 when any token is found, otherwise 0.
+
+    Side Effects:
+        Reads the tree and writes the report to stdout.
+    """
     args = parse_root(__doc__).parse_args()
     findings = {}
     for rel in iter_files(args.root):

@@ -11,6 +11,7 @@ Status: accepted. Closes OQ-06. Measured 2026-11-02 from the files `tools/vendor
 | pandas (Pyodide wheel) | 3.0.2 | |
 | numpy (Pyodide wheel) | 2.4.6 | |
 | gitleaks | 8.30.1 | Linux x64 binary, dev tool only, never shipped. |
+| Node (lint hooks) | 24.21.0 | Linux x64 binary under `.cache/bin`, dev tool only, never shipped. Git hooks use it because an editor may start them without nvm on PATH. |
 | CPython (dev, CI) | 3.14 | `.python-version`; same minor as Pyodide. |
 
 Pyodide has moved to a new version scheme: 314.x tracks Python 3.14. Older lines (0.29.x, 0.27.x)

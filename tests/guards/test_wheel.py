@@ -1,6 +1,7 @@
 import zipfile
 
 import pytest
+
 from conftest import run_guard
 
 GUARD = "check_wheel.py"
@@ -16,8 +17,8 @@ def wheel(tmp_path, name="mpesa_core-0.0.0-py3-none-any.whl", entries=GOOD):
 
 
 def test_good_wheel_passes(tmp_path):
-    result = run_guard(GUARD, wheel(tmp_path))
-    assert result.returncode == 0, result.stdout
+    guard_run = run_guard(GUARD, wheel(tmp_path))
+    assert guard_run.returncode == 0, guard_run.stdout
 
 
 @pytest.mark.parametrize(
@@ -29,19 +30,24 @@ def test_good_wheel_passes(tmp_path):
     ],
 )
 def test_wrong_name_or_tag_fails(tmp_path, name):
-    result = run_guard(GUARD, wheel(tmp_path, name=name))
-    assert result.returncode == 1
-    assert name in result.stdout
+    guard_run = run_guard(GUARD, wheel(tmp_path, name=name))
+    assert guard_run.returncode == 1
+    assert name in guard_run.stdout
 
 
 @pytest.mark.parametrize(
     "extra",
-    ["tools/guards/x.py", "fixtures/synthetic/a.pdf", "stray.py", "mpesa_core-0.0.0.data/scripts/x"],
+    [
+        "tools/guards/x.py",
+        "fixtures/synthetic/a.pdf",
+        "stray.py",
+        "mpesa_core-0.0.0.data/scripts/x",
+    ],
 )
 def test_extra_content_fails(tmp_path, extra):
-    result = run_guard(GUARD, wheel(tmp_path, entries=[*GOOD, extra]))
-    assert result.returncode == 1
-    assert "1 " in result.stdout
+    guard_run = run_guard(GUARD, wheel(tmp_path, entries=[*GOOD, extra]))
+    assert guard_run.returncode == 1
+    assert "1 " in guard_run.stdout
 
 
 def test_wheel_without_package_fails(tmp_path):

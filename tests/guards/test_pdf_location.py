@@ -1,4 +1,5 @@
 import pytest
+
 from conftest import assert_fails_quietly, plant, run_guard
 
 GUARD = "check_pdf_location.py"

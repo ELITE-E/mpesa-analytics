@@ -1,6 +1,7 @@
 import re
 
 import pytest
+
 from conftest import REPO
 
 BOTH = [

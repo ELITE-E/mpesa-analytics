@@ -1,4 +1,5 @@
 import pytest
+
 from conftest import assert_fails_quietly, plant, run_guard
 
 GUARD = "check_core_purity.py"
@@ -50,11 +51,13 @@ def test_count_is_reported(clean_tree):
     assert f"{CORE}/rows.py: 3 " in run_guard(GUARD, "--root", clean_tree).stdout
 
 
-@pytest.mark.parametrize("source", ["import js\n", "from js import fetch\n", "import pyodide.ffi\n"])
+@pytest.mark.parametrize(
+    "source", ["import js\n", "from js import fetch\n", "import pyodide.ffi\n"]
+)
 def test_js_and_pyodide_allowed_in_bridge(clean_tree, source):
     plant(clean_tree, f"{CORE}/bridge.py", source)
-    result = run_guard(GUARD, "--root", clean_tree)
-    assert result.returncode == 0, result.stdout
+    guard_run = run_guard(GUARD, "--root", clean_tree)
+    assert guard_run.returncode == 0, guard_run.stdout
 
 
 def test_bridge_still_bans_the_rest(clean_tree):
@@ -79,8 +82,8 @@ def test_syntax_error_fails_closed(clean_tree):
 )
 def test_allowed_code_passes(clean_tree, source):
     plant(clean_tree, f"{CORE}/rows.py", source)
-    result = run_guard(GUARD, "--root", clean_tree)
-    assert result.returncode == 0, result.stdout
+    guard_run = run_guard(GUARD, "--root", clean_tree)
+    assert guard_run.returncode == 0, guard_run.stdout
 
 
 def test_clean_tree_passes(clean_tree):

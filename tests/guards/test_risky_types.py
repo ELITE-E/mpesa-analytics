@@ -1,10 +1,23 @@
 import pytest
+
 from conftest import assert_fails_quietly, plant, run_guard
 
 GUARD = "check_risky_types.py"
 RISKY = [
-    "a.csv", "a.xlsx", "a.xls", "a.db", "a.sqlite", "a.sqlite3", "a.log", ".env",
-    ".env.local", "a.ipynb", "a.jsonl", "a.dump", "UPPER.CSV", "a.json",
+    "a.csv",
+    "a.xlsx",
+    "a.xls",
+    "a.db",
+    "a.sqlite",
+    "a.sqlite3",
+    "a.log",
+    ".env",
+    ".env.local",
+    "a.ipynb",
+    "a.jsonl",
+    "a.dump",
+    "UPPER.CSV",
+    "a.json",
 ]
 
 
@@ -18,11 +31,13 @@ def test_risky_type_fails(clean_tree, name):
 @pytest.mark.parametrize("name", ["a.csv", "a.xlsx", "a.json", "sub/a.json"])
 def test_allowlisted_in_fixtures_passes(clean_tree, name):
     plant(clean_tree, f"fixtures/synthetic/{name}", "x")
-    result = run_guard(GUARD, "--root", clean_tree)
-    assert result.returncode == 0, result.stdout
+    guard_run = run_guard(GUARD, "--root", clean_tree)
+    assert guard_run.returncode == 0, guard_run.stdout
 
 
-@pytest.mark.parametrize("name", [".env", "a.db", "a.log", "a.sqlite", "a.ipynb", "a.dump", "a.jsonl"])
+@pytest.mark.parametrize(
+    "name", [".env", "a.db", "a.log", "a.sqlite", "a.ipynb", "a.dump", "a.jsonl"]
+)
 def test_not_every_risky_type_is_allowed_in_fixtures(clean_tree, name):
     rel = f"fixtures/synthetic/{name}"
     plant(clean_tree, rel, "x")

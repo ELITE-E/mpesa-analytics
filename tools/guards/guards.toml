@@ -24,4 +24,16 @@ risky_suffixes = [
 risky_allow = ["fixtures/synthetic/*.csv", "fixtures/synthetic/*.xlsx"]
 json_allow_dirs = ["fixtures/synthetic/"]
 # Exact paths.
-json_allow = ["web/package.json", "web/package-lock.json"]
+json_allow = ["package.json", "package-lock.json", "web/package.json", "web/package-lock.json"]
+
+[names]
+# Enforced by check_banned_names.py; eslint.config.mjs keeps the same lists for JS and TS.
+generic = ["data", "result", "temp", "tmp", "info", "item", "obj", "ref", "flag", "res", "ret", "val"]
+loop_letters = ["i", "j", "k", "x", "y"]
+# Rejected wherever they appear, including calls. See docs/glossary.md.
+banned_names = ["import_mpesa_statement"]
+# Each exception is scoped to one file:
+#   [[names.allow]]
+#   name = "..."
+#   path = "..."
+#   reason = "..."

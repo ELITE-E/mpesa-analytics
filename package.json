@@ -1,0 +1,13 @@
+{
+  "name": "mpesa-analytics-tooling",
+  "private": true,
+  "type": "module",
+  "description": "Dev-only lint and format tooling. Nothing here ships.",
+  "devDependencies": {
+    "eslint": "10.14.0",
+    "eslint-plugin-jsdoc": "65.4.2",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1"
+  }
+}

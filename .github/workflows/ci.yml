@@ -26,6 +26,7 @@ jobs:
         with:
           node-version: "24"
       - run: uv sync
+      - run: npm ci --no-audit --no-fund
       - name: Fetch and verify pinned runtime
         run: uv run python tools/vendor.py fetch
       - name: Guard 1, patterns
@@ -44,6 +45,20 @@ jobs:
         run: uv run python tools/guards/check_imports.py
       - name: Guard 7, core purity
         run: uv run python tools/guards/check_core_purity.py
+      - name: Function docstrings
+        run: uv run python tools/guards/check_function_docstrings.py
+      - name: Banned names and vocabulary
+        run: uv run python tools/guards/check_banned_names.py
+      - name: Ruff lint
+        run: uv run ruff check .
+      - name: Ruff format
+        run: uv run ruff format --check .
+      - name: Pydoclint
+        run: uv run pydoclint src tools web/probe
+      - name: ESLint
+        run: node_modules/.bin/eslint .
+      - name: Prettier
+        run: node_modules/.bin/prettier --check .
       - name: Tests
         run: uv run pytest
       - name: Core imports under Pyodide

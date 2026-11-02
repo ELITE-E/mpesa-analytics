@@ -1,0 +1,9 @@
+# Prettier owns source and tool config only. Prose and generated files keep their own form.
+*.md
+*.yaml
+*.yml
+*.toml
+package-lock.json
+web/public/vendor/
+.cache/
+.venv/

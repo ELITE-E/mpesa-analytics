@@ -1,4 +1,5 @@
 import pytest
+
 from conftest import assert_fails_quietly, git, plant, run_guard
 
 GUARD = "check_secrets.py"
@@ -26,8 +27,8 @@ def test_staged_secret_fails(repo):
 
 def test_clean_staged_passes(repo):
     git(repo, "add", "README.md")
-    result = run_guard(GUARD, "--root", repo, "--mode", "staged")
-    assert result.returncode == 0, result.stdout
+    guard_run = run_guard(GUARD, "--root", repo, "--mode", "staged")
+    assert guard_run.returncode == 0, guard_run.stdout
 
 
 def test_secret_in_old_commit_fails_history(repo):
@@ -40,14 +41,14 @@ def test_secret_in_old_commit_fails_history(repo):
 
 def test_clean_history_passes(repo):
     commit(repo)
-    result = run_guard(GUARD, "--root", repo, "--mode", "history")
-    assert result.returncode == 0, result.stdout
+    guard_run = run_guard(GUARD, "--root", repo, "--mode", "history")
+    assert guard_run.returncode == 0, guard_run.stdout
 
 
 def test_empty_history_passes_and_says_so(repo):
-    result = run_guard(GUARD, "--root", repo, "--mode", "history")
-    assert result.returncode == 0, result.stdout
-    assert "0 commits" in result.stdout
+    guard_run = run_guard(GUARD, "--root", repo, "--mode", "history")
+    assert guard_run.returncode == 0, guard_run.stdout
+    assert "0 commits" in guard_run.stdout
 
 
 def test_untracked_secret_fails_tree(repo):
@@ -56,5 +57,5 @@ def test_untracked_secret_fails_tree(repo):
 
 
 def test_real_repo_tree_is_clean():
-    result = run_guard(GUARD, "--mode", "tree")
-    assert result.returncode == 0, result.stdout
+    guard_run = run_guard(GUARD, "--mode", "tree")
+    assert guard_run.returncode == 0, guard_run.stdout
