@@ -2,6 +2,7 @@
 """Guard 4: every fixture regenerates byte-identically from its manifest seed."""
 
 import hashlib
+import json
 import sys
 import tomllib
 from pathlib import PurePosixPath
@@ -48,15 +49,20 @@ def check(root):
     if manifest.get("generator_version") != generator.VERSION or "fake_password" not in manifest:
         findings[MANIFEST] = 1
     listed = set()
-    for entry in manifest.get("fixture", []):
-        name = PurePosixPath(entry["path"])
-        if ".." in name.parts or name.is_absolute():
-            findings[MANIFEST] = findings.get(MANIFEST, 0) + 1
-            continue
-        rel = f"{SYNTHETIC}{name}"
-        listed.add(rel)
-        if not _fixture_matches(root / rel, entry):
-            findings[rel] = 1
+    checks = (
+        (manifest.get("fixture", []), lambda rel, entry: _fixture_matches(root / rel, entry)),
+        (manifest.get("recorded", []), lambda rel, entry: _recording_matches(root, rel, entry)),
+    )
+    for entries, matches in checks:
+        for entry in entries:
+            name = PurePosixPath(entry["path"])
+            if ".." in name.parts or name.is_absolute():
+                findings[MANIFEST] = findings.get(MANIFEST, 0) + 1
+                continue
+            rel = f"{SYNTHETIC}{name}"
+            listed.add(rel)
+            if not matches(rel, entry):
+                findings[rel] = 1
     for rel in iter_files(root):
         if rel.startswith(SYNTHETIC) and rel not in listed and rel not in IGNORED:
             findings[rel] = 1
@@ -81,6 +87,35 @@ def _fixture_matches(target, entry):
     actual = target.read_bytes()
     same_bytes = actual == generator.generate(entry["seed"], entry["path"])
     return same_bytes and hashlib.sha256(actual).hexdigest() == entry["sha256"]
+
+
+def _recording_matches(root, rel, entry):
+    """Check a file recorded from pdf.js, which the Python generator cannot regenerate.
+
+    The engine's own test proves it reproduces. This proves it is unedited and still describes
+    the current source PDF.
+
+    Args:
+        root: Repo root to check.
+        rel: Repo-relative path of the recorded file.
+        entry: Its manifest entry, with ``source``, ``source_sha256``, ``engine`` and ``sha256``.
+
+    Returns:
+        True if the file and its source both match the manifest.
+
+    Side Effects:
+        Reads the recorded file and its source.
+    """
+    target = root / rel
+    source = root / f"{SYNTHETIC}{entry['source']}"
+    if not (target.is_file() and source.is_file()):
+        return False
+    recorded = target.read_bytes()
+    if hashlib.sha256(recorded).hexdigest() != entry["sha256"]:
+        return False
+    if hashlib.sha256(source.read_bytes()).hexdigest() != entry["source_sha256"]:
+        return False
+    return json.loads(recorded).get("engine") == entry["engine"]
 
 
 if __name__ == "__main__":

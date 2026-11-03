@@ -19,6 +19,7 @@ from synth.layout import COLUMNS, HEADER_LABELS, PAGE_HEIGHT, PAGE_WIDTH
 SEED = 11
 OPTIONS = StatementOptions(name="T-BASIC", row_count=90)
 PASSWORD = "synthetic-only"
+PDFMINER_TOP_SHIFT = 0.207
 FAKE_RECEIPT = re.compile(r"^ZZ[A-Z0-9]{8}$")
 ANY_TIME = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
 
@@ -43,7 +44,7 @@ def pdf_pages(outputs):
 
 @pytest.fixture(scope="module")
 def statement_pages(outputs):
-    return json.loads(outputs[".items.json"])
+    return json.loads(outputs[".model.json"])
 
 
 @pytest.fixture(scope="module")
@@ -140,7 +141,7 @@ def test_jitter_is_at_most_a_tenth_of_a_point_and_depends_on_the_seed(statement_
     center = COLUMNS[0].text_x0
     assert all(abs(edge - center) <= 0.1 for edge in edges)
     assert len(set(edges)) > 1
-    other = json.loads(build_outputs(SEED + 1, OPTIONS)[".items.json"])
+    other = json.loads(build_outputs(SEED + 1, OPTIONS)[".model.json"])
     assert [text_item["x0"] for text_item in anchor_items(other, 0)] != edges
 
 
@@ -152,7 +153,7 @@ def test_date_and_time_are_one_string_by_default(statement_pages):
 def test_split_datetime_variant_prints_two_strings_on_one_line():
     options = StatementOptions(name="T-SPLIT", row_count=20, split_datetime=True)
     outputs = build_outputs(SEED, options)
-    statement_pages = json.loads(outputs[".items.json"])
+    statement_pages = json.loads(outputs[".model.json"])
     items = statement_pages["pages"][0]["items"]
     assert not any(ANY_TIME.match(text_item["text"]) for text_item in items)
     dates = [
@@ -258,7 +259,7 @@ def test_every_merchant_is_an_example_till(expected):
 
 
 def test_generated_values_pass_guard_one_only_inside_fixtures(outputs):
-    for suffix in (".items.json", ".expected.json"):
+    for suffix in (".model.json", ".expected.json"):
         text = outputs[suffix].decode("utf-8")
         assert not find_tokens(text, f"fixtures/synthetic/T{suffix}")
         assert find_tokens(text, f"docs/T{suffix}")
@@ -291,7 +292,10 @@ def test_layout_model_matches_what_the_pdf_really_draws(statement_pages, pdf_pag
                 if word["text"] == text_item["text"] and abs(word["x0"] - text_item["x0"]) <= 0.2
             ]
             assert matches, "a modelled text item is missing from the PDF"
-            assert min(abs(word["top"] - text_item["top"]) for word in matches) <= 0.5
+            # The model uses pdf.js's reference; pdfminer's box sits 0.207 x size lower.
+            size = text_item["bottom"] - text_item["top"]
+            pdfminer_top = text_item["top"] + PDFMINER_TOP_SHIFT * size
+            assert min(abs(word["top"] - pdfminer_top) for word in matches) <= 0.5
 
 
 def test_same_seed_is_byte_identical_across_processes():
@@ -314,7 +318,7 @@ def test_same_seed_is_byte_identical_across_processes():
 
 def test_different_seed_changes_every_output(outputs):
     other = build_outputs(SEED + 1, OPTIONS)
-    for suffix in (".pdf", ".items.json", ".expected.json"):
+    for suffix in (".pdf", ".model.json", ".expected.json"):
         assert other[suffix] != outputs[suffix]
 
 
@@ -345,3 +349,19 @@ def test_rows_are_printed_newest_first(expected):
 
 def test_generator_keeps_the_guard_import_clean():
     assert "mpesa_core" not in (REPO / "tools/synth/generate.py").read_text(encoding="utf-8")
+
+
+def test_model_top_uses_the_pdfjs_reference_and_size_sets_its_height(statement_pages):
+    for text_item in items_on(statement_pages, 0):
+        size = round(text_item["bottom"] - text_item["top"], 3)
+        assert size in (5.5, 6.0)
+
+
+def test_split_datetime_gap_is_wide_enough_to_stay_two_items():
+    options = StatementOptions(name="T-SPLIT", row_count=5, split_datetime=True)
+    items = json.loads(build_outputs(SEED, options)[".model.json"])["pages"][0]["items"]
+    dates = [entry for entry in items if re.fullmatch(r"\d{4}-\d{2}-\d{2}", entry["text"])]
+    clocks = [entry for entry in items if re.fullmatch(r"\d{2}:\d{2}:\d{2}", entry["text"])]
+    for date, clock in zip(dates, clocks, strict=True):
+        assert clock["x0"] - date["x1"] >= 6.0
+        assert clock["x1"] <= COLUMNS[1].x1

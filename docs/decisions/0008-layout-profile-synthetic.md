@@ -41,7 +41,7 @@ Run it with:
 
 ## Consequences
 
-- Measurements come from pdfplumber, not pdf.js. CP2 re-records the items files from real pdf.js, so positions may shift slightly.
+- Measurements come from pdfplumber, not pdf.js. pdfplumber's `top` sits 0.207 x font size lower than pdf.js's, which is how `items.json` and `model.json` report it.
 - The profiler assumes the seven header labels start with the words in `HEADER_FIRST_WORDS`, dates are printed as `YYYY-MM-DD`, and receipts are 8 to 14 uppercase characters with a digit. **None of this has been checked against a real statement.** If a real statement differs, `anchor_row_count` or the header offsets will read 0 or look wrong, and those assumptions need updating. Nothing is leaked in that case.
 - Column clusters ignore positions used by under 5% of edges, so amount columns show right edges only.
 

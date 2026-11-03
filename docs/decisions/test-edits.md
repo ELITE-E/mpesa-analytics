@@ -57,6 +57,15 @@ No test committed before CP1 was edited. These tests were new and still red or j
 | `test_generator.py` | Variable `item`, long lines, `zip` without `strict` | `text_item`, wrapped, explicit `strict` | Rule 1.2 and lint. Renames only |
 | `test_ledger.py`, helper | Parameter `receipt` | Removed, unused | PLR0913 |
 
+## Edits for CP2
+
+| Test | Old assertion | New assertion | Reason |
+|---|---|---|---|
+| `test_fixtures.py`, `COMMITTED` list | 4 fixture names | 6, adding F-DENSE and F-MANY-PAGES | The manifest test must list the new hostile fixtures. The assertions are unchanged |
+| `test_generator.py`, `test_layout_model_matches_what_the_pdf_really_draws` | `min(abs(word["top"] - text_item["top"]) ...) <= 0.5` | `min(abs(word["top"] - pdfminer_top) ...) <= 0.5`, where `pdfminer_top = text_item["top"] + 0.207 * size` | Owner decision: the model now uses pdf.js's vertical reference, so comparing it with pdfplumber needs the known offset. The tolerance is unchanged |
+| `test_generator.py`, all reads of generator output | `outputs[".items.json"]` | `outputs[".model.json"]` | `items.json` now holds recordings from pdf.js. The generator's model moved to `model.json`. The assertions are unchanged |
+| `test_fixtures.py`, `SUFFIXES` | `.pdf`, `.items.json`, `.expected.json` | `.pdf`, `.model.json`, `.expected.json` | Same reason. These are the regenerable files; new tests cover the recorded ones |
+
 ## Edits for the layout profiler's password prompt
 
 Owner instruction: a hidden prompt only, never the command line or the environment.

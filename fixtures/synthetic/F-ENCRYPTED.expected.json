@@ -1,7 +1,7 @@
 {
  "chain_breaks": 0,
  "closing_balance": "13558.00",
- "generator_version": "1.0.0",
+ "generator_version": "1.2.0",
  "name": "F-ENCRYPTED",
  "opening_balance": "5000.00",
  "row_count": 20,
