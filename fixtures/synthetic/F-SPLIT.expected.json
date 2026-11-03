@@ -1,0 +1,243 @@
+{
+ "chain_breaks": 0,
+ "closing_balance": "8018.00",
+ "generator_version": "1.0.0",
+ "name": "F-SPLIT",
+ "opening_balance": "5000.00",
+ "row_count": 20,
+ "rows": [
+  {
+   "balance": "8,018.00",
+   "completion_time": "2026-01-04 21:34:00",
+   "details": "Airtime Purchase",
+   "line": 8,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZDDK8MIR9",
+   "status": "Completed",
+   "withdrawn": "31.00"
+  },
+  {
+   "balance": "8,049.00",
+   "completion_time": "2026-01-04 21:24:00",
+   "details": "Pay Bill Charge",
+   "line": 9,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZ481HKGE4",
+   "status": "Completed",
+   "withdrawn": "25.00"
+  },
+  {
+   "balance": "8,074.00",
+   "completion_time": "2026-01-04 21:24:00",
+   "details": "Pay Bill Online to Example Till 160 - Acc. Synthetic Account Number",
+   "line": 10,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZ481HKGE4",
+   "status": "Completed",
+   "withdrawn": "966.00"
+  },
+  {
+   "balance": "9,040.00",
+   "completion_time": "2026-01-04 20:39:00",
+   "details": "Funds received from 0700000046 - Example Person 46",
+   "line": 12,
+   "page": 1,
+   "paid_in": "1,151.00",
+   "receipt_no": "ZZY0Z6NMB1",
+   "status": "Completed",
+   "withdrawn": null
+  },
+  {
+   "balance": "7,889.00",
+   "completion_time": "2026-01-04 13:25:00",
+   "details": "Funds received - Example Person 56",
+   "line": 14,
+   "page": 1,
+   "paid_in": "379.00",
+   "receipt_no": "ZZ4GSSEMX1",
+   "status": "Completed",
+   "withdrawn": null
+  },
+  {
+   "balance": "7,510.00",
+   "completion_time": "2026-01-04 11:41:00",
+   "details": "Airtime Purchase",
+   "line": 15,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZEV19GEF9",
+   "status": "Completed",
+   "withdrawn": "25.00"
+  },
+  {
+   "balance": "7,535.00",
+   "completion_time": "2026-01-04 00:27:00",
+   "details": "Funds received - Example Person 29",
+   "line": 16,
+   "page": 1,
+   "paid_in": "4,765.00",
+   "receipt_no": "ZZLPZQTQS8",
+   "status": "Completed",
+   "withdrawn": null
+  },
+  {
+   "balance": "2,770.00",
+   "completion_time": "2026-01-03 12:13:00",
+   "details": "Customer Transfer of Funds Charge",
+   "line": 17,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZKTV61VZ4",
+   "status": "Completed",
+   "withdrawn": "13.00"
+  },
+  {
+   "balance": "2,783.00",
+   "completion_time": "2026-01-03 12:13:00",
+   "details": "Customer Transfer to 2547*****089 - Example Person 89",
+   "line": 18,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZKTV61VZ4",
+   "status": "Completed",
+   "withdrawn": "900.00"
+  },
+  {
+   "balance": "3,683.00",
+   "completion_time": "2026-01-02 21:48:00",
+   "details": "Customer Transfer of Funds Charge",
+   "line": 20,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZO28RLK33",
+   "status": "Completed",
+   "withdrawn": "13.00"
+  },
+  {
+   "balance": "3,696.00",
+   "completion_time": "2026-01-02 21:48:00",
+   "details": "Customer Transfer to 2547*****038 - Example Person 38",
+   "line": 21,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZO28RLK33",
+   "status": "Completed",
+   "withdrawn": "429.00"
+  },
+  {
+   "balance": "4,125.00",
+   "completion_time": "2026-01-02 21:24:00",
+   "details": "Pay Bill Charge",
+   "line": 23,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZSFI76BB9",
+   "status": "Completed",
+   "withdrawn": "25.00"
+  },
+  {
+   "balance": "4,150.00",
+   "completion_time": "2026-01-02 21:24:00",
+   "details": "Pay Bill Online to Example Till 831 - Acc. Synthetic Account Number",
+   "line": 24,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZSFI76BB9",
+   "status": "Completed",
+   "withdrawn": "1,498.00"
+  },
+  {
+   "balance": "5,648.00",
+   "completion_time": "2026-01-02 18:15:00",
+   "details": "Merchant Payment Example Till 963",
+   "line": 26,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZN95PTJF9",
+   "status": "Completed",
+   "withdrawn": "309.00"
+  },
+  {
+   "balance": "5,957.00",
+   "completion_time": "2026-01-02 08:17:00",
+   "details": "Airtime Purchase",
+   "line": 27,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZN5GEVBC2",
+   "status": "Completed",
+   "withdrawn": "20.00"
+  },
+  {
+   "balance": "5,977.00",
+   "completion_time": "2026-01-02 02:11:00",
+   "details": "Customer Transfer of Funds Charge",
+   "line": 28,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZMXJA49S7",
+   "status": "Completed",
+   "withdrawn": "13.00"
+  },
+  {
+   "balance": "5,990.00",
+   "completion_time": "2026-01-02 02:11:00",
+   "details": "Customer Transfer to 2547*****054 - Example Person 54",
+   "line": 29,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZMXJA49S7",
+   "status": "Completed",
+   "withdrawn": "273.00"
+  },
+  {
+   "balance": "6,263.00",
+   "completion_time": "2026-01-01 22:49:00",
+   "details": "Merchant Payment Example Till 019",
+   "line": 31,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZLHD8HQE2",
+   "status": "Completed",
+   "withdrawn": "611.00"
+  },
+  {
+   "balance": "6,874.00",
+   "completion_time": "2026-01-01 20:49:00",
+   "details": "Merchant Payment Example Till 294",
+   "line": 32,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZRLZY6EM5",
+   "status": "Completed",
+   "withdrawn": "611.00"
+  },
+  {
+   "balance": "7,485.00",
+   "completion_time": "2026-01-01 18:36:00",
+   "details": "Funds received from 0700000071 - Example Person 71",
+   "line": 33,
+   "page": 1,
+   "paid_in": "2,485.00",
+   "receipt_no": "ZZ0XT30ME0",
+   "status": "Completed",
+   "withdrawn": null
+  }
+ ],
+ "same_second_pairs": [
+  "fee_first",
+  "fee_first",
+  "fee_first",
+  "fee_first",
+  "fee_first"
+ ],
+ "status_counts": {
+  "Completed": 20
+ },
+ "total_fees": "89.00",
+ "total_paid_in": "8780.00",
+ "total_withdrawn": "5762.00"
+}

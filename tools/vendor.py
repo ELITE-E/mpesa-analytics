@@ -68,10 +68,68 @@ GROUPS = {
         "pyodide/six-1.17.0-py2.py3-none-any.whl",
     ],
     "pdfjs": ["pdfjs/pdf.min.mjs", "pdfjs/pdf.worker.min.mjs"],
+    # Dev only: runs tests/core under Pyodide. Never served, and not part of the download budget.
+    "test-runner": [
+        "pyodide/atomicwrites-1.4.1-py2.py3-none-any.whl",
+        "pyodide/attrs-26.1.0-py3-none-any.whl",
+        "pyodide/exceptiongroup-1.3.1-py3-none-any.whl",
+        "pyodide/iniconfig-2.3.0-py3-none-any.whl",
+        "pyodide/more_itertools-11.0.1-py3-none-any.whl",
+        "pyodide/pluggy-1.6.0-py3-none-any.whl",
+        "pyodide/py-1.11.0-py2.py3-none-any.whl",
+        "pyodide/pygments-2.20.0-py3-none-any.whl",
+        "pyodide/pyparsing-3.3.2-py3-none-any.whl",
+        "pyodide/pytest-9.0.2-py3-none-any.whl",
+        "pyodide/setuptools-82.0.1-py3-none-any.whl",
+    ],
 }
 
 PINS = dict(
     (
+        (
+            "pyodide/atomicwrites-1.4.1-py2.py3-none-any.whl",
+            "18fdd95649db5939bbf2b214302282b6a00aba8b76265db459e95dbb32e22561",
+        ),
+        (
+            "pyodide/attrs-26.1.0-py3-none-any.whl",
+            "0506ebb8e46c83017941a7239eecb2f74420d332cf1f341bddc43a217ab0bb66",
+        ),
+        (
+            "pyodide/exceptiongroup-1.3.1-py3-none-any.whl",
+            "15c063c35d433d28df83fa51f897619583ad3d6b43a5c58e44737afb3fe46dfc",
+        ),
+        (
+            "pyodide/iniconfig-2.3.0-py3-none-any.whl",
+            "7a5425ae2eda9988c8a841e386dd74f4ce6333bbba40e926cb7ad5153396c077",
+        ),
+        (
+            "pyodide/more_itertools-11.0.1-py3-none-any.whl",
+            "f969b7b2dac6c78a527430279d5a56fc7ef61c2ccd2b4f0e817c3d79e3894ba0",
+        ),
+        (
+            "pyodide/pluggy-1.6.0-py3-none-any.whl",
+            "d9d6b776793b43137ea724291c466154764491db5fe6a4d8197a84b0cf592c7d",
+        ),
+        (
+            "pyodide/py-1.11.0-py2.py3-none-any.whl",
+            "6b0bb803b77d41978a0fb477125ae0a171c202f37c1cc025d40b4d10b2da488b",
+        ),
+        (
+            "pyodide/pygments-2.20.0-py3-none-any.whl",
+            "6e0fd0e83d3e725a668aa73110112ffe67e59feb4516eeff3a0b8c12a236462f",
+        ),
+        (
+            "pyodide/pyparsing-3.3.2-py3-none-any.whl",
+            "f0dd8225b5f8e945980b400bd465b4b90cb0498a2eede0d9dbea98372f6110c5",
+        ),
+        (
+            "pyodide/pytest-9.0.2-py3-none-any.whl",
+            "88b9f5fbf0e425844c0909772952a8c43d5aacbd33e5b9ef821bc6a4c7e53b82",
+        ),
+        (
+            "pyodide/setuptools-82.0.1-py3-none-any.whl",
+            "f411555185daefde67e99bec050782a5390ea62270ac6cddc2dab7bea70e53b1",
+        ),
         (
             "pyodide/pyodide.mjs",
             "6f1d60f7bf529beb300f0f47983c921d3982363640ba20af0e38efdddbc66109",

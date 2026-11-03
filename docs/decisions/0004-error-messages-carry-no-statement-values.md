@@ -36,5 +36,6 @@ Exceptions convert at the bridge into `{code, row_index?}`. No traceback with lo
 
 - Exception classes accept only an error code and integer positions; a test asserts that passing a string value raises `TypeError`.
 - A test raises each core error with a planted fake row value and asserts the value is absent from `str(error)`.
+- Tests pass a failure's message and its planted row to `assert_message_is_safe` in `tools/guards/error_message_safety.py`, which rejects any repeated row value or phone-shaped or receipt-shaped token. It only covers failure paths a test triggers, catches repeats rather than derived values, and skips values under 3 characters.
 - The no-leak end-to-end test (CP9) asserts no statement text reaches the console or the network.
 - Review checklist item 4: "Error messages are meaningful and carry no statement values."

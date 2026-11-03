@@ -12,7 +12,14 @@ prune_paths = ["web/public/vendor"]
 [patterns]
 # Fully matched against the token with spaces, plus signs and hyphens removed.
 # Honoured inside fixtures/synthetic/ only. See docs/decisions/0003-fake-ranges.md.
-fake_ranges = ['254700000\d{3}', '07000000\d{2}']
+fake_ranges = [
+  '254700000\d{3}',
+  '07000000\d{2}',
+  # Fake receipts: ZZ plus 8 characters.
+  'ZZ[A-Z0-9]{8}',
+  # Masked fake phones: tail 000 to 099.
+  '2547\*{5}0\d{2}',
+]
 lockfiles = ["uv.lock", "package-lock.json", "pnpm-lock.yaml", "yarn.lock"]
 
 [types]

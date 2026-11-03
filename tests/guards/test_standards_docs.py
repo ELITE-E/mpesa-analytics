@@ -113,3 +113,22 @@ def test_superseded_adr_files_are_gone():
 
 def test_standards_say_vocabulary_runs_in_pre_commit():
     assert re.search(r"^\| Domain vocabulary \|.*\| pre-commit, CI \|$", STANDARDS, re.MULTILINE)
+
+
+@pytest.mark.parametrize(
+    ("term", "avoid"),
+    [
+        ("recurring", "repeat, regular, subscription"),
+        ("remember on this device", "save, sync, upload, import"),
+    ],
+)
+def test_glossary_restores_owner_approved_terms(term, avoid):
+    text = (REPO / "docs" / "glossary.md").read_text(encoding="utf-8")
+    assert re.search(rf"^\| {term} \|.*\| {re.escape(avoid)} \|$", text, re.MULTILINE)
+
+
+def test_adr_0004_names_the_error_message_helper_as_enforcement():
+    record = next(DECISIONS.glob("0004-*.md")).read_text(encoding="utf-8")
+    enforcement = record.split("## Enforcement", 1)[1]
+    assert "tools/guards/error_message_safety.py" in enforcement
+    assert "assert_message_is_safe" in enforcement

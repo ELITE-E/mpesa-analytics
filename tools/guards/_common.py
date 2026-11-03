@@ -37,6 +37,9 @@ RULES = [
 ]
 # Hex digests hold 10-digit runs often enough (about 1 sha256 in 4) to need excluding.
 _DIGEST = re.compile(r"(?<![0-9A-Za-z])(?:[0-9a-f]{40}|[0-9a-f]{64})(?![0-9A-Za-z])")
+# Every PDF's cross-reference table holds 10-digit byte offsets, which read as receipts. Requiring
+# three leading zeros keeps this exemption from ever covering a phone number or a receipt.
+_PDF_OFFSET = re.compile(r"(?m)^000\d{7} \d{5} [nf]\b")
 _FAKE = [re.compile(pattern) for pattern in CONFIG["patterns"]["fake_ranges"]]
 _LOCKFILES = set(CONFIG["patterns"]["lockfiles"])
 
@@ -115,6 +118,8 @@ def find_tokens(text, rel=None):
     is_lock = rel is not None and rel.rsplit("/", 1)[-1] in _LOCKFILES
     in_fixtures = rel is not None and rel.startswith(SYNTHETIC)
     digests = [match.span() for match in _DIGEST.finditer(text)]
+    if in_fixtures and rel.endswith(".pdf"):
+        digests += [match.span() for match in _PDF_OFFSET.finditer(text)]
     spans = set()
     for name, pattern, lock_exempt in RULES:
         if is_lock and lock_exempt:
@@ -150,7 +155,7 @@ def _is_exempt(match, name, *, in_fixtures, digests):
         match: The regex match.
         name: Name of the rule that matched.
         in_fixtures: Whether the text lives in the synthetic fixtures directory.
-        digests: Spans of complete hex digests in the same text.
+        digests: Spans of hex digests and PDF offsets in the same text, which never count.
 
     Returns:
         True if the match should be ignored.

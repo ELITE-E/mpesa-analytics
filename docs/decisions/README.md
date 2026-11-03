@@ -13,6 +13,7 @@ Architecture decision records (ADRs) and logs. An ADR records one decision, why,
 | 0005 | Module moves from mpesa-parser | Proposed |
 | 0006 | Runtime dependencies of `mpesa_core` | Open: decided at the CP5 gate |
 | 0007 | Replace PagesDocument with StatementPages | Proposed |
+| 0008 | Layout profile of the synthetic golden statement | Accepted (CP1) |
 
 ## Logs
 
