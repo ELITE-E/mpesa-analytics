@@ -13,6 +13,8 @@ HEADER_FONT = "Helvetica-Bold"
 DATA_SIZE = 5.5
 HEADER_SIZE = 6.0
 COLUMN_PADDING = 4.0
+# pdf.js merges a date and time closer than this into one text item.
+SPLIT_DATETIME_GAP = 8.0
 JITTER_POINTS = 0.1
 ROW_PITCH = 10.0
 WRAP_PITCH = 6.0
@@ -109,7 +111,7 @@ HEADER_LABELS = tuple(column.label for column in COLUMNS)
 RECEIPT, TIME, DETAILS, STATUS, PAID_IN, WITHDRAWN, BALANCE = COLUMNS
 
 
-def lay_out_statement(printed_rows, summary_lines, *, seed_text, split_datetime):
+def lay_out_statement(printed_rows, summary_lines, *, seed_text, split_datetime, minimum_pages=0):
     """Place a statement's text on pages.
 
     Args:
@@ -117,6 +119,7 @@ def lay_out_statement(printed_rows, summary_lines, *, seed_text, split_datetime)
         summary_lines: Tuples of label and value for the block at the top of page 1.
         seed_text: Text that seeds the jitter and footer tokens.
         split_datetime: Whether to print the date and the time as two strings.
+        minimum_pages: Add header-only pages after the rows until there are this many.
 
     Returns:
         Tuple of pages, each a list of ``DrawnText``, and rows with their ``page`` and ``line``.
@@ -127,6 +130,7 @@ def lay_out_statement(printed_rows, summary_lines, *, seed_text, split_datetime)
     placer = _Placer(random.Random(seed_text), split_datetime=split_datetime)
     placer.place_summary(summary_lines)
     placed_rows = [placer.place_row(row) for row in printed_rows]
+    placer.pad_to(minimum_pages)
     placer.place_footers()
     return placer.pages, placed_rows
 
@@ -217,6 +221,18 @@ class _Placer:
         self.line += len(wrapped)
         return placed
 
+    def pad_to(self, minimum_pages):
+        """Add header-only pages until the statement has enough of them.
+
+        Args:
+            minimum_pages: The page count to reach.
+
+        Side Effects:
+            Adds pages.
+        """
+        while len(self.pages) < minimum_pages:
+            self._start_page()
+
     def place_footers(self):
         """Add the page number and an 8-character token to every page.
 
@@ -282,7 +298,7 @@ class _Placer:
             date, clock = completion_time.split(" ")
             date_width = stringWidth(date, DATA_FONT, DATA_SIZE)
             self._place_left(date, TIME.text_x0, DATA_FONT, DATA_SIZE)
-            clock_x0 = TIME.text_x0 + date_width + 2 * stringWidth(" ", DATA_FONT, DATA_SIZE)
+            clock_x0 = TIME.text_x0 + date_width + SPLIT_DATETIME_GAP
             self._place_left(clock, clock_x0, DATA_FONT, DATA_SIZE)
         else:
             self._place_left(completion_time, TIME.text_x0, DATA_FONT, DATA_SIZE)

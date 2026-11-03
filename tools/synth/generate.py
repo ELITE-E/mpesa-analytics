@@ -24,22 +24,25 @@ from synth.layout import (  # noqa: E402
     lay_out_statement,
 )
 from synth.ledger import compute_expected  # noqa: E402
-from synth.render import render_pdf  # noqa: E402
+from synth.render import PDFJS_TOP_SHIFT, build_dense_lines, render_pdf  # noqa: E402
 
-VERSION = "1.0.0"
+VERSION = "1.2.0"
 SCHEMA_VERSION = 1
 ENGINE_NAME = "synthetic"
 STATUS_COMPLETED = "Completed"
-OUTPUT_SUFFIXES = (".pdf", ".items.json", ".expected.json")
+OUTPUT_SUFFIXES = (".pdf", ".model.json", ".expected.json")
 FILLER_LINES = 8
 FAKE_PASSWORD = "synthetic-only"
 DEFAULT_SEED = 1
 DEFAULT_ROW_COUNT = 60
 MANIFEST_NAME = "MANIFEST.toml"
+COMMITTED_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "synthetic"
+RECORDED_MARKER = "\n[[recorded]]"
 MANIFEST_HEADER = (
     "# Every file in this directory must be listed here and regenerate byte-identically\n"
     "# from its seed (tools/guards/check_fixture_provenance.py).\n"
     "# Rewrite it with: python tools/synth/generate.py --write-fixtures fixtures/synthetic\n"
+    "# Then re-record from pdf.js with: node tools/engines/record_items.mjs\n"
 )
 
 
@@ -52,6 +55,9 @@ class StatementOptions:
     split_datetime: bool = False
     password: str | None = None
     pair_orders: tuple[str, ...] | None = None
+    # Hostile variants: a heavy vector drawing on page 1, and padding pages after the rows.
+    dense_line_count: int = 0
+    minimum_pages: int = 0
 
 
 # Cycled across the pairs, so the fixture holds both print orders.
@@ -65,6 +71,8 @@ COMMITTED_FIXTURES = {
     ),
     "F-TIES": (1003, StatementOptions(name="F-TIES", row_count=12, pair_orders=TIES_PAIR_ORDERS)),
     "F-SPLIT": (1004, StatementOptions(name="F-SPLIT", row_count=20, split_datetime=True)),
+    "F-DENSE": (1006, StatementOptions(name="F-DENSE", row_count=10, dense_line_count=50_000)),
+    "F-MANY-PAGES": (1007, StatementOptions(name="F-MANY-PAGES", row_count=10, minimum_pages=501)),
 }
 # Generated on demand only: too large to commit.
 ON_DEMAND_FIXTURES = {"F-LARGE": (1005, StatementOptions(name="F-LARGE", row_count=5700))}
@@ -114,6 +122,7 @@ def write_fixtures(directory):
     for path, seed, content in entries:
         digest = hashlib.sha256(content).hexdigest()
         lines.append(f'\n[[fixture]]\npath = "{path}"\nseed = {seed}\nsha256 = "{digest}"\n')
+    lines.append(_recorded_entries(directory))
     (directory / MANIFEST_NAME).write_text("".join(lines), encoding="utf-8")
 
 
@@ -150,7 +159,7 @@ def build_outputs(seed, options):
         options: The ``StatementOptions`` to generate.
 
     Returns:
-        Map of file suffix to bytes: ``.pdf``, ``.items.json`` and ``.expected.json``.
+        Map of file suffix to bytes: ``.pdf``, ``.model.json`` and ``.expected.json``.
 
     Side Effects:
         None.
@@ -164,12 +173,34 @@ def build_outputs(seed, options):
         _summary_lines(fake_rows),
         seed_text=f"{seed_text}:layout",
         split_datetime=options.split_datetime,
+        minimum_pages=options.minimum_pages,
     )
+    drawing = build_dense_lines(f"{seed_text}:drawing", options.dense_line_count)
     return {
-        ".pdf": render_pdf(pages, password=options.password),
-        ".items.json": _to_json(_statement_pages(pages)),
+        ".pdf": render_pdf(pages, password=options.password, dense_lines=drawing),
+        ".model.json": _to_json(_statement_pages(pages)),
         ".expected.json": _to_json(_expected(placed, options)),
     }
+
+
+def _recorded_entries(directory):
+    """Keep the manifest's recorded section, which only the pdf.js recorder may change.
+
+    Args:
+        directory: Directory being written.
+
+    Returns:
+        The section's text, from that directory's manifest or else the committed one; may be empty.
+
+    Side Effects:
+        Reads a manifest.
+    """
+    for candidate in (directory / MANIFEST_NAME, COMMITTED_DIR / MANIFEST_NAME):
+        if candidate.is_file():
+            _, marker, entries = candidate.read_text(encoding="utf-8").partition(RECORDED_MARKER)
+            if marker:
+                return f"{marker}{entries}"
+    return ""
 
 
 def _options_from_arguments(args):
@@ -286,19 +317,32 @@ def _statement_pages(pages):
                 "page_number": number,
                 "width": float(PAGE_WIDTH),
                 "height": float(PAGE_HEIGHT),
-                "items": [
-                    {
-                        "text": drawn.text,
-                        "x0": drawn.x0,
-                        "x1": drawn.x1,
-                        "top": drawn.top,
-                        "bottom": drawn.top + drawn.size,
-                    }
-                    for drawn in page
-                ],
+                "items": [_model_item(drawn) for drawn in page],
             }
             for number, page in enumerate(pages, start=1)
         ],
+    }
+
+
+def _model_item(drawn):
+    """Describe one piece of text the way pdf.js is expected to report it.
+
+    Args:
+        drawn: The ``DrawnText``.
+
+    Returns:
+        A text item, using pdf.js's vertical reference rather than the layout's.
+
+    Side Effects:
+        None.
+    """
+    top = round(drawn.top + PDFJS_TOP_SHIFT * drawn.size, 3)
+    return {
+        "text": drawn.text,
+        "x0": drawn.x0,
+        "x1": drawn.x1,
+        "top": top,
+        "bottom": round(top + drawn.size, 3),
     }
 
 

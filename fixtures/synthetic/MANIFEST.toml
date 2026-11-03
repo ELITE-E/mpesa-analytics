@@ -1,7 +1,8 @@
 # Every file in this directory must be listed here and regenerate byte-identically
 # from its seed (tools/guards/check_fixture_provenance.py).
 # Rewrite it with: python tools/synth/generate.py --write-fixtures fixtures/synthetic
-generator_version = "1.0.0"
+# Then re-record from pdf.js with: node tools/engines/record_items.mjs
+generator_version = "1.2.0"
 fake_password = "synthetic-only"
 
 [[fixture]]
@@ -10,14 +11,14 @@ seed = 1001
 sha256 = "8340cc1228abc07a3fdca2701fc1ffdaef00c527e9cbc94194d04c5aa3650adf"
 
 [[fixture]]
-path = "F-GOLDEN.items.json"
+path = "F-GOLDEN.model.json"
 seed = 1001
-sha256 = "41b2ccbda2171ca950facc395d85b47774f9bfc4ae888532fbc4711e2282cfda"
+sha256 = "c0f4b3442108d2db64a3b640738e03f3285674e8f3fe68dea34a5cc89e832f5c"
 
 [[fixture]]
 path = "F-GOLDEN.expected.json"
 seed = 1001
-sha256 = "6719eac6a3d519b938bd7ad7b1e9dccb3e9fbad89dc0964ed058afcc60469de4"
+sha256 = "a87a8bdc962b12d65ca02c43c1fe8f44c081f841882be1ca2264715f01ccada5"
 
 [[fixture]]
 path = "F-ENCRYPTED.pdf"
@@ -25,14 +26,14 @@ seed = 1002
 sha256 = "09f6febae83a466f9a5e85f1ade196179ef9e452250e25e2c4efd386bf5ddf15"
 
 [[fixture]]
-path = "F-ENCRYPTED.items.json"
+path = "F-ENCRYPTED.model.json"
 seed = 1002
-sha256 = "8af12eec703f8ddccac56c43c26fdde16aa807f351e001415f08406f9360dd4a"
+sha256 = "500925884eb82adc7d44efd4ae041bad7b0c6b39a3ca8e6da66d77b0b748db6c"
 
 [[fixture]]
 path = "F-ENCRYPTED.expected.json"
 seed = 1002
-sha256 = "0fd4c93309007ef1fa9121cdd6c29bda8307a754afff8104a98188bab43fd7bb"
+sha256 = "59da4bb29bae76979b4b501cd379f023354750d649b838a2950aceb475066169"
 
 [[fixture]]
 path = "F-TIES.pdf"
@@ -40,26 +41,98 @@ seed = 1003
 sha256 = "a28a15907f395df9d97e6c39cfad31377ba362790e8cdab084ad3d516ff3d94a"
 
 [[fixture]]
-path = "F-TIES.items.json"
+path = "F-TIES.model.json"
 seed = 1003
-sha256 = "5951f39c937ebc3c456d858e5f835e32cf8de0e423e87ed2a2713b64be6aeb2a"
+sha256 = "9c57c3ac28edfdab14aa384969528d26209f2a459a0a910b762bf1173ad11e85"
 
 [[fixture]]
 path = "F-TIES.expected.json"
 seed = 1003
-sha256 = "8524563eadb58b88a89b34a88f84c015588056fcbbbad33f097a6425061af6d7"
+sha256 = "271e1391e37d411d58e965a8760485ff6aa8716f2db592f88c466d5e28c13dca"
 
 [[fixture]]
 path = "F-SPLIT.pdf"
 seed = 1004
-sha256 = "ce7684ca7ba9f0dce6ab551c36853f0fa021f2c31ff8357e23664640337a206f"
+sha256 = "ff78a82b108ab524dd28722fae4d04a5474a40294701e2e3f2d92f6a51490598"
 
 [[fixture]]
-path = "F-SPLIT.items.json"
+path = "F-SPLIT.model.json"
 seed = 1004
-sha256 = "35e085efaf2ae79b128905ba04a758c87c43b35760bc496d307e1e973a9dfd21"
+sha256 = "e5e481b5e5bc8945ac9e9c1436681ecb0ed07dc8e20e27ed57e00b65b984196a"
 
 [[fixture]]
 path = "F-SPLIT.expected.json"
 seed = 1004
-sha256 = "9e69829927721a8b0d1ca90e2999858e34e98933e1704faff7fafe9cb7df60b8"
+sha256 = "3f69f9eee240a29580d37739d706a3202b01bffcd7f3d33cec974cf046485ec6"
+
+[[fixture]]
+path = "F-DENSE.pdf"
+seed = 1006
+sha256 = "29c1bb4695d2a87794f0d009e8ea9f685db1a1bc90977e2761d017b5cc7159ec"
+
+[[fixture]]
+path = "F-DENSE.model.json"
+seed = 1006
+sha256 = "da86177effbe74eb59bd78858c82d491ae59f097ec3ac92df88425b161d62c10"
+
+[[fixture]]
+path = "F-DENSE.expected.json"
+seed = 1006
+sha256 = "21d828ceb188f6314209220a0285b004bac4a3466a79eb9e0ae128dc11e34f1e"
+
+[[fixture]]
+path = "F-MANY-PAGES.pdf"
+seed = 1007
+sha256 = "455ec9736a502575665c1b7dd16131455edf3d512450ae7569870db27a52d6be"
+
+[[fixture]]
+path = "F-MANY-PAGES.model.json"
+seed = 1007
+sha256 = "95d87ab9873cd9cf4af00653e01416ec3ce1194d8545beeda3fa27b59b6648ad"
+
+[[fixture]]
+path = "F-MANY-PAGES.expected.json"
+seed = 1007
+sha256 = "cf1fc9345c2a9ced909d89f24a709774f81fbcd06cf25e71d9e6150b2de9d232"
+
+[[recorded]]
+path = "F-GOLDEN.items.json"
+source = "F-GOLDEN.pdf"
+source_sha256 = "8340cc1228abc07a3fdca2701fc1ffdaef00c527e9cbc94194d04c5aa3650adf"
+engine = "pdfjs 6.4.299"
+sha256 = "0c06580ceb7db905dcd27069915016cedd8bd0d14d550da1a519d81c314eca4a"
+
+[[recorded]]
+path = "F-ENCRYPTED.items.json"
+source = "F-ENCRYPTED.pdf"
+source_sha256 = "09f6febae83a466f9a5e85f1ade196179ef9e452250e25e2c4efd386bf5ddf15"
+engine = "pdfjs 6.4.299"
+sha256 = "818e8447493d9d8af46c688c29266ef65aad28a6d72d952ce611edce2c5b8e37"
+
+[[recorded]]
+path = "F-TIES.items.json"
+source = "F-TIES.pdf"
+source_sha256 = "a28a15907f395df9d97e6c39cfad31377ba362790e8cdab084ad3d516ff3d94a"
+engine = "pdfjs 6.4.299"
+sha256 = "e0d4b73dad20e3488dcd453df712f2ab2c8a0139263916ed27f46a35b3eb5fc1"
+
+[[recorded]]
+path = "F-SPLIT.items.json"
+source = "F-SPLIT.pdf"
+source_sha256 = "ff78a82b108ab524dd28722fae4d04a5474a40294701e2e3f2d92f6a51490598"
+engine = "pdfjs 6.4.299"
+sha256 = "80fa9566c81f72824ce696c1346f73e0263c05b3c7ec445c11d7f91774d3032b"
+
+[[recorded]]
+path = "F-DENSE.items.json"
+source = "F-DENSE.pdf"
+source_sha256 = "29c1bb4695d2a87794f0d009e8ea9f685db1a1bc90977e2761d017b5cc7159ec"
+engine = "pdfjs 6.4.299"
+sha256 = "ee446c70b84c43005d3c6e806b883b53685a1685a44c6c7c6ae0fd89234d0156"
+
+[[recorded]]
+path = "F-MANY-PAGES.items.json"
+source = "F-MANY-PAGES.pdf"
+source_sha256 = "455ec9736a502575665c1b7dd16131455edf3d512450ae7569870db27a52d6be"
+engine = "pdfjs 6.4.299"
+sha256 = "7d1df0b2b2cb575ca28a71a4e3d80289c9993ff520a8da63b8342d4f8e4b63cd"

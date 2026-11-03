@@ -11,11 +11,12 @@ import pytest
 
 from conftest import REPO, run_guard
 from synth.generate import generate
+from vendor import PDFJS_VERSION
 
 FIXTURES = REPO / "fixtures" / "synthetic"
 GENERATOR = REPO / "tools" / "synth" / "generate.py"
-COMMITTED = ["F-GOLDEN", "F-ENCRYPTED", "F-TIES", "F-SPLIT"]
-SUFFIXES = [".pdf", ".items.json", ".expected.json"]
+COMMITTED = ["F-GOLDEN", "F-ENCRYPTED", "F-TIES", "F-SPLIT", "F-DENSE", "F-MANY-PAGES"]
+SUFFIXES = [".pdf", ".model.json", ".expected.json"]
 ALL_FILES = [f"{name}{suffix}" for name in COMMITTED for suffix in SUFFIXES]
 ONE_STRING_TIME = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
 
@@ -189,3 +190,35 @@ def test_command_line_prints_only_file_names_and_counts(tmp_path):
     completed = run_generator("--name", "T-CUSTOM", "--rows", 12, "--out-dir", tmp_path)
     assert "ZZ" not in completed.stdout
     assert "Example" not in completed.stdout
+
+
+@pytest.mark.parametrize("name", COMMITTED)
+def test_every_fixture_has_items_recorded_from_pdfjs(name):
+    assert statement_pages(name)["engine"] == f"pdfjs {PDFJS_VERSION}"
+
+
+@pytest.mark.parametrize("name", COMMITTED)
+def test_every_fixture_has_a_model_marked_synthetic(name):
+    model = json.loads((FIXTURES / f"{name}.model.json").read_text(encoding="utf-8"))
+    assert model["engine"] == "synthetic"
+
+
+def test_manifest_records_each_recorded_file_with_its_source_and_engine():
+    entries = manifest()["recorded"]
+    assert sorted(entry["path"] for entry in entries) == sorted(
+        f"{name}.items.json" for name in COMMITTED
+    )
+    for entry in entries:
+        name = entry["path"].split(".")[0]
+        assert entry["source"] == f"{name}.pdf"
+        assert entry["engine"] == f"pdfjs {PDFJS_VERSION}"
+        recorded = hashlib.sha256((FIXTURES / entry["path"]).read_bytes()).hexdigest()
+        assert entry["sha256"] == recorded
+        source = hashlib.sha256((FIXTURES / entry["source"]).read_bytes()).hexdigest()
+        assert entry["source_sha256"] == source
+
+
+def test_writing_fixtures_never_touches_the_recorded_items(tmp_path):
+    completed = run_generator("--write-fixtures", tmp_path)
+    assert completed.returncode == 0, completed.stderr
+    assert not list(tmp_path.glob("*.items.json"))

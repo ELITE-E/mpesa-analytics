@@ -21,6 +21,7 @@ Architecture decision records (ADRs) and logs. An ADR records one decision, why,
 |---|---|
 | `behaviour-changes.md` | Every deliberate difference from the old behaviour |
 | `test-edits.md` | Every edit to an existing test, and guard changes made during review |
+| `cp8-notes.md` | Caveats to act on at CP8 |
 
 ## ADR template
 

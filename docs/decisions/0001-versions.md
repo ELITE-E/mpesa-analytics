@@ -17,6 +17,8 @@ Status: accepted. Closes OQ-06. Measured 2026-11-02 from the files `tools/vendor
 Pyodide has moved to a new version scheme: 314.x tracks Python 3.14. Older lines (0.29.x, 0.27.x)
 still get releases; they were not measured.
 
+**pdf.js build under Node:** the engine's Node tests use `legacy/build/pdf.min.mjs` from the same pdfjs-dist 6.4.299 tarball, vendored as `pdfjs-node/`. The modern `build/pdf.min.mjs` fails to load under Node 24 because it calls `Uint8Array.prototype.toHex`, which Node 24 lacks. The browser build and the tested build therefore differ. Node prints a warning about optional `@napi-rs/canvas`; it is not needed because nothing is rendered. This pair is dev only and outside the sizes below.
+
 The `test-runner` group in `tools/vendor.py` pins 11 more wheels from Pyodide's lock (pytest 9.0.2 and its dependencies). They run `tests/core` under Pyodide and are never served, so they are outside the sizes below. Reportlab and pdfplumber are dev dependencies pinned by `uv.lock`, and never enter the wheel.
 
 ## Sizes in bytes

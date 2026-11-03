@@ -1,7 +1,7 @@
 {
  "chain_breaks": 0,
  "closing_balance": "2102.00",
- "generator_version": "1.0.0",
+ "generator_version": "1.2.0",
  "name": "F-TIES",
  "opening_balance": "5000.00",
  "row_count": 12,

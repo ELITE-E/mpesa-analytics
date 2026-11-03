@@ -68,6 +68,8 @@ GROUPS = {
         "pyodide/six-1.17.0-py2.py3-none-any.whl",
     ],
     "pdfjs": ["pdfjs/pdf.min.mjs", "pdfjs/pdf.worker.min.mjs"],
+    # Dev only: the build that runs under Node, because the modern one needs Uint8Array.toHex.
+    "pdfjs-node": ["pdfjs-node/pdf.min.mjs", "pdfjs-node/pdf.worker.min.mjs"],
     # Dev only: runs tests/core under Pyodide. Never served, and not part of the download budget.
     "test-runner": [
         "pyodide/atomicwrites-1.4.1-py2.py3-none-any.whl",
@@ -86,6 +88,14 @@ GROUPS = {
 
 PINS = dict(
     (
+        (
+            "pdfjs-node/pdf.min.mjs",
+            "bccc24ea711db8e44503629519904a5292d73b9daaa214bbe7cdcc282b0f4259",
+        ),
+        (
+            "pdfjs-node/pdf.worker.min.mjs",
+            "145d2dd3ab0c86151011dba95acfa2d5336e2accd59388ea43dbee0efddaaec6",
+        ),
         (
             "pyodide/atomicwrites-1.4.1-py2.py3-none-any.whl",
             "18fdd95649db5939bbf2b214302282b6a00aba8b76265db459e95dbb32e22561",
@@ -262,7 +272,7 @@ def fetch_pyodide():
 
 
 def fetch_pdfjs():
-    """Vendor the pdf.js build files from npm.
+    """Vendor the browser and Node pdf.js build files from npm.
 
     Side Effects:
         Downloads the package and writes under ``VENDOR``; exits on a checksum mismatch.
@@ -270,6 +280,9 @@ def fetch_pdfjs():
     with fetch_tgz(PDFJS_TGZ) as archive:
         for rel in GROUPS["pdfjs"]:
             store(rel, member_bytes(archive, f"package/build/{rel.removeprefix('pdfjs/')}"))
+        for rel in GROUPS["pdfjs-node"]:
+            member = f"package/legacy/build/{rel.removeprefix('pdfjs-node/')}"
+            store(rel, member_bytes(archive, member))
 
 
 def fetch_gitleaks():
