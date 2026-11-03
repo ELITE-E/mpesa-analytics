@@ -7,9 +7,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from _common import parse_root, report
+from _common import REPO, parse_root, report
 
-LINK = re.compile(r"^\s*(?:-\s+)?(mpesa_core[\w.]*) -> [\w.]+ \(l\.", re.MULTILINE)
+LINK = re.compile(r"^\s*(?:-\s+)?((?:mpesa_core|synth)[\w.]*) -> [\w.]+ \(l\.", re.MULTILINE)
 
 
 def main():
@@ -23,7 +23,9 @@ def main():
     """
     root = parse_root(__doc__).parse_args().root.resolve()
     linter = Path(sys.executable).parent / "lint-imports"
-    env = {**os.environ, "PYTHONPATH": str(root / "src"), "NO_COLOR": "1"}
+    # The repo's own tools come last, so a scanned tree without a synth package still resolves it.
+    search_path = [root / "src", root / "tools", REPO / "tools"]
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join(map(str, search_path)), "NO_COLOR": "1"}
     completed = subprocess.run(
         [str(linter), "--no-cache", "--config", str(root / ".importlinter")],
         cwd=root,
@@ -56,7 +58,8 @@ def module_file(root, module):
     Side Effects:
         Checks whether the module is a package directory.
     """
-    base = "src/" + module.replace(".", "/")
+    source_root = "tools" if module.partition(".")[0] == "synth" else "src"
+    base = f"{source_root}/" + module.replace(".", "/")
     return f"{base}/__init__.py" if (root / base).is_dir() else f"{base}.py"
 
 

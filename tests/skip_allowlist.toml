@@ -1,0 +1,4 @@
+# A skipped test fails the run unless it is listed here with a reason.
+#   [[skip]]
+#   test = "test_file.py::test_name"
+#   reason = "..."

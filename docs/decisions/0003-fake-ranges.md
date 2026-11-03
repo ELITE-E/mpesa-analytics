@@ -30,11 +30,16 @@ Treat these as "fake by our declaration", not "cannot belong to anyone". Never d
 them, and never send them to any external service. To settle it, check the plan above for a
 reserved or test range; if there is one, change `fake_ranges` in `tools/guards/guards.toml`.
 
-## Not declared, needed for CP1
+## Declared for CP1
 
-- **Receipts.** No fake receipt range is declared, so any receipt-like token fails guard 1 even
-  inside `fixtures/synthetic/`.
-- **Masked phones.** Masked forms also fail there, because a masked token cannot be proven to
-  fall inside a fake range.
+Owner decision at CP1. All are honoured inside `fixtures/synthetic/` only, and written here by pattern, because the literal forms would trip guard 1 elsewhere.
 
-CP1 fixtures will need a decision on both.
+- **Receipts:** `ZZ` plus 8 uppercase characters or digits.
+- **Masked phones:** `2547`, then 5 asterisks, then a tail from 000 to 099. The local masked form is not declared.
+- **Merchants:** `Example Till` plus 3 digits. Guard 1 does not check names, so the generator's tests do.
+
+Real receipts could in principle start with `ZZ`. As with the phone ranges, these are fake by our declaration.
+
+## PDF cross-reference offsets
+
+Every PDF's cross-reference table holds 10-digit byte offsets, which match the receipt rule. Inside `fixtures/synthetic/*.pdf` only, an offset of three zeros and seven digits, followed by a 5-digit generation and `n` or `f`, is skipped. Three leading zeros mean it can never cover a phone number or a receipt. Fixture PDFs are uncompressed so guard 1 can still read the text inside them. F-ENCRYPTED's text is encrypted, so guard 1 cannot read it; its items and expected files carry the same kind of values and are scanned.

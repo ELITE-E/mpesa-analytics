@@ -152,6 +152,60 @@ def test_receipt_like_token_next_to_a_hash_still_fails(clean_tree, separator):
     assert_fails_quietly(run_guard(GUARD, "--root", clean_tree), "docs/hashes.md", token)
 
 
+FAKE_RECEIPT = "ZZ" + "AB12CD34"
+FAKE_MASKED = "2547" + "*****" + "012"
+XREF_LINE = "0000" + "001234 00000 n"
+
+
+@pytest.mark.parametrize("token", [FAKE_RECEIPT, FAKE_MASKED], ids=["receipt", "masked"])
+def test_declared_fake_token_is_allowed_only_in_fixtures(clean_tree, token):
+    plant(clean_tree, "fixtures/synthetic/ok.txt", f"{token}\n")
+    guard_run = run_guard(GUARD, "--root", clean_tree)
+    assert guard_run.returncode == 0, guard_run.stdout
+    plant(clean_tree, "docs/bad.md", f"{token}\n")
+    assert_fails_quietly(run_guard(GUARD, "--root", clean_tree), "docs/bad.md", token)
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "ZY" + "AB12CD34",
+        "2547" + "*****" + "100",
+        "2547" + "*****" + "999",
+        "2547" + "****" + "0012",
+        "07" + "*****" + "012",
+    ],
+    ids=["other-prefix", "tail-100", "tail-999", "short-mask", "local-form"],
+)
+def test_near_miss_of_a_declared_fake_token_fails_in_fixtures(clean_tree, token):
+    plant(clean_tree, "fixtures/synthetic/bad.txt", f"{token}\n")
+    assert_fails_quietly(
+        run_guard(GUARD, "--root", clean_tree), "fixtures/synthetic/bad.txt", token
+    )
+
+
+def test_pdf_cross_reference_offsets_pass_in_a_fixture_pdf(clean_tree):
+    plant(clean_tree, "fixtures/synthetic/a.pdf", f"xref\n0 2\n{XREF_LINE}\n".encode())
+    guard_run = run_guard(GUARD, "--root", clean_tree)
+    assert guard_run.returncode == 0, guard_run.stdout
+
+
+@pytest.mark.parametrize(
+    ("rel", "content"),
+    [
+        ("fixtures/synthetic/a.txt", XREF_LINE),
+        ("fixtures/synthetic/a.json", XREF_LINE),
+        ("fixtures/synthetic/a.pdf", "0000" + "001234"),
+        ("fixtures/synthetic/a.pdf", "07" + "12345678" + " 00000 n"),
+        ("fixtures/synthetic/a.pdf", f"{XREF_LINE} {'QGH' + '1234ABC'}"),
+    ],
+    ids=["text-fixture", "json-fixture", "bare-digits", "real-looking-offset", "receipt-beside-it"],
+)
+def test_cross_reference_exemption_is_narrow(clean_tree, rel, content):
+    plant(clean_tree, rel, content.encode())
+    assert run_guard(GUARD, "--root", clean_tree).returncode == 1
+
+
 def test_real_repo_has_zero_findings():
     guard_run = run_guard(GUARD)
     assert guard_run.returncode == 0, guard_run.stdout

@@ -60,6 +60,7 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | data quality | Counts of problems found while processing (row counts, status counts, chain breaks, unparsed amounts) | `DataQuality`, `quality` | warnings, errors |
 | diagnostic | An item describing one row that could not be resolved. Held in memory only | `Diagnostic` | issue, problem |
 | verification token | The value `attest` produces, tying a result to its statement | `verification_token` | hash, signature |
+| recurring | Seen at least three times, so an isolated transaction is not treated as recurring. | `recurring` | repeat, regular, subscription |
 
 ## Architecture words
 
@@ -68,6 +69,7 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | core | The pure Python package `mpesa_core`; no I/O, environment or network | `mpesa_core` | backend, server |
 | bridge | The JSON-string boundary between JavaScript and Python in Pyodide | `bridge` | glue, api |
 | "error" | Reserved for exceptions raised by code | `*Error` | using it for data-quality counts |
+| remember on this device | The opt-in that keeps data in local browser storage. | `remember_on_device` | save, sync, upload, import |
 
 ## Verbs for functions
 

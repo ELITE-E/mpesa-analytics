@@ -7,3 +7,5 @@ package-lock.json
 web/public/vendor/
 .cache/
 .venv/
+# Byte-pinned by the fixture provenance guard; reformatting would break regeneration.
+fixtures/synthetic/

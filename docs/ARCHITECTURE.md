@@ -5,6 +5,9 @@
 - `engine/`: browser side, with pdf.js behind an adapter and a worker. Stubs in CP0.
 - `web/`: front end. `web/probe/` holds the pandas probe; `web/public/vendor/` holds the
   runtime that `tools/vendor.py` fetches. That directory is gitignored.
+- `tools/synth/`: synthetic statement generator and an independent ledger. It may not import the core (import-linter), so the fixtures are a real second opinion.
+- `tools/equivalence/layout_profile.py`: prints aggregate layout numbers for a PDF, never its text.
+- `tests/core/`: runs under CPython and, from the built wheel, under Pyodide. A skipped test fails the run unless `tests/skip_allowlist.toml` gives a reason.
 - `tools/guards/`: the guards. Configuration is in `tools/guards/guards.toml` and is always
   read from the repo, never from the tree being scanned.
 

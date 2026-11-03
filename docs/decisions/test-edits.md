@@ -45,6 +45,29 @@ These tests were new and not yet passing when edited, and no assertion changed.
 - `test_error_message_safety.py`: removed unused imports.
 - `test_standards_docs.py`: loop variable `item` became `checkbox`, for rule 1.2. `check_banned_names.py` caught this in a test written during the docs merge.
 
+## Edits to tests written during CP1
+
+No test committed before CP1 was edited. These tests were new and still red or just written when edited. No assertion was weakened to hide a failure.
+
+| Test | Old | New | Reason |
+|---|---|---|---|
+| `test_scan_patterns.py`, near-miss list | Included `ZZ` plus 9 characters | Removed | An 11-character token is not a finding under guard 1, so this case could never fail. The test was wrong |
+| `test_skip_policy.py`, pytest command | Passed `-c skip_allowlist.toml` | Removed | Pytest rejected the allowlist as a config file when it held an entry. Test harness bug |
+| `test_layout_profile.py`, error cases | `returncode == 2` | Also requires `layout_profile: ERROR` in stdout | Stricter. A missing script also exits 2, so these were false greens before the tool existed |
+| `test_generator.py` | Variable `item`, long lines, `zip` without `strict` | `text_item`, wrapped, explicit `strict` | Rule 1.2 and lint. Renames only |
+| `test_ledger.py`, helper | Parameter `receipt` | Removed, unused | PLR0913 |
+
+## Edits for the layout profiler's password prompt
+
+Owner instruction: a hidden prompt only, never the command line or the environment.
+
+| Test | Old assertion | New assertion | Reason |
+|---|---|---|---|
+| `test_encrypted_pdf_opens_with_a_password_from_the_environment` | `profile["anchor_row_count"] == str(row_count)`, using `--password-env` | Replaced by `test_encrypted_pdf_profiles_correctly_with_the_password_on_stdin`, same assertion, password on stdin | The environment route was removed on purpose |
+| `test_password_is_not_a_command_line_value` | `"--password-env" in source`; `--password` exits 2 | Replaced by `test_password_options_are_rejected_on_the_command_line`: 4 forms exit 2 as unrecognized | `--password-env` must now be rejected. Stricter |
+| `test_encrypted_pdf_without_a_password_stops_without_printing_text` | Same assertions | Renamed `test_no_password_given_stops_without_printing_text`, and also requires the prompt on stderr | The tool now prompts first. Stricter |
+| `run_profiler` helper | Inherited stdin | Takes `typed`; stdin is empty by default | A test must never wait on a prompt |
+
 ## Guard changes made during CP0 (not test edits, recorded for review)
 
 | # | Guard | Change | Condition |
@@ -59,3 +82,11 @@ These tests were new and not yet passing when edited, and no assertion changed.
 |---|---|---|---|
 | 1 | `pyproject.toml` | S110 `check-typed-exception = true` | The S110 plant failed at first. S110 ignores typed excepts by default, and those swallow errors just as silently, so the config was fixed rather than the test |
 | 2 | `pyproject.toml` | `tools/**` ignores T201 | Owner decision: tools exist to print file names and counts |
+
+## Guard changes made during CP1
+
+| # | Guard | Change | Condition |
+|---|---|---|---|
+| 1 | Guard 1 (patterns) | Honours fake receipts and masked fake phones | Inside `fixtures/synthetic/` only. See ADR 0003 |
+| 2 | Guard 1 | Skips PDF cross-reference offsets | Inside `fixtures/synthetic/*.pdf` only, with three leading zeros and the `NNNNN n` form |
+| 3 | Guard 6 (imports) | Also checks the `synth` package | `synth` may not import `mpesa_core` |

@@ -1,5 +1,65 @@
 # Every file in this directory must be listed here and regenerate byte-identically
-# from its seed (tools/guards/check_fixture_provenance.py). No fixtures exist in CP0.
-generator_version = "0.0.0-stub"
-default_seed = 0
+# from its seed (tools/guards/check_fixture_provenance.py).
+# Rewrite it with: python tools/synth/generate.py --write-fixtures fixtures/synthetic
+generator_version = "1.0.0"
 fake_password = "synthetic-only"
+
+[[fixture]]
+path = "F-GOLDEN.pdf"
+seed = 1001
+sha256 = "8340cc1228abc07a3fdca2701fc1ffdaef00c527e9cbc94194d04c5aa3650adf"
+
+[[fixture]]
+path = "F-GOLDEN.items.json"
+seed = 1001
+sha256 = "41b2ccbda2171ca950facc395d85b47774f9bfc4ae888532fbc4711e2282cfda"
+
+[[fixture]]
+path = "F-GOLDEN.expected.json"
+seed = 1001
+sha256 = "6719eac6a3d519b938bd7ad7b1e9dccb3e9fbad89dc0964ed058afcc60469de4"
+
+[[fixture]]
+path = "F-ENCRYPTED.pdf"
+seed = 1002
+sha256 = "09f6febae83a466f9a5e85f1ade196179ef9e452250e25e2c4efd386bf5ddf15"
+
+[[fixture]]
+path = "F-ENCRYPTED.items.json"
+seed = 1002
+sha256 = "8af12eec703f8ddccac56c43c26fdde16aa807f351e001415f08406f9360dd4a"
+
+[[fixture]]
+path = "F-ENCRYPTED.expected.json"
+seed = 1002
+sha256 = "0fd4c93309007ef1fa9121cdd6c29bda8307a754afff8104a98188bab43fd7bb"
+
+[[fixture]]
+path = "F-TIES.pdf"
+seed = 1003
+sha256 = "a28a15907f395df9d97e6c39cfad31377ba362790e8cdab084ad3d516ff3d94a"
+
+[[fixture]]
+path = "F-TIES.items.json"
+seed = 1003
+sha256 = "5951f39c937ebc3c456d858e5f835e32cf8de0e423e87ed2a2713b64be6aeb2a"
+
+[[fixture]]
+path = "F-TIES.expected.json"
+seed = 1003
+sha256 = "8524563eadb58b88a89b34a88f84c015588056fcbbbad33f097a6425061af6d7"
+
+[[fixture]]
+path = "F-SPLIT.pdf"
+seed = 1004
+sha256 = "ce7684ca7ba9f0dce6ab551c36853f0fa021f2c31ff8357e23664640337a206f"
+
+[[fixture]]
+path = "F-SPLIT.items.json"
+seed = 1004
+sha256 = "35e085efaf2ae79b128905ba04a758c87c43b35760bc496d307e1e973a9dfd21"
+
+[[fixture]]
+path = "F-SPLIT.expected.json"
+seed = 1004
+sha256 = "9e69829927721a8b0d1ca90e2999858e34e98933e1704faff7fafe9cb7df60b8"

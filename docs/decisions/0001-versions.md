@@ -17,6 +17,8 @@ Status: accepted. Closes OQ-06. Measured 2026-11-02 from the files `tools/vendor
 Pyodide has moved to a new version scheme: 314.x tracks Python 3.14. Older lines (0.29.x, 0.27.x)
 still get releases; they were not measured.
 
+The `test-runner` group in `tools/vendor.py` pins 11 more wheels from Pyodide's lock (pytest 9.0.2 and its dependencies). They run `tests/core` under Pyodide and are never served, so they are outside the sizes below. Reportlab and pdfplumber are dev dependencies pinned by `uv.lock`, and never enter the wheel.
+
 ## Sizes in bytes
 
 Gzip is `gzip -9`, from `tools/measure_bundle.py`. Brotli is Node's default quality 11, run once

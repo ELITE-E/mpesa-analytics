@@ -8,8 +8,8 @@ from pathlib import PurePosixPath
 
 from _common import REPO, SYNTHETIC, iter_files, parse_root, report
 
-sys.path.insert(0, str(REPO / "tools" / "synth"))
-import generate as generator  # noqa: E402
+sys.path.insert(0, str(REPO / "tools"))
+from synth import generate as generator  # noqa: E402
 
 MANIFEST = f"{SYNTHETIC}MANIFEST.toml"
 IGNORED = {MANIFEST, f"{SYNTHETIC}.gitkeep"}
