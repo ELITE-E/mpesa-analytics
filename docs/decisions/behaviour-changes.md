@@ -10,17 +10,18 @@ Status values: **Proposed** (not yet approved by the owner), **Approved**, **Don
 |---|---|---|---|---|---|
 | D-01 | Compare plain values, not enum members, in cash flow | Without pyarrow, inflow, outflow and net are silently 0.0 | Real totals, with pyarrow absent | cash flow totals are correct with pyarrow blocked | Proposed |
 | D-02 | Remove the reference to the commented-out `LIABILITY_REPAYMENT` | `AttributeError` if that branch is reached | No error; no change to any classification | economic meaning resolution never raises on that branch | Proposed |
-| D-03 | Extraction failure raises a typed error | Empty frame, then `KeyError: details` | `ExtractionError` with a code | a statement with no recognizable layout raises `LAYOUT_UNRECOGNIZED` | Proposed |
+| D-03 | Extraction failure raises a typed error | "No tables found" gives an empty frame, then `KeyError: details` | `ExtractionError` with a code, from both engines: `LAYOUT_UNRECOGNIZED`, or `NOT_A_PDF`, `PASSWORD_REQUIRED`, `PASSWORD_INCORRECT`, `CORRUPT_PDF` from the engine | `test_no_tables_found_raises_layout_unrecognized_instead_of_returning_an_empty_result`, `test_no_anchor_rows_raises_rather_than_returning_nothing` | Done at CP3, owner instruction; not yet committed |
 | D-04 | Stop logging raw values; count unparsed amounts | `utils.py` logs the raw value; unparseable balance becomes 0.0 silently | No value logged; the count appears in data quality. The 0.0 domain rule is unchanged | an unparseable balance increments `unparsed_amounts` and logs nothing | Proposed |
 | D-07 | Index parents by receipt number | Fee attribution scans every row for every fee | Same nearest-row rule, linear time | a fee between two equidistant parents goes to the earlier row | Proposed |
 | D-06 | Define a tie rule for equal timestamps and equal amounts | Default `sort_values`, tie order unspecified | Ties keep statement print order (stable) | closing balance with a tied latest timestamp follows print order | Proposed |
+| D-10 | A statement must print at least two values in every amount column | Any table reads, however few amounts it holds | Fewer than two values in paid in, withdrawn or balance raises `LAYOUT_UNRECOGNIZED`, because the three columns are told apart only by position (ADR 0009). A short or one-sided statement, such as one with no money in, cannot be read | `test_column_seen_only_once_cannot_calibrate`, `test_column_never_seen_cannot_calibrate` | Proposed: follows the CP3 calibration rules as written; owner to decide whether these statements must be readable |
 | A-1 | Compare money at cents | Exact float comparison in 45 old assertions | Compare rounded to 0.01 | totals agree within 0.005 on the synthetic golden statement | Proposed |
 | A-2 | Parse each row's date in its own format | `to_datetime(errors="coerce")` takes the first value's format; later rows in another format become missing | Each row parsed on its own | a later row in a different format keeps its date | Proposed |
 | A-3 | Keep rows with a bad or missing date | `_filter_by_period` silently drops them | Row kept and counted under data quality | a row with an unreadable date appears in the ledger and in the count | Proposed |
 | A-4 | Missing purchase date no longer crashes | `_public_value` raises on a missing date | Value shaped as null | a purchase with no date serializes with a null date | Proposed |
 | A-5 | Empty input returns zeros | Engine-less empty input raises `KeyError` in totals | Empty totals are 0.0 | an empty statement gives zero totals and no error | Proposed |
 
-IDs D-01 to D-09 are the carried defects in `INVENTORY.md` of the migration plan. IDs A-1 to A-5 come from the pandas audit (items 9 to 13 and 19).
+IDs D-01 to D-09 are the carried defects in `INVENTORY.md` of the migration plan. D-10 arose at CP3. IDs A-1 to A-5 come from the pandas audit (items 9 to 13 and 19).
 
 ## Not changed on purpose
 

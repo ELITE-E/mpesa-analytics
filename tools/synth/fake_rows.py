@@ -18,11 +18,22 @@ MAX_GAP_MINUTES = 900
 FEE_FIRST = "fee_first"
 PARENT_FIRST = "parent_first"
 SINGLE_LINE_SHARE = 0.6
+PAIR_SHARE = 0.3
+# In a pairs-only statement, one pair in this many is money in, so every amount column prints.
+PAID_IN_PAIR_EVERY = 3
+BREAK_SHIFT_CENTS = 77_700
 SINGLE_ROW_BUILDERS = ("merchant", "airtime", "received")
 PAIR_BUILDERS = ("transfer", "pay_bill")
 
 
-def build_fake_rows(seed_text, row_count, *, pair_orders=None):
+def build_fake_rows(
+    seed_text,
+    row_count,
+    *,
+    pair_orders=None,
+    single_line_share=SINGLE_LINE_SHARE,
+    pair_share=PAIR_SHARE,
+):
     """Build fake transactions with a running balance, newest first as a statement prints them.
 
     Args:
@@ -30,6 +41,8 @@ def build_fake_rows(seed_text, row_count, *, pair_orders=None):
         row_count: Exact number of rows to build.
         pair_orders: Print orders to cycle through, making every transaction a parent and fee
             pair at the same second. By default pairs print fee first and singles are mixed in.
+        single_line_share: Share of single rows whose details are short enough for one line.
+        pair_share: Share of transactions built as a parent and fee pair, when not pairs-only.
 
     Returns:
         Row maps with ``time``, ``receipt_no``, ``details``, ``paid_in_cents``,
@@ -39,42 +52,84 @@ def build_fake_rows(seed_text, row_count, *, pair_orders=None):
         None.
     """
     rng = random.Random(seed_text)
-    builder = _RowBuilder(rng)
+    builder = _RowBuilder(rng, single_line_share=single_line_share, pair_share=pair_share)
     print_groups = []
     built = 0
     while built < row_count:
         remaining = row_count - built
         order = pair_orders[len(print_groups) % len(pair_orders)] if pair_orders else FEE_FIRST
-        group = builder.next_group(remaining, pair_only=bool(pair_orders), order=order)
+        is_paid_in_pair = bool(pair_orders) and len(print_groups) % PAID_IN_PAIR_EVERY == (
+            PAID_IN_PAIR_EVERY - 1
+        )
+        group = builder.next_group(
+            remaining, pair_only=bool(pair_orders), order=order, paid_in_parent=is_paid_in_pair
+        )
         print_groups.append(group)
         built += len(group)
     return [row for group in reversed(print_groups) for row in reversed(group)]
 
 
+def plant_chain_breaks(fake_rows, count):
+    """Break the balance chain at known places, as if transactions were missing from the statement.
+
+    Shifting every row newer than a link breaks that link alone. Changing one balance would break
+    two links, and the count would no longer be the number planted.
+
+    Args:
+        fake_rows: Rows in print order, newest first.
+        count: How many links to break. The first same-receipt link is always one of them.
+
+    Returns:
+        New rows with shifted balances; the input is unchanged.
+
+    Side Effects:
+        None.
+    """
+    link_count = len(fake_rows) - 1
+    same_receipt = [
+        link
+        for link in range(link_count)
+        if fake_rows[link]["receipt_no"] == fake_rows[link + 1]["receipt_no"]
+    ]
+    spaced = range(0, link_count, max(1, link_count // count))
+    links = list(dict.fromkeys([*same_receipt[:1], *spaced]))[:count]
+    shifted = []
+    for position, row in enumerate(fake_rows):
+        planted_below = sum(position <= link for link in links)
+        balance_cents = row["balance_cents"] + planted_below * BREAK_SHIFT_CENTS
+        shifted.append({**row, "balance_cents": balance_cents})
+    return shifted
+
+
 class _RowBuilder:
     """Tracks the running balance, clock and used receipts while rows are built."""
 
-    def __init__(self, rng):
+    def __init__(self, rng, *, single_line_share, pair_share):
         """Start at the opening balance.
 
         Args:
             rng: Seeded random source.
+            single_line_share: Share of single rows with short details.
+            pair_share: Share of transactions built as a parent and fee pair.
 
         Side Effects:
             None.
         """
         self.rng = rng
+        self.single_line_share = single_line_share
+        self.pair_share = pair_share
         self.balance_cents = OPENING_CENTS
         self.time = START_TIME
         self.used_receipts = set()
 
-    def next_group(self, remaining, *, pair_only, order):
+    def next_group(self, remaining, *, pair_only, order, paid_in_parent):
         """Build the rows of the next transaction, oldest first.
 
         Args:
             remaining: How many rows are still wanted, so a pair never overshoots.
             pair_only: Whether to build only parent and fee pairs.
             order: Print order of a pair, ``fee_first`` or ``parent_first``.
+            paid_in_parent: Whether a pair's parent is money in rather than money out.
 
         Returns:
             One row, or a parent and fee pair at the same second.
@@ -83,8 +138,8 @@ class _RowBuilder:
             Advances the clock and the running balance.
         """
         self.time += timedelta(minutes=1 + int(self.rng.random() * MAX_GAP_MINUTES))
-        if remaining >= 2 and (pair_only or self.rng.random() < 0.3):
-            return self._build_pair(order)
+        if remaining >= 2 and (pair_only or self.rng.random() < self.pair_share):
+            return self._build_paid_in_pair(order) if paid_in_parent else self._build_pair(order)
         return [self._build_single()]
 
     def _build_single(self):
@@ -117,7 +172,7 @@ class _RowBuilder:
             None.
         """
         person = self._digits(2)
-        if self.rng.random() < SINGLE_LINE_SHARE:
+        if self.rng.random() < self.single_line_share:
             return f"Funds received - Example Person {person}"
         return f"Funds received from 07000000{person} - Example Person {person}"
 
@@ -131,7 +186,7 @@ class _RowBuilder:
             None.
         """
         till = self._digits(3)
-        if self.rng.random() < SINGLE_LINE_SHARE:
+        if self.rng.random() < self.single_line_share:
             return f"Merchant Payment Example Till {till}"
         return f"Merchant Payment to Example Till {till} - Synthetic Online Purchase Order"
 
@@ -156,6 +211,28 @@ class _RowBuilder:
             return [parent, self._row(receipt, fee_details, withdrawn_cents=fee_cents)]
         fee = self._row(receipt, fee_details, withdrawn_cents=fee_cents)
         return [fee, self._row(receipt, parent_details, withdrawn_cents=amount_cents)]
+
+    def _build_paid_in_pair(self, order):
+        """Build money in and its fee, sharing a receipt and a second.
+
+        Args:
+            order: Print order, ``fee_first`` or ``parent_first``. See ``_build_pair``.
+
+        Returns:
+            The two rows, oldest first.
+
+        Side Effects:
+            Advances the running balance.
+        """
+        receipt = self._new_receipt()
+        details = f"Business Payment from Example Till {self._digits(3)}"
+        paid_in_cents = self._amount_cents(100_000, 400_000)
+        fee_details = "Funds Receipt Charge"
+        if order == FEE_FIRST:
+            parent = self._row(receipt, details, paid_in_cents=paid_in_cents)
+            return [parent, self._row(receipt, fee_details, withdrawn_cents=TRANSFER_FEE_CENTS)]
+        fee = self._row(receipt, fee_details, withdrawn_cents=TRANSFER_FEE_CENTS)
+        return [fee, self._row(receipt, details, paid_in_cents=paid_in_cents)]
 
     def _pair_details(self):
         """Choose what a parent and fee pair says.

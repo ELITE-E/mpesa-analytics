@@ -17,6 +17,10 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | header row | The printed column titles. Used only to confirm column order, never position | `header_row` | title row |
 | column calibration | Deriving column x positions from anchor rows | `columns.py` | column detection |
 | layout | The printed arrangement of a statement. "Format" is reserved for file formats | `layout` | format, template |
+| printed line | Text items sharing a vertical position on a page. Not a row: a row can span several printed lines | `PrintedLine`, `group_lines` | row, record |
+| column layout | The calibrated column positions: left edges for text, right edges for amounts | `ColumnLayout`, `calibrate_columns` | column map |
+| continuation line | A printed line with no anchor that adds to its row's details, above or below the anchor | `continuation_lines_above`, `continuation_lines_below` | wrap row, extra line |
+| layout counts | Counts of what row building met on the page instead of guessing | `LayoutCounts`, `assemble_rows` | warnings, errors |
 
 ## Rows and transactions
 
@@ -36,6 +40,7 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | closing balance | The balance of the latest transaction in the period | `closing_balance` | final balance |
 | balance chain | The sequence in which each balance equals the previous balance plus paid in minus paid out | `balance_chain` | running total |
 | chain break | A place where a balance does not follow from the previous row | `chain_break` | mismatch, gap |
+| print orientation | Whether a statement prints newest or oldest first. Never assumed; the chain is read both ways | `chain_orientation`, `NEWEST_FIRST`, `OLDEST_FIRST` | sort order, direction |
 
 ## Classification
 
@@ -59,6 +64,7 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | reconciliation | Comparing parsed rows with the statement summary and the balance chain | `reconcile` | validation, verification |
 | data quality | Counts of problems found while processing (row counts, status counts, chain breaks, unparsed amounts) | `DataQuality`, `quality` | warnings, errors |
 | diagnostic | An item describing one row that could not be resolved. Held in memory only | `Diagnostic` | issue, problem |
+| baseline | The old extractor's rows for one statement, kept outside both repos for the equivalence check | `export_baseline.py`, `compare.py` | snapshot, golden |
 | verification token | The value `attest` produces, tying a result to its statement | `verification_token` | hash, signature |
 | recurring | Seen at least three times, so an isolated transaction is not treated as recurring. | `recurring` | repeat, regular, subscription |
 

@@ -8,16 +8,26 @@ from decimal import Decimal, InvalidOperation
 
 FEE_SUFFIX = "Charge"
 ZERO = Decimal("0.00")
+# Labels the statement summary prints that the rows can confirm.
+TOTAL_LABELS = (
+    "Transaction Count",
+    "Total Paid In",
+    "Total Withdrawn",
+    "Opening Balance",
+    "Closing Balance",
+)
 
 
-def compute_expected(rows):
+def compute_expected(rows, summary_lines=()):
     """Work out the expected totals for one statement.
 
     Args:
         rows: Raw rows in print order, with amounts as printed text.
+        summary_lines: Tuples of label and printed value from the statement summary.
 
     Returns:
-        A map of totals, balances, counts and the rows themselves. ``opening_balance`` and
+        A map of totals, balances, counts, chain breaks by kind, the summary's printed totals and
+        whether each agrees with the rows, and the rows themselves. ``opening_balance`` and
         ``closing_balance`` are None for an empty statement.
 
     Side Effects:
@@ -32,15 +42,30 @@ def compute_expected(rows):
         for row, (_, withdrawn, _) in zip(rows, amounts, strict=True)
         if row["details"].endswith(FEE_SUFFIX)
     ]
+    breaks = _chain_break_links(rows, amounts)
+    totals = {
+        "Transaction Count": str(len(rows)),
+        "Total Paid In": _text(sum((paid_in for paid_in, _, _ in amounts), ZERO)),
+        "Total Withdrawn": _text(sum((withdrawn for _, withdrawn, _ in amounts), ZERO)),
+        "Opening Balance": _opening_balance(rows, amounts),
+        "Closing Balance": _closing_balance(rows, amounts),
+    }
+    printed_totals = {label: value for label, value in summary_lines if label in TOTAL_LABELS}
     return {
         "row_count": len(rows),
-        "total_paid_in": _text(sum((paid_in for paid_in, _, _ in amounts), ZERO)),
-        "total_withdrawn": _text(sum((withdrawn for _, withdrawn, _ in amounts), ZERO)),
+        "total_paid_in": totals["Total Paid In"],
+        "total_withdrawn": totals["Total Withdrawn"],
         "total_fees": _text(sum(fees, ZERO)),
-        "opening_balance": _opening_balance(rows, amounts),
-        "closing_balance": _closing_balance(rows, amounts),
-        "chain_breaks": _count_chain_breaks(rows, amounts),
+        "opening_balance": totals["Opening Balance"],
+        "closing_balance": totals["Closing Balance"],
+        "chain_breaks": len(breaks),
+        "chain_break_kinds": _chain_break_kinds(rows, breaks),
         "status_counts": status_counts,
+        "summary_totals": printed_totals,
+        "summary_reconciliation": {
+            label: _parse_amount(0, printed) == _parse_amount(0, totals[label])
+            for label, printed in printed_totals.items()
+        },
         "same_second_pairs": _same_second_pairs(rows),
         "rows": list(rows),
     }
@@ -145,27 +170,66 @@ def _closing_balance(rows, amounts):
     return _text(amounts[first_printed][2])
 
 
-def _count_chain_breaks(rows, amounts):
-    """Count rows whose balance does not follow from the previous row's.
+def _chain_break_links(rows, amounts):
+    """Find the rows whose balance does not follow from the previous row's.
 
     Args:
         rows: Raw rows in print order.
         amounts: Parsed amounts for each row.
 
     Returns:
-        Number of breaks in the balance chain.
+        Tuples of the older and newer row position, one for each break in the balance chain.
 
     Side Effects:
         None.
     """
-    breaks = 0
+    breaks = []
     previous = None
     for position in _chronological_positions(rows):
         paid_in, withdrawn, balance = amounts[position]
-        if previous is not None and previous + paid_in - withdrawn != balance:
-            breaks += 1
-        previous = balance
+        if previous is not None and amounts[previous][2] + paid_in - withdrawn != balance:
+            breaks.append((previous, position))
+        previous = position
     return breaks
+
+
+def _chain_break_kinds(rows, breaks):
+    """Count breaks by what the two rows have in common; each break counts once.
+
+    Args:
+        rows: Raw rows in print order.
+        breaks: Tuples of the older and newer row position.
+
+    Returns:
+        Map of kind to count, with every kind present.
+
+    Side Effects:
+        None.
+    """
+    kinds = {"same_receipt": 0, "tied_timestamp": 0, "page_boundary": 0, "other": 0}
+    for older, newer in breaks:
+        kinds[_chain_break_kind(rows[older], rows[newer])] += 1
+    return kinds
+
+
+def _chain_break_kind(older, newer):
+    """Name what explains a break, most specific first.
+
+    Args:
+        older: The earlier row.
+        newer: The later row.
+
+    Returns:
+        The kind's name.
+
+    Side Effects:
+        None.
+    """
+    if older["receipt_no"] == newer["receipt_no"]:
+        return "same_receipt"
+    if older["completion_time"] == newer["completion_time"]:
+        return "tied_timestamp"
+    return "page_boundary" if older["page"] != newer["page"] else "other"
 
 
 def _same_second_pairs(rows):

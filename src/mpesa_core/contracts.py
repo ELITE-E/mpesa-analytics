@@ -49,6 +49,26 @@ class RawRow(TypedDict):
     line: int
 
 
+class LayoutCounts(TypedDict):
+    """Counts of what row building met on the page, instead of guessing around it (ADR 0009)."""
+
+    continuation_lines_above: int
+    continuation_lines_below: int
+    ambiguous_continuation_lines: int
+    status_from_non_anchor_line: int
+    unassigned_items: int
+    unattached_lines: int
+    anchor_cells_off_column: int
+
+
+class RowAssembly(TypedDict):
+    """Rows built from statement pages, with counts describing how they were built."""
+
+    rows: list[RawRow]
+    printed_line_counts: list[int]
+    layout_counts: LayoutCounts
+
+
 class CanonicalRow(TypedDict):
     """A row after cleaning: typed amounts and normalized details."""
 
@@ -79,13 +99,30 @@ class Diagnostic(TypedDict):
     details: str | None
 
 
+class ChainBreakCounts(TypedDict):
+    """Chain breaks in one print orientation, by what the two rows have in common."""
+
+    same_receipt: int
+    tied_timestamp: int
+    page_boundary: int
+    other: int
+
+
 class DataQuality(TypedDict):
-    """Counts of problems found while processing a statement."""
+    """Counts of problems found while processing a statement. Never any row text (ADR 0004).
+
+    ``chain_breaks`` counts the orientation named by ``chain_orientation``, the one with fewer.
+    In ``summary_reconciliation`` a label maps to whether it agrees, or None if it was not found.
+    """
 
     row_count: int
     status_counts: dict[str, int]
     chain_breaks: int
+    chain_orientation: str
+    chain_break_counts: dict[str, ChainBreakCounts]
     unparsed_amounts: int
+    summary_reconciliation: dict[str, bool | None]
+    receipt_length_histogram: dict[int, int]
 
 
 class PipelineResult(TypedDict):
