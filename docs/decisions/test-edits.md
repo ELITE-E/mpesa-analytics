@@ -77,6 +77,32 @@ Owner instruction: a hidden prompt only, never the command line or the environme
 | `test_encrypted_pdf_without_a_password_stops_without_printing_text` | Same assertions | Renamed `test_no_password_given_stops_without_printing_text`, and also requires the prompt on stderr | The tool now prompts first. Stricter |
 | `run_profiler` helper | Inherited stdin | Takes `typed`; stdin is empty by default | A test must never wait on a prompt |
 
+## Edits for CP3
+
+| Test | Old assertion | New assertion | Reason |
+|---|---|---|---|
+| `test_fixtures.py`, `COMMITTED` list | 6 fixture names | 14, adding the 8 calibration fixtures | The manifest test must list them. The assertions are unchanged |
+
+Added to existing files, not edits: new tests in `test_ledger.py` and `test_standards_docs.py`.
+
+These tests were new and not yet committed when edited. No assertion was weakened to hide a failure.
+
+| Test | Old | New | Reason |
+|---|---|---|---|
+| `test_continuation_lines_print_above_the_anchor` | Compared with the first item holding the receipt | Requires a receipt and first fragment exactly the wrap distance apart | Test bug: a parent and fee share a receipt, so the first match could be the other row |
+| `test_rows.py`, 3 continuation and moved-page tests | Removed rows or used 2 moved rows | Built from rows that still calibrate | Test bug: the statements could not calibrate, so they would have failed for the wrong reason |
+| `test_export_baseline.py`, refusal and password-option tests | `returncode == 2` | Also require the tool's own message | Stricter. A missing script also exits 2, so 9 tests were false greens before the tool existed |
+| `test_export_baseline.py`, bytecode test | No exit-code check | Requires a successful run | Stricter. It passed with no tool |
+| `test_compare.py`, 8 "never appears" tests | Asserted absence only | Also prove the tool ran, by a count or exit code | Stricter. A crash also prints nothing, so they passed with no tool |
+| `test_compare.py`, `test_mismatch_features_are_counted` | Row 0 and a row with long details; `>=` on text | Rows chosen for exactly one feature each; `==` | Test bug: a text comparison, and rows that could hold two features |
+| `test_compare.py`, status-shown test | Value anywhere in the output | The value in a status line | Test bug: `ab` is a substring of ordinary labels |
+| `test_compare.py`, planted-text test | `old_only == 1` | `old_only == 3` | Test bug: it plants three receipts that pair with nothing |
+| `test_compare.py`, `test_summary_label_not_on_the_statement_reads_not_found` | Asserted `true` under a name saying `not_found` | Removed | The name was wrong. `test_reconcile.py` covers not found |
+
+## Fixture changes for CP3
+
+Generator version 1.3.0. Every `expected.json` gained `chain_break_kinds`, `summary_totals` and `summary_reconciliation`. F-TIES now has money-in pairs, so its PDF, model and recording changed. No other committed PDF or recording changed.
+
 ## Guard changes made during CP0 (not test edits, recorded for review)
 
 | # | Guard | Change | Condition |

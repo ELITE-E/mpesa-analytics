@@ -15,6 +15,14 @@ export const FIXTURE_NAMES = [
   "F-SPLIT",
   "F-DENSE",
   "F-MANY-PAGES",
+  "F-BASIC",
+  "F-MULTILINE",
+  "F-MULTIPAGE",
+  "F-NOTABLE",
+  "F-JITTER",
+  "F-CONT-ABOVE",
+  "F-SUMMARY-MISMATCH",
+  "F-CHAIN-BREAK",
 ];
 
 const NODE_BUILD = join(REPO, "web/public/vendor/pdfjs-node");

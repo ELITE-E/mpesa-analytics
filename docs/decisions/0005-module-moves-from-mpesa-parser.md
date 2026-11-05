@@ -12,7 +12,7 @@ Standard 7.2 says module boundaries are respected, and a move needs a clear arch
 | Old (mpesa-parser) | New (mpesa-analytics) | Reason |
 |---|---|---|
 | `src/extract.py` (pdfplumber `extract_table`) | `engine/pdfjs/adapter.js` (extract) and `mpesa_core/columns.py` + `rows.py` (build rows) | The PDF engine is replaceable and outside the core; row building becomes pure code over statement pages |
-| pdfplumber path | `tools/engines/pdfplumber_engine.py`, `legacy_table_rows` (dev and CI only) | Differential baseline; not shipped, too slow in the browser |
+| pdfplumber path | `tools/engines/pdfplumber_engine.py` (dev and CI only) | Differential check, through the same row builder; not shipped, too slow in the browser |
 | `src/clean.py` | `mpesa_core/canonicalize.py` | Works on row records instead of frames; same rules |
 | `src/utils.py` (`parse_currency`) | `mpesa_core/` (utility module) | Keeps 0.0 for blank; no raw-value logging |
 | `src/engine.py` (classifier) | `mpesa_core/classify.py` | Returns diagnostics instead of writing logs; rule order preserved |

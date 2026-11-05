@@ -78,6 +78,16 @@ class DrawnText:
     size: float
 
 
+@dataclass(frozen=True)
+class LayoutVariant:
+    """How a statement departs from the ordinary layout. The defaults change nothing."""
+
+    minimum_pages: int = 0
+    jitter_points: float = JITTER_POINTS
+    jitter_tops: bool = False
+    continuation_above: bool = False
+
+
 def _build_columns():
     """Lay the seven columns side by side from their widths.
 
@@ -111,7 +121,7 @@ HEADER_LABELS = tuple(column.label for column in COLUMNS)
 RECEIPT, TIME, DETAILS, STATUS, PAID_IN, WITHDRAWN, BALANCE = COLUMNS
 
 
-def lay_out_statement(printed_rows, summary_lines, *, seed_text, split_datetime, minimum_pages=0):
+def lay_out_statement(printed_rows, summary_lines, *, seed_text, split_datetime, variant=None):
     """Place a statement's text on pages.
 
     Args:
@@ -119,7 +129,7 @@ def lay_out_statement(printed_rows, summary_lines, *, seed_text, split_datetime,
         summary_lines: Tuples of label and value for the block at the top of page 1.
         seed_text: Text that seeds the jitter and footer tokens.
         split_datetime: Whether to print the date and the time as two strings.
-        minimum_pages: Add header-only pages after the rows until there are this many.
+        variant: The ``LayoutVariant`` to apply; defaults to the ordinary layout.
 
     Returns:
         Tuple of pages, each a list of ``DrawnText``, and rows with their ``page`` and ``line``.
@@ -127,10 +137,11 @@ def lay_out_statement(printed_rows, summary_lines, *, seed_text, split_datetime,
     Side Effects:
         None.
     """
-    placer = _Placer(random.Random(seed_text), split_datetime=split_datetime)
+    variant = variant or LayoutVariant()
+    placer = _Placer(random.Random(seed_text), split_datetime=split_datetime, variant=variant)
     placer.place_summary(summary_lines)
     placed_rows = [placer.place_row(row) for row in printed_rows]
-    placer.pad_to(minimum_pages)
+    placer.pad_to(variant.minimum_pages)
     placer.place_footers()
     return placer.pages, placed_rows
 
@@ -164,18 +175,20 @@ def wrap_details(details):
 class _Placer:
     """Tracks the current page and position while text is placed."""
 
-    def __init__(self, rng, *, split_datetime):
+    def __init__(self, rng, *, split_datetime, variant):
         """Start on an empty first page.
 
         Args:
             rng: Seeded random source for jitter and footers.
             split_datetime: Whether to print the date and the time as two strings.
+            variant: The ``LayoutVariant`` to apply.
 
         Side Effects:
             None.
         """
         self.rng = rng
         self.split_datetime = split_datetime
+        self.variant = variant
         self.pages = [[]]
         self.next_top = FIRST_HEADER_TOP
         self.line = 0
@@ -212,8 +225,12 @@ class _Placer:
         wrapped = wrap_details(row[DETAILS.label])
         if self.next_top + WRAP_PITCH * (len(wrapped) - 1) > LAST_ROW_TOP:
             self._start_page()
-        placed = {**row, "page": len(self.pages), "line": self.line}
+        anchor_offset = len(wrapped) - 1 if self.variant.continuation_above else 0
+        placed = {**row, "page": len(self.pages), "line": self.line + anchor_offset}
+        first_top = self.next_top
+        self.next_top = first_top + WRAP_PITCH * anchor_offset
         self._place_row_columns(row)
+        self.next_top = first_top
         for index, text in enumerate(wrapped):
             top = self.next_top + WRAP_PITCH * index
             self._place_left(text, DETAILS.text_x0, DATA_FONT, DATA_SIZE, top=top)
@@ -316,7 +333,7 @@ class _Placer:
         Side Effects:
             Adds text to the current page.
         """
-        top = self.next_top if top is None else top
+        top = (self.next_top if top is None else top) + self._top_jitter()
         left = round(x0 + self._jitter(), DIGITS_PER_ROUND)
         right = round(left + stringWidth(text, font, size), DIGITS_PER_ROUND)
         self.pages[-1].append(DrawnText(text, left, right, top, font, size))
@@ -333,7 +350,8 @@ class _Placer:
         """
         right = round(x1 + self._jitter(), DIGITS_PER_ROUND)
         left = round(right - stringWidth(text, DATA_FONT, DATA_SIZE), DIGITS_PER_ROUND)
-        self.pages[-1].append(DrawnText(text, left, right, self.next_top, DATA_FONT, DATA_SIZE))
+        top = self.next_top + self._top_jitter()
+        self.pages[-1].append(DrawnText(text, left, right, top, DATA_FONT, DATA_SIZE))
 
     def _left_text(self, text, x0, top):
         """Make footer text, which has no jitter.
@@ -356,12 +374,25 @@ class _Placer:
         """Pick a seeded offset, so positions are never perfectly regular.
 
         Returns:
-            An offset of at most 0.1 points either way.
+            An offset of at most the variant's jitter either way.
 
         Side Effects:
             None.
         """
-        return (self.rng.random() * 2 - 1) * JITTER_POINTS
+        return (self.rng.random() * 2 - 1) * self.variant.jitter_points
+
+    def _top_jitter(self):
+        """Pick a seeded vertical offset, only for variants that ask for one.
+
+        Ordinary statements draw no random number here, so their bytes stay as they were.
+
+        Returns:
+            An offset in points, rounded for the model; 0.0 for ordinary statements.
+
+        Side Effects:
+            None.
+        """
+        return round(self._jitter(), DIGITS_PER_ROUND) if self.variant.jitter_tops else 0.0
 
     def _pick_footer_char(self):
         """Pick one footer token character.

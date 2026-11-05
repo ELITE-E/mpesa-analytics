@@ -1,0 +1,118 @@
+{
+ "engine": "synthetic",
+ "pages": [
+  {
+   "height": 848.0,
+   "items": [
+    {
+     "bottom": 44.361,
+     "text": "Customer Name",
+     "top": 38.861,
+     "x0": 67.556,
+     "x1": 107.59
+    },
+    {
+     "bottom": 44.361,
+     "text": "Example Person 00",
+     "top": 38.861,
+     "x0": 180.016,
+     "x1": 228.009
+    },
+    {
+     "bottom": 54.361,
+     "text": "Mobile Number",
+     "top": 48.861,
+     "x0": 67.428,
+     "x1": 104.713
+    },
+    {
+     "bottom": 54.361,
+     "text": "0700000000",
+     "top": 48.861,
+     "x0": 179.93,
+     "x1": 210.51
+    },
+    {
+     "bottom": 64.361,
+     "text": "Notice",
+     "top": 58.861,
+     "x0": 67.55,
+     "x1": 83.137
+    },
+    {
+     "bottom": 64.361,
+     "text": "No transactions in this period",
+     "top": 58.861,
+     "x0": 180.085,
+     "x1": 251.002
+    },
+    {
+     "bottom": 84.758,
+     "text": "Receipt No",
+     "top": 78.758,
+     "x0": 81.764,
+     "x1": 113.102
+    },
+    {
+     "bottom": 84.758,
+     "text": "Completion Time",
+     "top": 78.758,
+     "x0": 141.23,
+     "x1": 189.902
+    },
+    {
+     "bottom": 84.758,
+     "text": "Details",
+     "top": 78.758,
+     "x0": 245.089,
+     "x1": 264.763
+    },
+    {
+     "bottom": 84.758,
+     "text": "Transaction Status",
+     "top": 78.758,
+     "x0": 309.565,
+     "x1": 363.577
+    },
+    {
+     "bottom": 84.758,
+     "text": "Paid In",
+     "top": 78.758,
+     "x0": 382.586,
+     "x1": 402.26
+    },
+    {
+     "bottom": 84.758,
+     "text": "Withdrawn",
+     "top": 78.758,
+     "x0": 429.2,
+     "x1": 459.866
+    },
+    {
+     "bottom": 84.758,
+     "text": "Balance",
+     "top": 78.758,
+     "x0": 486.931,
+     "x1": 509.941
+    },
+    {
+     "bottom": 830.361,
+     "text": "Page 1 of 1",
+     "top": 824.861,
+     "x0": 20.0,
+     "x1": 48.133
+    },
+    {
+     "bottom": 840.361,
+     "text": "DNNNHB2I",
+     "top": 834.861,
+     "x0": 20.0,
+     "x1": 48.111
+    }
+   ],
+   "page_number": 1,
+   "width": 595.0
+  }
+ ],
+ "schema_version": 1
+}

@@ -15,7 +15,22 @@ from vendor import PDFJS_VERSION
 
 FIXTURES = REPO / "fixtures" / "synthetic"
 GENERATOR = REPO / "tools" / "synth" / "generate.py"
-COMMITTED = ["F-GOLDEN", "F-ENCRYPTED", "F-TIES", "F-SPLIT", "F-DENSE", "F-MANY-PAGES"]
+COMMITTED = [
+    "F-GOLDEN",
+    "F-ENCRYPTED",
+    "F-TIES",
+    "F-SPLIT",
+    "F-DENSE",
+    "F-MANY-PAGES",
+    "F-BASIC",
+    "F-MULTILINE",
+    "F-MULTIPAGE",
+    "F-NOTABLE",
+    "F-JITTER",
+    "F-CONT-ABOVE",
+    "F-SUMMARY-MISMATCH",
+    "F-CHAIN-BREAK",
+]
 SUFFIXES = [".pdf", ".model.json", ".expected.json"]
 ALL_FILES = [f"{name}{suffix}" for name in COMMITTED for suffix in SUFFIXES]
 ONE_STRING_TIME = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")

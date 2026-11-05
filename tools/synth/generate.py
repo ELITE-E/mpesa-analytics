@@ -5,12 +5,19 @@ import hashlib
 import json
 import random
 import sys
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from synth.fake_rows import FEE_FIRST, PARENT_FIRST, build_fake_rows  # noqa: E402
+from synth.fake_rows import (  # noqa: E402
+    FEE_FIRST,
+    PAIR_SHARE,
+    PARENT_FIRST,
+    SINGLE_LINE_SHARE,
+    build_fake_rows,
+    plant_chain_breaks,
+)
 from synth.layout import (  # noqa: E402
     BALANCE,
     DETAILS,
@@ -21,12 +28,13 @@ from synth.layout import (  # noqa: E402
     STATUS,
     TIME,
     WITHDRAWN,
+    LayoutVariant,
     lay_out_statement,
 )
 from synth.ledger import compute_expected  # noqa: E402
 from synth.render import PDFJS_TOP_SHIFT, build_dense_lines, render_pdf  # noqa: E402
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 SCHEMA_VERSION = 1
 ENGINE_NAME = "synthetic"
 STATUS_COMPLETED = "Completed"
@@ -35,6 +43,10 @@ FILLER_LINES = 8
 FAKE_PASSWORD = "synthetic-only"
 DEFAULT_SEED = 1
 DEFAULT_ROW_COUNT = 60
+CHAIN_BREAK_COUNT = 5
+WRONG_SUMMARY_LABELS = ("Total Paid In", "Closing Balance")
+WRONG_SUMMARY_SHIFT_CENTS = 10_000
+CALIBRATION_JITTER_POINTS = 0.4
 MANIFEST_NAME = "MANIFEST.toml"
 COMMITTED_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "synthetic"
 RECORDED_MARKER = "\n[[recorded]]"
@@ -55,14 +67,18 @@ class StatementOptions:
     split_datetime: bool = False
     password: str | None = None
     pair_orders: tuple[str, ...] | None = None
-    # Hostile variants: a heavy vector drawing on page 1, and padding pages after the rows.
+    # Hostile variant: a heavy vector drawing on page 1.
     dense_line_count: int = 0
-    minimum_pages: int = 0
+    single_line_share: float = SINGLE_LINE_SHARE
+    pair_share: float = PAIR_SHARE
+    chain_break_count: int = 0
+    wrong_summary_labels: tuple[str, ...] = ()
+    variant: LayoutVariant = field(default_factory=LayoutVariant)
 
 
 # Cycled across the pairs, so the fixture holds both print orders.
 TIES_PAIR_ORDERS = (PARENT_FIRST, FEE_FIRST)
-# (seed, options). These four are committed to fixtures/synthetic/.
+# (seed, options). These are committed to fixtures/synthetic/.
 COMMITTED_FIXTURES = {
     "F-GOLDEN": (1001, StatementOptions(name="F-GOLDEN", row_count=DEFAULT_ROW_COUNT)),
     "F-ENCRYPTED": (
@@ -72,7 +88,48 @@ COMMITTED_FIXTURES = {
     "F-TIES": (1003, StatementOptions(name="F-TIES", row_count=12, pair_orders=TIES_PAIR_ORDERS)),
     "F-SPLIT": (1004, StatementOptions(name="F-SPLIT", row_count=20, split_datetime=True)),
     "F-DENSE": (1006, StatementOptions(name="F-DENSE", row_count=10, dense_line_count=50_000)),
-    "F-MANY-PAGES": (1007, StatementOptions(name="F-MANY-PAGES", row_count=10, minimum_pages=501)),
+    "F-MANY-PAGES": (
+        1007,
+        StatementOptions(
+            name="F-MANY-PAGES", row_count=10, variant=LayoutVariant(minimum_pages=501)
+        ),
+    ),
+    "F-BASIC": (
+        1008,
+        StatementOptions(name="F-BASIC", row_count=30, single_line_share=1.0, pair_share=0.0),
+    ),
+    "F-MULTILINE": (
+        1009,
+        StatementOptions(name="F-MULTILINE", row_count=30, single_line_share=0.0),
+    ),
+    "F-MULTIPAGE": (1010, StatementOptions(name="F-MULTIPAGE", row_count=220)),
+    "F-NOTABLE": (1011, StatementOptions(name="F-NOTABLE", row_count=0)),
+    "F-JITTER": (
+        1012,
+        StatementOptions(
+            name="F-JITTER",
+            row_count=DEFAULT_ROW_COUNT,
+            variant=LayoutVariant(jitter_points=CALIBRATION_JITTER_POINTS, jitter_tops=True),
+        ),
+    ),
+    "F-CONT-ABOVE": (
+        1013,
+        StatementOptions(
+            name="F-CONT-ABOVE", row_count=40, variant=LayoutVariant(continuation_above=True)
+        ),
+    ),
+    "F-SUMMARY-MISMATCH": (
+        1014,
+        StatementOptions(
+            name="F-SUMMARY-MISMATCH", row_count=30, wrong_summary_labels=WRONG_SUMMARY_LABELS
+        ),
+    ),
+    "F-CHAIN-BREAK": (
+        1015,
+        StatementOptions(
+            name="F-CHAIN-BREAK", row_count=DEFAULT_ROW_COUNT, chain_break_count=CHAIN_BREAK_COUNT
+        ),
+    ),
 }
 # Generated on demand only: too large to commit.
 ON_DEMAND_FIXTURES = {"F-LARGE": (1005, StatementOptions(name="F-LARGE", row_count=5700))}
@@ -150,7 +207,7 @@ def generate(seed, name):
     return ("\n".join(lines) + "\n").encode("ascii")
 
 
-@lru_cache(maxsize=8)
+@lru_cache(maxsize=16)
 def build_outputs(seed, options):
     """Build all three outputs of one statement.
 
@@ -166,20 +223,27 @@ def build_outputs(seed, options):
     """
     seed_text = f"{seed}:{options.name}"
     fake_rows = build_fake_rows(
-        f"{seed_text}:rows", options.row_count, pair_orders=options.pair_orders
+        f"{seed_text}:rows",
+        options.row_count,
+        pair_orders=options.pair_orders,
+        single_line_share=options.single_line_share,
+        pair_share=options.pair_share,
     )
+    if options.chain_break_count:
+        fake_rows = plant_chain_breaks(fake_rows, options.chain_break_count)
+    summary_lines = _summary_lines(fake_rows, options.wrong_summary_labels)
     pages, placed = lay_out_statement(
         [_printed_columns(row) for row in fake_rows],
-        _summary_lines(fake_rows),
+        summary_lines,
         seed_text=f"{seed_text}:layout",
         split_datetime=options.split_datetime,
-        minimum_pages=options.minimum_pages,
+        variant=options.variant,
     )
     drawing = build_dense_lines(f"{seed_text}:drawing", options.dense_line_count)
     return {
         ".pdf": render_pdf(pages, password=options.password, dense_lines=drawing),
         ".model.json": _to_json(_statement_pages(pages)),
-        ".expected.json": _to_json(_expected(placed, options)),
+        ".expected.json": _to_json(_expected(placed, summary_lines, options)),
     }
 
 
@@ -272,29 +336,35 @@ def _printed_columns(fake_row):
     }
 
 
-def _summary_lines(fake_rows):
+def _summary_lines(fake_rows, wrong_labels=()):
     """Compute the page 1 summary from the generated rows, separately from the ledger.
 
     Args:
         fake_rows: Rows in print order.
+        wrong_labels: Labels to print deliberately wrong.
 
     Returns:
-        Tuples of label and printed value.
+        Tuples of label and printed value. A statement with no rows prints no totals.
 
     Side Effects:
         None.
     """
+    identity = (("Customer Name", "Example Person 00"), ("Mobile Number", "07000000" + "00"))
+    if not fake_rows:
+        return (*identity, ("Notice", "No transactions in this period"))
     oldest = fake_rows[-1]
     opening = oldest["balance_cents"] - oldest["paid_in_cents"] + oldest["withdrawn_cents"]
-    return (
-        ("Customer Name", "Example Person 00"),
-        ("Mobile Number", "07000000" + "00"),
-        ("Transaction Count", str(len(fake_rows))),
-        ("Total Paid In", _amount_text(sum(row["paid_in_cents"] for row in fake_rows))),
-        ("Total Withdrawn", _amount_text(sum(row["withdrawn_cents"] for row in fake_rows))),
-        ("Opening Balance", _amount_text(opening)),
-        ("Closing Balance", _amount_text(fake_rows[0]["balance_cents"])),
+    totals = (
+        ("Total Paid In", sum(row["paid_in_cents"] for row in fake_rows)),
+        ("Total Withdrawn", sum(row["withdrawn_cents"] for row in fake_rows)),
+        ("Opening Balance", opening),
+        ("Closing Balance", fake_rows[0]["balance_cents"]),
     )
+    printed_totals = tuple(
+        (label, _amount_text(cents + (WRONG_SUMMARY_SHIFT_CENTS if label in wrong_labels else 0)))
+        for label, cents in totals
+    )
+    return (*identity, ("Transaction Count", str(len(fake_rows))), *printed_totals)
 
 
 def _statement_pages(pages):
@@ -346,11 +416,12 @@ def _model_item(drawn):
     }
 
 
-def _expected(placed_rows, options):
+def _expected(placed_rows, summary_lines, options):
     """Run the independent ledger over the rows as printed.
 
     Args:
         placed_rows: Rows from the layout, with text per column and a position.
+        summary_lines: Tuples of label and value as printed on page 1.
         options: The options that generated them.
 
     Returns:
@@ -373,7 +444,11 @@ def _expected(placed_rows, options):
         }
         for row in placed_rows
     ]
-    return {"name": options.name, "generator_version": VERSION, **compute_expected(rows)}
+    return {
+        "name": options.name,
+        "generator_version": VERSION,
+        **compute_expected(rows, summary_lines),
+    }
 
 
 def _optional_amount(cents):

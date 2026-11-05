@@ -132,3 +132,55 @@ def test_adr_0004_names_the_error_message_helper_as_enforcement():
     enforcement = record.split("## Enforcement", 1)[1]
     assert "tools/guards/error_message_safety.py" in enforcement
     assert "assert_message_is_safe" in enforcement
+
+
+def calibration_record():
+    return next(DECISIONS.glob("0009-*.md")).read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "needle",
+    [
+        "RECEIPT_PATTERN",
+        "OQ-03",
+        "OQ-10",
+        "Whitespace",
+        "baseline",
+        "F-TIES",
+        "## Enforcement",
+    ],
+)
+def test_calibration_decisions_are_recorded(needle):
+    assert needle in calibration_record()
+
+
+def test_behaviour_log_marks_d03_done_with_its_test():
+    log = (DECISIONS / "behaviour-changes.md").read_text(encoding="utf-8")
+    row = next(line for line in log.splitlines() if line.startswith("| D-03 |"))
+    assert "test_no_tables_found_raises_layout_unrecognized" in row
+    assert "| Done" in row
+
+
+def test_behaviour_log_asks_the_owner_about_one_sided_statements():
+    log = (DECISIONS / "behaviour-changes.md").read_text(encoding="utf-8")
+    row = next(line for line in log.splitlines() if line.startswith("| D-10 |"))
+    assert "Proposed" in row
+
+
+def test_test_edit_log_records_the_cp3_edits():
+    log = (DECISIONS / "test-edits.md").read_text(encoding="utf-8")
+    assert "## Edits for CP3" in log
+    assert "COMMITTED" in log
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["PrintedLine", "ColumnLayout", "assemble_rows", "LayoutCounts", "continuation line"],
+)
+def test_glossary_names_the_calibration_terms(name):
+    assert name in (REPO / "docs" / "glossary.md").read_text(encoding="utf-8")
+
+
+def test_module_move_record_no_longer_promises_legacy_table_rows():
+    record = next(DECISIONS.glob("0005-*.md")).read_text(encoding="utf-8")
+    assert "legacy_table_rows" not in record

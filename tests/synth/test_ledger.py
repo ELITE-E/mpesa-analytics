@@ -78,3 +78,70 @@ def test_unparsable_amount_raises_without_repeating_the_value():
     with pytest.raises(ValueError, match="row 0") as caught:
         compute_expected([row("1.00", paid_in=planted)])
     assert planted not in str(caught.value)
+
+
+SUMMARY = (
+    ("Customer Name", "Example Person 00"),
+    ("Transaction Count", "3"),
+    ("Total Paid In", "1,000.00"),
+    ("Total Withdrawn", "125.00"),
+    ("Opening Balance", "0.00"),
+    ("Closing Balance", "875.00"),
+)
+
+
+def test_summary_totals_keep_only_the_labels_the_ledger_checks():
+    totals = compute_expected(PRINT_ORDER, SUMMARY)["summary_totals"]
+    assert "Customer Name" not in totals
+    assert totals["Total Paid In"] == "1,000.00"
+
+
+def test_summary_that_agrees_with_the_rows_reconciles_on_every_label():
+    reconciliation = compute_expected(PRINT_ORDER, SUMMARY)["summary_reconciliation"]
+    assert len(reconciliation) == 5
+    assert all(reconciliation.values())
+
+
+@pytest.mark.parametrize(
+    ("label", "wrong"),
+    [
+        ("Transaction Count", "4"),
+        ("Total Paid In", "1,000.01"),
+        ("Total Withdrawn", "1.00"),
+        ("Opening Balance", "9.00"),
+        ("Closing Balance", "880.00"),
+    ],
+)
+def test_summary_that_disagrees_is_false_for_that_label_only(label, wrong):
+    summary = tuple((name, wrong if name == label else value) for name, value in SUMMARY)
+    reconciliation = compute_expected(PRINT_ORDER, summary)["summary_reconciliation"]
+    assert [name for name, agrees in reconciliation.items() if not agrees] == [label]
+
+
+def test_no_summary_gives_no_reconciliation():
+    assert compute_expected(PRINT_ORDER)["summary_reconciliation"] == {}
+
+
+def broken_pair(upper_changes, lower_changes):
+    upper = {**row("999.00", withdrawn="120.00"), **upper_changes}
+    lower = {**row("1,000.00", paid_in="1,000.00"), **lower_changes}
+    return [upper, lower]
+
+
+@pytest.mark.parametrize(
+    ("upper_changes", "lower_changes", "kind"),
+    [
+        ({}, {}, "same_receipt"),
+        ({"receipt_no": "other-one"}, {}, "tied_timestamp"),
+        (
+            {"receipt_no": "other-one", "completion_time": "2026-01-06 10:00:00"},
+            {"page": 2},
+            "page_boundary",
+        ),
+        ({"receipt_no": "other-one", "completion_time": "2026-01-06 10:00:00"}, {}, "other"),
+    ],
+)
+def test_a_chain_break_is_counted_under_one_kind(upper_changes, lower_changes, kind):
+    kinds = compute_expected(broken_pair(upper_changes, lower_changes))["chain_break_kinds"]
+    assert kinds[kind] == 1
+    assert sum(kinds.values()) == 1

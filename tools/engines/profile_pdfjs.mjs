@@ -7,15 +7,10 @@ import { readFileSync } from "node:fs";
 
 import { ExtractionError, extract_statement_pages } from "../../engine/pdfjs/adapter.js";
 import { use_node_engine } from "./fixture_engine.js";
+import { ask_for_password } from "./password_prompt.js";
 
 const CANNOT_READ = 2;
-const CTRL_C = "\u0003";
-const CTRL_D = "\u0004";
-const BACKSPACE_CODES = new Set(["\u007f", "\b"]);
-const LINE_ENDS = new Set(["\r", "\n"]);
-const INTERRUPTED = 130;
 const NO_LIMIT = Number.MAX_SAFE_INTEGER;
-const PROMPT = "PDF password: ";
 const MS_PER_SECOND = 1000;
 const SAME_LINE_POINTS = 1;
 const SHARE_DIGITS = 3;
@@ -87,63 +82,6 @@ async function timed_extraction(bytes, password) {
   const started = performance.now();
   const statementPages = await extract_statement_pages(bytes, password, PROFILE_LIMITS);
   return { statementPages, elapsedSeconds: (performance.now() - started) / MS_PER_SECOND };
-}
-
-/**
- * Ask for the PDF's password, hidden when typed at a terminal.
- *
- * Side effects: writes a prompt to stderr, never stdout, and reads stdin.
- *
- * @returns {Promise<string>} The password; empty if stdin has nothing.
- */
-function ask_for_password() {
-  return process.stdin.isTTY ? read_hidden_line() : read_piped_line();
-}
-
-/**
- * Read one line from the terminal with echo off.
- *
- * Side effects: puts the terminal in raw mode until the line ends, writes the prompt to stderr,
- * and reads stdin. Ctrl-C exits the process.
- *
- * @returns {Promise<string>} The line typed.
- */
-function read_hidden_line() {
-  return new Promise((resolve) => {
-    let typed = "";
-    // Echo goes off before the prompt shows, or fast typing would appear on screen.
-    process.stdin.setRawMode(true);
-    process.stderr.write(PROMPT);
-    process.stdin.setEncoding("utf8");
-    process.stdin.resume();
-    process.stdin.on("data", (chunk) => {
-      for (const character of chunk) {
-        if (character === CTRL_C) process.exit(INTERRUPTED);
-        if (LINE_ENDS.has(character) || character === CTRL_D) {
-          process.stdin.setRawMode(false);
-          process.stdin.pause();
-          process.stderr.write("\n");
-          resolve(typed);
-          return;
-        }
-        typed = BACKSPACE_CODES.has(character) ? typed.slice(0, -1) : typed + character;
-      }
-    });
-  });
-}
-
-/**
- * Read one line from piped stdin.
- *
- * Side effects: writes the prompt to stderr and reads stdin to its end.
- *
- * @returns {Promise<string>} The first line, without its ending.
- */
-async function read_piped_line() {
-  process.stderr.write(PROMPT);
-  let piped = "";
-  for await (const chunk of process.stdin) piped += chunk;
-  return piped.split(/\r?\n/, 1)[0];
 }
 
 /**
