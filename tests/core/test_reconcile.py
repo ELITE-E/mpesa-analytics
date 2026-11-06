@@ -1,6 +1,11 @@
 import pytest
 
-from mpesa_core.reconcile import NEWEST_FIRST, OLDEST_FIRST, find_chain_breaks, reconcile
+from mpesa_core.reconciliation.reconcile import (
+    NEWEST_FIRST,
+    OLDEST_FIRST,
+    find_chain_breaks,
+    reconcile,
+)
 
 COUNT_LABEL = "Transaction Count"
 PAID_IN_LABEL = "Total Paid In"

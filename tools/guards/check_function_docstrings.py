@@ -7,7 +7,7 @@ import sys
 
 from _common import iter_files, parse_root, report
 
-SOURCE_ROOTS = ("src/", "tools/", "engine/", "web/")
+SOURCE_ROOTS = ("src/", "tools/", "pdf_reader/", "web/")
 FUNCTIONS = (ast.FunctionDef, ast.AsyncFunctionDef)
 SCOPES = (*FUNCTIONS, ast.Lambda, ast.ClassDef)
 RECEIVERS = {"self", "cls"}

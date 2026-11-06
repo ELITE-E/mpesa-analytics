@@ -8,7 +8,7 @@ from pathlib import Path
 
 from _common import CONFIG_PATH, iter_files, parse_root, report
 
-SOURCE_ROOTS = ("src/", "tools/", "engine/", "web/", "tests/")
+SOURCE_ROOTS = ("src/", "tools/", "pdf_reader/", "web/", "tests/")
 
 
 def main():

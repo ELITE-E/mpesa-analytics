@@ -16,7 +16,7 @@ from synth.layout import COLUMNS, lay_out_statement
 from synth.render import render_pdf
 
 PROFILER = REPO / "tools" / "equivalence" / "layout_profile.py"
-FIXTURES = REPO / "fixtures" / "synthetic"
+FIXTURES = REPO / "tests" / "fixtures" / "synthetic"
 GOLDEN = FIXTURES / "F-GOLDEN.pdf"
 MARKER = "PLANTEDMARKERTEXT"
 OUTPUT_LINE = re.compile(r"^[a-z0-9_]+: [-0-9., x:{}\[\]]*$")

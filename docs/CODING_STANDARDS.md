@@ -2,7 +2,7 @@
 
 Status: amended edition for the browser-local rewrite. Sections marked **(amended)** or **(new)** differ from the original standards carried over from mpesa-parser. Everything else is unchanged in substance.
 
-Applies to: Python (`src/mpesa_core`, `tools`), JavaScript/TypeScript (`engine`, `web`). Tests are exempt from the docstring rule only (see 3).
+Applies to: Python (`src/mpesa_core`, `tools`), JavaScript/TypeScript (`pdf_reader`, `web`). Tests are exempt from the docstring rule only (see 3).
 
 ## What changed from the original
 
@@ -78,7 +78,7 @@ def analyze_statement(statement_pages):
 
 2.5 **Minimize arguments.** Too many arguments means too many responsibilities or a missing domain object. Do not bundle unrelated arguments into a class.
 
-2.6 **No hidden side effects (amended).** In `mpesa_core` there are no side effects at all: no files, network, environment, globals or printing. This is enforced by `check_core_purity.py`. Side effects live in `bridge.py`, `engine/` and `web/`, and are named and documented.
+2.6 **No hidden side effects (amended).** In `mpesa_core` there are no side effects at all: no files, network, environment, globals or printing. This is enforced by `check_core_purity.py`. Side effects live in `bridge.py`, `pdf_reader/` and `web/`, and are named and documented.
 
 2.7 **Separate commands from queries.**
 
@@ -104,7 +104,7 @@ def build_transaction_rows(statement_pages):
     """Build raw transaction rows from extracted statement pages.
 
     Args:
-        statement_pages: Pages of positioned text items from the PDF engine.
+        statement_pages: Pages of positioned text items from the PDF reader.
 
     Returns:
         Transaction rows in print order, one per receipt anchor.
@@ -143,7 +143,7 @@ The docstring must reflect the actual implementation; never document behaviour t
 
 5.4 **Do not lose the original error.** `raise ExtractionError("...") from error`.
 
-5.5 **Fail explicitly when invariants are violated (amended).** Do not invent a fallback that makes failure look like success. In particular, if layout calibration finds no anchor rows, the engine raises `LAYOUT_UNRECOGNIZED`; it never returns an empty result. A row with neither a valid inflow nor outflow gets no arbitrary direction.
+5.5 **Fail explicitly when invariants are violated (amended).** Do not invent a fallback that makes failure look like success. In particular, if layout calibration finds no anchor rows, the PDF reader raises `LAYOUT_UNRECOGNIZED`; it never returns an empty result. A row with neither a valid inflow nor outflow gets no arbitrary direction.
 
 5.6 **Meaningful error messages, without statement values (amended).** A message says what failed, where, and which operation was affected, using positions and counts (page number, row index, column, expected vs found counts). **It never contains statement text, names, phone numbers, amounts or receipt numbers**, because messages end up in consoles, logs and bug reports. See ADR 0004.
 
@@ -157,9 +157,9 @@ The docstring must reflect the actual implementation; never document behaviour t
 
 ## 7. Classes, modules and responsibilities
 
-7.1 **Single responsibility.** Keep clear distinctions between PDF extraction (`engine/`), row building, canonicalization, classification, analytics, bridge and storage. `import-linter` enforces the layers in `mpesa_core`.
+7.1 **Single responsibility.** Keep clear distinctions between PDF extraction (`pdf_reader/`), row building, canonicalization, classification, analytics, bridge and storage. `import-linter` enforces the layers in `mpesa_core`.
 
-7.2 **Respect module boundaries (amended).** Do not move code between modules because another arrangement looks nicer. The rewrite from mpesa-parser does move code (for example `clean` to `canonicalize`, `extract` split into engine and `build_rows`); each such move has a recorded architectural reason in ADR 0005 (pure core, no I/O).
+7.2 **Respect module boundaries (amended).** Do not move code between modules because another arrangement looks nicer. The rewrite from mpesa-parser does move code (for example `clean` to `canonicalize`, `extract` split into the PDF reader and `build_rows`); each such move has a recorded architectural reason in ADR 0005 (pure core, no I/O).
 
 7.3 **Avoid unnecessary abstractions.** No wrapper classes for one trivial function, no frameworks for one use case, no forwarding layers.
 
@@ -193,9 +193,9 @@ Tests are executable contracts, not optional verification.
 
 10.1 **Keep dependencies purposeful (amended).** `mpesa_core` runtime dependencies are minimal and listed in ADR 0006. Adding one needs an ADR and a download-size check against the budget, because the app ships to the user's browser. Dev tools stay in the dev group and never enter the wheel.
 
-10.2 **Understand dependency behaviour.** PDF text engines, wasm runtimes and dataframe libraries are not interchangeable. Record the assumptions that matter (for example, behaviour differences found in tests).
+10.2 **Understand dependency behaviour.** PDF readers, wasm runtimes and dataframe libraries are not interchangeable. Record the assumptions that matter (for example, behaviour differences found in tests).
 
-10.3 **Isolate external boundaries:** the PDF engine, the Pyodide bridge, browser storage.
+10.3 **Isolate external boundaries:** the PDF reader, the Pyodide bridge, browser storage.
 
 10.4 **No dependency changes during refactoring** without a separate justification.
 

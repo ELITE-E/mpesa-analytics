@@ -9,10 +9,10 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | Term | Meaning | Code name | Avoid |
 |---|---|---|---|
 | statement | The M-PESA personal statement the user provides, as a whole | `statement` | document, file, record |
-| statement pages | Positioned text items per page, as returned by the PDF engine, before any row exists. Replaces the contract name `PagesDocument` (decided at CP1, before any code uses it) | `StatementPages` | PagesDocument, doc, raw pdf |
+| statement pages | Positioned text items per page, as returned by the PDF reader, before any row exists. Replaces the contract name `PagesDocument` (decided at CP1, before any code uses it) | `StatementPages` | PagesDocument, doc, raw pdf |
 | page | One printed page of the statement | `Page` | sheet |
-| text item | One piece of text with its position, from the engine | `TextItem` | token, word, chunk |
-| engine | The PDF text extractor: pdf.js in the app; pdfplumber in dev and CI only | `engine/` | parser, reader |
+| text item | One piece of text with its position, from the PDF reader | `TextItem` | token, word, chunk |
+| pdf reader | The PDF text extractor: pdf.js in the app; pdfplumber in dev and CI only. "Engine" alone is avoided: in the old repo it meant the classifier | `pdf_reader/`, `tools/pdf_readers/` | engine, parser |
 | anchor row | A printed line holding both a receipt number and a completion timestamp. Row boundaries and column positions are calibrated from these lines | `anchor_row` | first line, data line |
 | header row | The printed column titles. Used only to confirm column order, never position | `header_row` | title row |
 | column calibration | Deriving column x positions from anchor rows | `columns.py` | column detection |
@@ -95,5 +95,6 @@ Avoid `process_`, `handle_`, `do_` and `manage_` as function prefixes, and avoid
 
 ## Allowed exceptions
 
-- The word "document" is allowed in `engine/` only where it names the pdf.js API (`PDFDocumentProxy`, `getDocument`).
+- The word "document" is allowed in `pdf_reader/` only where it names the pdf.js API (`PDFDocumentProxy`, `getDocument`).
 - Test names may say "statement" for a synthetic statement; they never contain real data.
+- `engine` stays as the field of `StatementPages` that names which PDF reader produced it, and as the matching manifest key. Renaming a contract field is a behaviour change (ADR 0010).

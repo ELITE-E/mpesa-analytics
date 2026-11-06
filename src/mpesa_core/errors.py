@@ -25,7 +25,7 @@ class CoreError(Exception):
 
 
 class ExtractionError(CoreError):
-    """The PDF engine could not produce statement pages."""
+    """The PDF reader could not produce statement pages."""
 
     def __init__(self, code, *, page=None):
         """Record why extraction failed and, if known, where.

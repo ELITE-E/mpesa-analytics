@@ -48,13 +48,13 @@ WRONG_SUMMARY_LABELS = ("Total Paid In", "Closing Balance")
 WRONG_SUMMARY_SHIFT_CENTS = 10_000
 CALIBRATION_JITTER_POINTS = 0.4
 MANIFEST_NAME = "MANIFEST.toml"
-COMMITTED_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "synthetic"
+COMMITTED_DIR = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "synthetic"
 RECORDED_MARKER = "\n[[recorded]]"
 MANIFEST_HEADER = (
     "# Every file in this directory must be listed here and regenerate byte-identically\n"
     "# from its seed (tools/guards/check_fixture_provenance.py).\n"
-    "# Rewrite it with: python tools/synth/generate.py --write-fixtures fixtures/synthetic\n"
-    "# Then re-record from pdf.js with: node tools/engines/record_items.mjs\n"
+    "# Rewrite it with: python tools/synth/generate.py --write-fixtures tests/fixtures/synthetic\n"
+    "# Then re-record from pdf.js with: node tools/pdf_readers/record_items.mjs\n"
 )
 
 
@@ -78,7 +78,7 @@ class StatementOptions:
 
 # Cycled across the pairs, so the fixture holds both print orders.
 TIES_PAIR_ORDERS = (PARENT_FIRST, FEE_FIRST)
-# (seed, options). These are committed to fixtures/synthetic/.
+# (seed, options). These are committed to tests/fixtures/synthetic/.
 COMMITTED_FIXTURES = {
     "F-GOLDEN": (1001, StatementOptions(name="F-GOLDEN", row_count=DEFAULT_ROW_COUNT)),
     "F-ENCRYPTED": (
@@ -368,13 +368,13 @@ def _summary_lines(fake_rows, wrong_labels=()):
 
 
 def _statement_pages(pages):
-    """Convert the layout model to the ``StatementPages`` shape the engine will return.
+    """Convert the layout model to the ``StatementPages`` shape the PDF reader will return.
 
     Args:
         pages: Pages, each a list of ``DrawnText``.
 
     Returns:
-        The statement pages, marked as coming from the synthetic engine.
+        The statement pages, marked as coming from the synthetic generator.
 
     Side Effects:
         None.

@@ -30,7 +30,7 @@ def test_risky_type_fails(clean_tree, name):
 
 @pytest.mark.parametrize("name", ["a.csv", "a.xlsx", "a.json", "sub/a.json"])
 def test_allowlisted_in_fixtures_passes(clean_tree, name):
-    plant(clean_tree, f"fixtures/synthetic/{name}", "x")
+    plant(clean_tree, f"tests/fixtures/synthetic/{name}", "x")
     guard_run = run_guard(GUARD, "--root", clean_tree)
     assert guard_run.returncode == 0, guard_run.stdout
 
@@ -39,7 +39,7 @@ def test_allowlisted_in_fixtures_passes(clean_tree, name):
     "name", [".env", "a.db", "a.log", "a.sqlite", "a.ipynb", "a.dump", "a.jsonl"]
 )
 def test_not_every_risky_type_is_allowed_in_fixtures(clean_tree, name):
-    rel = f"fixtures/synthetic/{name}"
+    rel = f"tests/fixtures/synthetic/{name}"
     plant(clean_tree, rel, "x")
     assert_fails_quietly(run_guard(GUARD, "--root", clean_tree), rel)
 

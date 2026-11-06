@@ -11,7 +11,7 @@ from synth.generate import CHAIN_BREAK_COUNT, COMMITTED_FIXTURES, WRONG_SUMMARY_
 from synth.layout import HEADER_LABELS, WRAP_PITCH, wrap_details
 from vendor import PDFJS_VERSION
 
-FIXTURES = REPO / "fixtures" / "synthetic"
+FIXTURES = REPO / "tests" / "fixtures" / "synthetic"
 CALIBRATION_FIXTURES = [
     "F-BASIC",
     "F-MULTILINE",

@@ -15,6 +15,7 @@ Architecture decision records (ADRs) and logs. An ADR records one decision, why,
 | 0007 | Replace PagesDocument with StatementPages | Proposed |
 | 0008 | Layout profile of the synthetic golden statement | Accepted (CP1) |
 | 0009 | Column calibration and row assembly | Accepted (CP3); OQ-03 and OQ-10 await the real counts |
+| 0010 | Restructure for readability | Proposed |
 
 ## Logs
 

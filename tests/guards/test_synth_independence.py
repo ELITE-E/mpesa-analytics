@@ -12,9 +12,9 @@ SYNTH = REPO / "tools" / "synth"
 @pytest.fixture
 def package(tmp_path):
     shutil.copy(REPO / ".importlinter", tmp_path / ".importlinter")
-    for module in ("__init__", "contracts", "rows", "bridge"):
+    for module in ("__init__", "contracts", "extraction/__init__", "extraction/rows", "bridge"):
         plant(tmp_path, f"src/mpesa_core/{module}.py", "")
-    plant(tmp_path, "src/mpesa_core/analytics/__init__.py", "")
+    plant(tmp_path, "src/mpesa_core/analysis/__init__.py", "")
     plant(tmp_path, "tools/synth/__init__.py", "")
     plant(tmp_path, "tools/synth/ledger.py", "")
     return tmp_path
@@ -38,7 +38,11 @@ def test_clean_synth_package_passes(package):
 
 @pytest.mark.parametrize(
     "source",
-    ["import mpesa_core\n", "from mpesa_core import rows\n", "from mpesa_core.rows import x\n"],
+    [
+        "import mpesa_core\n",
+        "from mpesa_core.extraction import rows\n",
+        "from mpesa_core.extraction.rows import x\n",
+    ],
     ids=["import", "from", "from-module"],
 )
 def test_synth_importing_the_core_fails_the_contract(package, source):

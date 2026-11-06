@@ -8,8 +8,8 @@ import pytest
 from conftest import REPO
 from synth.generate import COMMITTED_FIXTURES, build_outputs
 
-FIXTURES = REPO / "fixtures" / "synthetic"
-ADAPTER = REPO / "engine" / "pdfjs" / "adapter.js"
+FIXTURES = REPO / "tests" / "fixtures" / "synthetic"
+ADAPTER = REPO / "pdf_reader" / "pdfjs" / "adapter.js"
 MAX_COMMITTED_BYTES = 2 * 1024 * 1024
 MIN_DENSE_OPERATORS = 50_000
 

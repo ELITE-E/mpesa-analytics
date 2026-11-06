@@ -4,14 +4,14 @@
 # Every entry here must also be gitignored (tests/guards/test_gitignore.py).
 # Files tracked by git are always checked, even under a pruned location.
 prune_names = [
-  ".venv", ".vscode", ".cache", "node_modules", "__pycache__",
+  ".venv", ".vscode", ".cache", ".ruff_cache", "node_modules", "__pycache__",
   ".pytest_cache", ".import_linter_cache", "dist", "build",
 ]
 prune_paths = ["web/public/vendor"]
 
 [patterns]
 # Fully matched against the token with spaces, plus signs and hyphens removed.
-# Honoured inside fixtures/synthetic/ only. See docs/decisions/0003-fake-ranges.md.
+# Honoured inside tests/fixtures/synthetic/ only. See docs/decisions/0003-fake-ranges.md.
 fake_ranges = [
   '254700000\d{3}',
   '07000000\d{2}',
@@ -28,8 +28,8 @@ risky_suffixes = [
   ".ipynb", ".jsonl", ".dump",
 ]
 # Globs relative to the repo root.
-risky_allow = ["fixtures/synthetic/*.csv", "fixtures/synthetic/*.xlsx"]
-json_allow_dirs = ["fixtures/synthetic/"]
+risky_allow = ["tests/fixtures/synthetic/*.csv", "tests/fixtures/synthetic/*.xlsx"]
+json_allow_dirs = ["tests/fixtures/synthetic/"]
 # Exact paths.
 json_allow = ["package.json", "package-lock.json", "web/package.json", "web/package-lock.json"]
 

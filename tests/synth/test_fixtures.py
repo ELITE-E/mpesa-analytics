@@ -13,7 +13,7 @@ from conftest import REPO, run_guard
 from synth.generate import generate
 from vendor import PDFJS_VERSION
 
-FIXTURES = REPO / "fixtures" / "synthetic"
+FIXTURES = REPO / "tests" / "fixtures" / "synthetic"
 GENERATOR = REPO / "tools" / "synth" / "generate.py"
 COMMITTED = [
     "F-GOLDEN",

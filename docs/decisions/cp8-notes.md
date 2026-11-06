@@ -4,7 +4,7 @@ Things to act on at CP8. Add to this file as they come up; do not bury them in o
 
 ## Timeout
 
-The adapter's deadline in `engine/pdfjs/adapter.js` is a timer plus a check after opening the document and after each page.
+The adapter's deadline in `pdf_reader/pdfjs/adapter.js` is a timer plus a check after opening the document and after each page.
 
 - **Under Node, a stuck step cannot be interrupted.** pdf.js runs on the same thread there, so a slow step is only noticed once it finishes. A 1 ms timeout on F-DENSE reports `TIMEOUT` after about 700 ms on the dev machine.
 - **A real browser worker is untested.** There pdf.js has its own thread, so the timer should fire on time, but no test has shown it. CP8 should measure this in a browser, including that `loadingTask.destroy()` actually stops a slow page.

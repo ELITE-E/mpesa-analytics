@@ -11,7 +11,7 @@ from synth.generate import FAKE_PASSWORD
 from synth.layout import wrap_details
 
 TOOL = REPO / "tools" / "equivalence" / "compare.py"
-FIXTURES = REPO / "fixtures" / "synthetic"
+FIXTURES = REPO / "tests" / "fixtures" / "synthetic"
 SEVEN_FIELDS = (
     "receipt_no",
     "completion_time",

@@ -28,7 +28,7 @@ def test_denied_everywhere_else(repo, rel):
 
 @pytest.mark.parametrize("rel", ["a.pdf", "a.csv", "sub/a.xlsx", "sub/a.db"])
 def test_excepted_in_fixtures(repo, rel):
-    assert not ignored(repo, f"fixtures/synthetic/{rel}")
+    assert not ignored(repo, f"tests/fixtures/synthetic/{rel}")
 
 
 def test_every_pruned_location_is_gitignored(repo):

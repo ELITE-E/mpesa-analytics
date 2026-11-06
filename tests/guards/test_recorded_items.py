@@ -6,7 +6,7 @@ from conftest import assert_fails_quietly, plant, run_guard
 from synth.generate import VERSION
 
 GUARD = "check_fixture_provenance.py"
-FIXTURES = "fixtures/synthetic"
+FIXTURES = "tests/fixtures/synthetic"
 ENGINE = "pdfjs 1.2.3"
 
 

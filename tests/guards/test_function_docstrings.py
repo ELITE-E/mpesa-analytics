@@ -3,7 +3,7 @@ import pytest
 from conftest import assert_fails_quietly, plant, run_guard
 
 GUARD = "check_function_docstrings.py"
-TARGET = "src/mpesa_core/rows.py"
+TARGET = "src/mpesa_core/extraction/rows.py"
 GOOD_BODY = '''    """Count the receipt anchors on one page.
 
     Side Effects:
@@ -124,7 +124,7 @@ def test_nested_raise_does_not_count_for_the_outer_function(clean_tree):
     assert f"{TARGET}: 1 " in guard_run.stdout
 
 
-@pytest.mark.parametrize("rel", ["tools/x.py", "engine/x.py", "src/mpesa_core/analytics/x.py"])
+@pytest.mark.parametrize("rel", ["tools/x.py", "pdf_reader/x.py", "src/mpesa_core/analysis/x.py"])
 def test_every_source_root_is_checked(clean_tree, rel):
     plant(clean_tree, rel, "def run_step():\n    pass\n")
     assert_fails_quietly(run_guard(GUARD, "--root", clean_tree), rel)

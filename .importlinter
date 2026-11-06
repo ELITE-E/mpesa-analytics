@@ -20,14 +20,14 @@ forbidden_modules =
     pdfplumber
     pypdf
 
-[importlinter:contract:analytics-isolation]
-name = Analytics does not reach the bridge or raw rows
+[importlinter:contract:analysis-isolation]
+name = Analysis does not reach the bridge or raw rows
 type = forbidden
 source_modules =
-    mpesa_core.analytics
+    mpesa_core.analysis
 forbidden_modules =
     mpesa_core.bridge
-    mpesa_core.rows
+    mpesa_core.extraction.rows
 
 [importlinter:contract:contracts-no-pandas]
 name = Contracts are types only and do not load pandas

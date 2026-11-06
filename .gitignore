@@ -1,4 +1,4 @@
-# Statement-shaped and personal data: denied everywhere except fixtures/synthetic/.
+# Statement-shaped and personal data: denied everywhere except tests/fixtures/synthetic/.
 *.pdf
 *.csv
 *.xlsx
@@ -10,13 +10,14 @@
 *.jsonl
 *.dump
 .env*
-!fixtures/synthetic/
-!fixtures/synthetic/**
+!tests/fixtures/synthetic/
+!tests/fixtures/synthetic/**
 
 # Local tooling. Everything here is pruned by the guard walk (tools/guards/guards.toml).
 .venv/
 .vscode/
 .cache/
+.ruff_cache/
 node_modules/
 __pycache__/
 .pytest_cache/

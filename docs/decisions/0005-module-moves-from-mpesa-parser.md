@@ -26,6 +26,8 @@ Standard 7.2 says module boundaries are respected, and a move needs a clear arch
 
 **Dropped, with reason:** `src/api/`, `src/services/`, `src/persistence/` (server and database), authentication, `src/app.py` (Streamlit), `src/logs.py` as a file writer (the core returns diagnostics). The frontend moves from Next.js to a static Vite + React app; `lib/api.ts` becomes `data/repo.ts` with the same exported surface.
 
+**Note (2026-11-06):** the new paths in this table predate ADR 0010, which groups the core into stage folders and renames `engine/` to `pdf_reader/`. Read each new path through ADR 0010's table; the reasons above are unchanged.
+
 ## Alternatives considered
 
 | Option | Tradeoff |

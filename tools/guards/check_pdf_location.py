@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Guard 2: any PDF outside fixtures/synthetic/ fails."""
+"""Guard 2: any PDF outside tests/fixtures/synthetic/ fails."""
 
 import sys
 

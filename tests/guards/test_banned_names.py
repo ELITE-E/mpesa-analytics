@@ -5,7 +5,7 @@ import pytest
 from conftest import GUARDS, assert_fails_quietly, plant, run_guard
 
 GUARD = "check_banned_names.py"
-TARGET = "src/mpesa_core/rows.py"
+TARGET = "src/mpesa_core/extraction/rows.py"
 GENERIC = [
     "data",
     "result",
@@ -116,7 +116,7 @@ def test_vocabulary_is_seeded_in_guards_toml():
 
 
 @pytest.mark.parametrize(
-    "rel", ["tools/x.py", "engine/x.py", "tests/core/test_x.py", "web/probe/x.py"]
+    "rel", ["tools/x.py", "pdf_reader/x.py", "tests/core/test_x.py", "web/probe/x.py"]
 )
 def test_every_python_root_is_checked(clean_tree, rel):
     plant(clean_tree, rel, "result = 1\n")

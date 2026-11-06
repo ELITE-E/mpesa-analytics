@@ -92,7 +92,7 @@ def _fixture_matches(target, entry):
 def _recording_matches(root, rel, entry):
     """Check a file recorded from pdf.js, which the Python generator cannot regenerate.
 
-    The engine's own test proves it reproduces. This proves it is unedited and still describes
+    The PDF reader's own test proves it reproduces. This proves it is unedited and still describes
     the current source PDF.
 
     Args:

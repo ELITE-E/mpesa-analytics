@@ -103,6 +103,21 @@ These tests were new and not yet committed when edited. No assertion was weakene
 
 Generator version 1.3.0. Every `expected.json` gained `chain_break_kinds`, `summary_totals` and `summary_reconciliation`. F-TIES now has money-in pairs, so its PDF, model and recording changed. No other committed PDF or recording changed.
 
+## Edits for the restructure (ADR 0010)
+
+Paths, imports and names only. No assertion changed its meaning.
+
+| Test | Old | New | Reason |
+|---|---|---|---|
+| Tests reading fixtures (14 files) | `fixtures/synthetic` | `tests/fixtures/synthetic` | The fixtures moved |
+| Tests importing the core (6 files) | `mpesa_core.columns`, `.rows`, `.reconcile` | `mpesa_core.extraction.columns`, `.extraction.rows`, `.reconciliation.reconcile` | The core moved into stage folders |
+| `test_imports.py`, `test_synth_independence.py` | Planted `rows.py`, `normalize.py` and `analytics/` at the top of the core | Planted at `extraction/rows.py`, `cleaning/normalize.py` and `analysis/` | The planted package must match `.importlinter`, which names the new paths. Test ids are unchanged |
+| `test_imports.py` | `test_analytics_may_not_import`, `..._bridge_indirectly` | `test_analysis_may_not_import`, `..._bridge_indirectly` | The package is now `analysis` |
+| `test_js_lint.py`, `test_node_tool.py`, `test_banned_names.py`, `test_function_docstrings.py` | Planted under `engine/` | Planted under `pdf_reader/` | The guards' source roots moved |
+| `test_pdf_location.py` | Sibling `fixtures/other/a.pdf` fails | `tests/fixtures/other/a.pdf` fails, and so does the old home `fixtures/synthetic/a.pdf` | One new parameter, by owner decision |
+| `test_pdf_reader_wiring.py` (was `test_engine_wiring.py`) | CI runs `engine/tests/*.test.js` | CI runs `tests/pdf_readers/*.test.js` | The Node tests moved |
+| Test names with "engine" (6 Python, 3 Node) | for example `test_rows_from_both_engines_are_equal` | `test_rows_from_both_readers_are_equal` | Glossary term. Names about the `engine` contract field keep it |
+
 ## Guard changes made during CP0 (not test edits, recorded for review)
 
 | # | Guard | Change | Condition |

@@ -39,7 +39,7 @@ def test_wrong_name_or_tag_fails(tmp_path, name):
     "extra",
     [
         "tools/guards/x.py",
-        "fixtures/synthetic/a.pdf",
+        "tests/fixtures/synthetic/a.pdf",
         "stray.py",
         "mpesa_core-0.0.0.data/scripts/x",
     ],

@@ -1,7 +1,7 @@
 import pytest
 
-from mpesa_core.columns import calibrate_columns, find_anchor, group_lines, is_header_row
 from mpesa_core.errors import ErrorCode, ExtractionError
+from mpesa_core.extraction.columns import calibrate_columns, find_anchor, group_lines, is_header_row
 
 HEADER_OFFSET = 38.0
 JITTERS = (-0.4, 0.4, 0.13, -0.27)

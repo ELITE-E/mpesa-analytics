@@ -33,6 +33,8 @@ addopts = "--import-mode=importlib -p no:cacheprovider"
 
 [tool.ruff]
 line-length = 100
+# Regenerable, so it lives outside the repo.
+cache-dir = "~/.cache/ruff/mpesa-analytics"
 target-version = "py314"
 src = ["src", "tools", "tools/guards", "tests/guards"]
 

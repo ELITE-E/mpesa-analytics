@@ -62,7 +62,7 @@ jobs:
       - name: Tests
         run: uv run pytest
       - name: Engine tests under Node
-        run: node --test engine/tests/*.test.js
+        run: node --test tests/pdf_readers/*.test.js
       - name: Build wheel
         run: uv build --wheel --out-dir dist
       - name: Core tests under Pyodide, from the wheel

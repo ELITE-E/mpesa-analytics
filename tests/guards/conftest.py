@@ -59,5 +59,5 @@ def assert_fails_quietly(guard_run, name, *secrets):
 def clean_tree(tmp_path):
     plant(tmp_path, "README.md", "A clean tree with nothing to report.\n")
     plant(tmp_path, "src/mpesa_core/__init__.py", "")
-    plant(tmp_path, "fixtures/synthetic/notes.txt", "synthetic\n")
+    plant(tmp_path, "tests/fixtures/synthetic/notes.txt", "synthetic\n")
     return tmp_path

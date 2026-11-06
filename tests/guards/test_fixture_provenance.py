@@ -6,7 +6,7 @@ import pytest
 from conftest import REPO, assert_fails_quietly, plant, run_guard
 
 GUARD = "check_fixture_provenance.py"
-FIXTURES = "fixtures/synthetic"
+FIXTURES = "tests/fixtures/synthetic"
 
 
 def stub():

@@ -14,7 +14,7 @@ GUARDS_DIR = Path(__file__).resolve().parent
 REPO = GUARDS_DIR.parents[1]
 CONFIG_PATH = GUARDS_DIR / "guards.toml"
 CONFIG = tomllib.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-SYNTHETIC = "fixtures/synthetic/"
+SYNTHETIC = "tests/fixtures/synthetic/"
 
 MASK_CHARS = "Xx*#•"
 MIN_MASK_CHARS = 2

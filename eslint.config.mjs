@@ -3,7 +3,12 @@
 import jsdoc from "eslint-plugin-jsdoc";
 import tseslint from "typescript-eslint";
 
-const SOURCE_FILES = ["engine/**/*.{js,mjs,ts}", "web/**/*.{js,mjs,ts}", "tools/**/*.{js,mjs,ts}"];
+const SOURCE_FILES = [
+  "pdf_reader/**/*.{js,mjs,ts}",
+  "tests/pdf_readers/**/*.{js,mjs,ts}",
+  "web/**/*.{js,mjs,ts}",
+  "tools/**/*.{js,mjs,ts}",
+];
 const BANNED_NAMES = [
   "data",
   "result",
@@ -57,8 +62,8 @@ export default [
     },
   },
   {
-    // Engine and bridge code handles statement data, so it must never reach the console.
-    files: ["engine/**/*.{js,mjs,ts}"],
+    // PDF reader and bridge code handles statement data, so it must never reach the console.
+    files: ["pdf_reader/**/*.{js,mjs,ts}", "tests/pdf_readers/**/*.{js,mjs,ts}"],
     rules: { "no-console": "error" },
   },
 ];

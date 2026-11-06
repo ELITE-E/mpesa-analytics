@@ -1,7 +1,7 @@
 import pytest
 
 from mpesa_core.errors import ErrorCode, ExtractionError
-from mpesa_core.rows import assemble_rows, build_rows
+from mpesa_core.extraction.rows import assemble_rows, build_rows
 
 SEVEN_FIELDS = [
     "receipt_no",

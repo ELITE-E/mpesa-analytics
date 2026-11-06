@@ -27,14 +27,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from mpesa_core.errors import ExtractionError
-from mpesa_core.reconcile import find_chain_breaks, reconcile
-from mpesa_core.rows import assemble_rows
+from mpesa_core.extraction.rows import assemble_rows
+from mpesa_core.reconciliation.reconcile import find_chain_breaks, reconcile
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "tools" / "guards"))
 from run_node_tool import PINNED_NODE, resolve_node  # noqa: E402
 
-EXTRACT_CLI = REPO / "tools" / "engines" / "extract_pages_cli.mjs"
+EXTRACT_CLI = REPO / "tools" / "pdf_readers" / "extract_pages_cli.mjs"
 PAGES_NAME = "pages.json"
 RECEIPT_FIELD = "receipt_no"
 SEVEN_FIELDS = (

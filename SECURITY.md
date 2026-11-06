@@ -1,7 +1,7 @@
 # Security
 
 This repo must never hold real statements, phone numbers, receipts or passwords. Every
-fixture is synthetic and regenerates from a seed in `fixtures/synthetic/MANIFEST.toml`.
+fixture is synthetic and regenerates from a seed in `tests/fixtures/synthetic/MANIFEST.toml`.
 
 ## Reporting
 

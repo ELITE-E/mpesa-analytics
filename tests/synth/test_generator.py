@@ -261,13 +261,13 @@ def test_every_merchant_is_an_example_till(expected):
 def test_generated_values_pass_guard_one_only_inside_fixtures(outputs):
     for suffix in (".model.json", ".expected.json"):
         text = outputs[suffix].decode("utf-8")
-        assert not find_tokens(text, f"fixtures/synthetic/T{suffix}")
+        assert not find_tokens(text, f"tests/fixtures/synthetic/T{suffix}")
         assert find_tokens(text, f"docs/T{suffix}")
 
 
 def test_pdf_passes_guard_one_inside_fixtures(outputs):
     text = outputs[".pdf"].decode("utf-8", errors="replace")
-    assert not find_tokens(text, "fixtures/synthetic/T.pdf")
+    assert not find_tokens(text, "tests/fixtures/synthetic/T.pdf")
 
 
 def test_items_are_marked_as_synthetic_and_carry_the_schema(statement_pages):

@@ -28,7 +28,7 @@ class Page(TypedDict):
 
 
 class StatementPages(TypedDict):
-    """Everything the PDF engine returns for one statement, before any row exists."""
+    """Everything the PDF reader returns for one statement, before any row exists."""
 
     schema_version: int
     engine: str

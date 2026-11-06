@@ -52,19 +52,19 @@ def test_tool_runs_with_no_node_on_path(tool):
 
 
 def test_eslint_violation_still_fails_with_no_node_on_path(tmp_path):
-    plant(tmp_path, "engine/stub.js", "export function checkRow() {}\n")
+    plant(tmp_path, "pdf_reader/stub.js", "export function checkRow() {}\n")
     config = REPO / "eslint.config.mjs"
     completed = run_without_node_on_path(
-        "eslint", "--config", config, "engine/stub.js", cwd=tmp_path
+        "eslint", "--config", config, "pdf_reader/stub.js", cwd=tmp_path
     )
     assert completed.returncode == 1
 
 
 def test_prettier_violation_still_fails_with_no_node_on_path(tmp_path):
-    plant(tmp_path, "engine/stub.js", "export const rowCount   =  1\n")
+    plant(tmp_path, "pdf_reader/stub.js", "export const rowCount   =  1\n")
     config = REPO / "prettier.config.mjs"
     completed = run_without_node_on_path(
-        "prettier", "--config", config, "--check", "engine/stub.js", cwd=tmp_path
+        "prettier", "--config", config, "--check", "pdf_reader/stub.js", cwd=tmp_path
     )
     assert completed.returncode == 1
 
