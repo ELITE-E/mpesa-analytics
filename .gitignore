@@ -15,6 +15,7 @@
 
 # Local tooling. Everything here is pruned by the guard walk (tools/guards/guards.toml).
 .venv/
+.vscode/
 .cache/
 node_modules/
 __pycache__/

@@ -4,7 +4,7 @@
 # Every entry here must also be gitignored (tests/guards/test_gitignore.py).
 # Files tracked by git are always checked, even under a pruned location.
 prune_names = [
-  ".venv", ".cache", "node_modules", "__pycache__",
+  ".venv", ".vscode", ".cache", "node_modules", "__pycache__",
   ".pytest_cache", ".import_linter_cache", "dist", "build",
 ]
 prune_paths = ["web/public/vendor"]
