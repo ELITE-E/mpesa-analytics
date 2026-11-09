@@ -53,6 +53,44 @@ GOOD_FUNCTION = f"""
 def extract_table_from_pdf(pdf_path, password=None):
     return {GOOD_ROWS}
 """
+# The old pipeline decrypts in memory before extracting. This stand-in proves the bytes and the
+# password reached it, and hands the extractor a stream saying so.
+SECURITY_MODULE = """
+from io import BytesIO
+
+def decrypt_pdf_in_memory(file_stream, password=None):
+    if not file_stream.read().startswith(b"%PDF"):
+        raise ValueError("not a PDF")
+    return BytesIO(("decrypted with %s" % password).encode())
+"""
+# A stand-in for the old cleaning step: canonical names, float amounts, details in capitals so a
+# test can tell its output from the extractor's.
+CLEAN_MODULE = """
+import re
+
+def clean_mpesa_dataframe(extracted):
+    records = extracted.to_dict("records") if hasattr(extracted, "to_dict") else extracted
+    return [_clean(record) for record in records]
+
+def _clean(record):
+    cells = {re.sub(r"[^a-z]+", "_", str(name).lower()).strip("_"): value
+             for name, value in record.items()}
+    return {
+        "receipt_no": cells.get("receipt_no"),
+        "completion_time": cells.get("completion_time"),
+        "details": str(cells.get("details") or "").upper(),
+        "transaction_status": cells.get("transaction_status", cells.get("status")),
+        "paid_in": _amount(cells.get("paid_in")),
+        "withdrawn": _amount(cells.get("withdrawn")),
+        "balance": _amount(cells.get("balance")),
+    }
+
+def _amount(printed):
+    try:
+        return float(str(printed).replace(",", ""))
+    except ValueError:
+        return 0.0
+"""
 
 
 @pytest.fixture
@@ -61,6 +99,8 @@ def old_repo(tmp_path):
     (repo / "src").mkdir(parents=True)
     (repo / "src" / "__init__.py").write_text("")
     (repo / "src" / "extract.py").write_text(GOOD_FUNCTION)
+    (repo / "src" / "security.py").write_text(SECURITY_MODULE)
+    (repo / "src" / "clean.py").write_text(CLEAN_MODULE)
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
     return repo
 
@@ -183,36 +223,38 @@ def test_old_repo_is_left_without_bytecode(old_repo, pdf_path, tmp_path):
     assert not list(old_repo.rglob("__pycache__"))
 
 
-def test_password_comes_from_the_prompt_and_reaches_the_old_code(old_repo, pdf_path, tmp_path):
-    set_old_module(
-        old_repo,
-        """
-def extract_table_from_pdf(pdf_path, password=None):
+STREAM_ECHO = """
+def extract_table_from_pdf(pdf_stream):
     return [dict.fromkeys(["Receipt No", "Completion Time", "Details", "Status", "Paid In",
-                           "Withdrawn", "Balance"], password)]
-""",
-    )
+                           "Withdrawn", "Balance"], pdf_stream.read().decode())]
+"""
+
+
+def test_password_comes_from_the_prompt_and_reaches_the_old_code(old_repo, pdf_path, tmp_path):
+    set_old_module(old_repo, STREAM_ECHO)
     out = tmp_path / "out"
     assert run_export(old_repo, pdf_path, out, typed="typed-secret").returncode == 0
-    assert baseline_rows(out)[0]["balance"] == "typed-secret"
+    assert baseline_rows(out)[0]["balance"] == "decrypted with typed-secret"
 
 
 def test_blank_password_reaches_the_old_code_as_none(old_repo, pdf_path, tmp_path):
-    set_old_module(
-        old_repo,
-        """
-def extract_table_from_pdf(pdf_path, password="default"):
-    return [dict.fromkeys(["Receipt No", "Completion Time", "Details", "Status", "Paid In",
-                           "Withdrawn", "Balance"], str(password))]
-""",
-    )
+    set_old_module(old_repo, STREAM_ECHO)
     out = tmp_path / "out"
     assert run_export(old_repo, pdf_path, out).returncode == 0
-    assert baseline_rows(out)[0]["balance"] == "None"
+    assert baseline_rows(out)[0]["balance"] == "decrypted with None"
 
 
-def test_function_with_no_password_parameter_works_when_none_is_typed(old_repo, pdf_path, tmp_path):
-    set_old_module(old_repo, f"def extract_table_from_pdf(pdf_path):\n    return {GOOD_ROWS}\n")
+def test_extractor_receives_the_decrypted_stream_not_a_path(old_repo, pdf_path, tmp_path):
+    set_old_module(
+        old_repo,
+        f"""
+import io
+
+def extract_table_from_pdf(pdf_stream):
+    assert isinstance(pdf_stream, io.BytesIO)
+    return {GOOD_ROWS}
+""",
+    )
     assert run_export(old_repo, pdf_path, tmp_path / "out").returncode == 0
 
 
@@ -407,3 +449,103 @@ def test_old_module_and_function_are_named_constants():
     source = TOOL.read_text(encoding="utf-8")
     assert 'OLD_MODULE = "src.extract"' in source
     assert 'OLD_FUNCTION = "extract_table_from_pdf"' in source
+    assert 'OLD_DECRYPT_MODULE = "src.security"' in source
+    assert 'OLD_DECRYPT_FUNCTION = "decrypt_pdf_in_memory"' in source
+    assert 'OLD_CLEAN_MODULE = "src.clean"' in source
+    assert 'OLD_CLEAN_FUNCTION = "clean_mpesa_dataframe"' in source
+
+
+def canonical_rows(out):
+    return json.loads((out / "canonical.json").read_text(encoding="utf-8"))["rows"]
+
+
+CANONICAL_FIELDS = {
+    "receipt_no",
+    "completion_time",
+    "details",
+    "transaction_status",
+    "paid_in",
+    "withdrawn",
+    "balance",
+}
+
+
+def test_writes_the_old_clean_steps_rows_beside_the_baseline(old_repo, pdf_path, tmp_path):
+    out = tmp_path / "out"
+    completed = run_export(old_repo, pdf_path, out)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    rows = canonical_rows(out)
+    assert [row["receipt_no"] for row in rows] == ["first", "second"]
+    assert all(set(row) == CANONICAL_FIELDS for row in rows)
+    assert rows[0]["details"] == MARKER.upper()
+    assert rows[0]["withdrawn"] == 5.0
+    assert rows[1]["paid_in"] == 100.0
+    assert rows[0]["transaction_status"] == "Completed"
+
+
+def test_canonical_rows_are_readable_by_the_owner_only(old_repo, pdf_path, tmp_path):
+    out = tmp_path / "out"
+    assert run_export(old_repo, pdf_path, out).returncode == 0
+    assert stat.S_IMODE((out / "canonical.json").stat().st_mode) == OWNER_ONLY
+
+
+def test_counts_include_the_canonical_rows(old_repo, pdf_path, tmp_path):
+    labels = dict(
+        line.split(": ")
+        for line in run_export(old_repo, pdf_path, tmp_path / "out").stdout.strip().splitlines()
+    )
+    assert labels["canonical_rows"] == "2"
+
+
+def test_clean_step_that_fails_lists_its_functions_and_writes_neither_file(
+    old_repo, pdf_path, tmp_path
+):
+    (old_repo / "src" / "clean.py").write_text(
+        f'def clean_mpesa_dataframe(extracted, strict=True):\n    raise ValueError("{MARKER}")\n'
+    )
+    out = tmp_path / "out"
+    completed = run_export(old_repo, pdf_path, out)
+    assert_lists_names_and_signatures_only(
+        completed, "clean_mpesa_dataframe(extracted, strict=True)"
+    )
+    assert "clean step" in completed.stdout
+    assert not (out / "baseline.json").exists()
+    assert not (out / "canonical.json").exists()
+
+
+def test_clean_result_without_the_canonical_fields_fails(old_repo, pdf_path, tmp_path):
+    (old_repo / "src" / "clean.py").write_text(
+        f'def clean_mpesa_dataframe(extracted):\n    return [{{"{MARKER}": 1}}]\n'
+    )
+    completed = run_export(old_repo, pdf_path, tmp_path / "out")
+    assert_lists_names_and_signatures_only(completed, "clean_mpesa_dataframe(extracted)")
+
+
+def test_decrypt_step_that_fails_lists_its_functions(old_repo, pdf_path, tmp_path):
+    failing_decrypt = (
+        "def decrypt_pdf_in_memory(file_stream, password=None):\n"
+        f'    raise ValueError("{MARKER}")\n'
+    )
+    (old_repo / "src" / "security.py").write_text(failing_decrypt)
+    completed = run_export(old_repo, pdf_path, tmp_path / "out", typed="typed-secret")
+    assert_lists_names_and_signatures_only(
+        completed, "decrypt_pdf_in_memory(file_stream, password=None)"
+    )
+    assert "decrypt step" in completed.stdout
+    assert "typed-secret" not in completed.stdout + completed.stderr
+
+
+def test_missing_pdf_says_so_and_writes_nothing(old_repo, tmp_path):
+    missing = tmp_path / f"{PATH_MARKER}.pdf"
+    out = tmp_path / "out"
+    completed = run_export(old_repo, missing, out)
+    assert completed.returncode == CANNOT_RUN
+    assert "export_baseline: ERROR (PDF not found)" in completed.stdout
+    assert "rows: 0" not in completed.stdout
+    assert PATH_MARKER not in completed.stdout + completed.stderr
+    assert not out.exists()
+
+
+def test_missing_pdf_is_reported_before_any_password_prompt(old_repo, tmp_path):
+    completed = run_export(old_repo, tmp_path / "absent.pdf", tmp_path / "out")
+    assert "PDF password" not in completed.stderr

@@ -388,3 +388,70 @@ def test_line_counts_report_how_many_printed_lines_each_row_used(printed):
 def test_build_rows_returns_only_the_rows_from_the_assembly(printed):
     statement = one_page(printed, printed.calibrating_rows())
     assert build_rows(statement) == assemble_rows(statement)["rows"]
+
+
+def lines_outside_rows(assembly):
+    counts = assembly["layout_counts"]
+    return {
+        kind: counts[f"unattached_{kind}_lines"]
+        for kind in ("header", "footer", "summary", "other")
+    }
+
+
+def footer_items(printed, *tops):
+    return [printed.left_item(f"Footer {top}", 20.0, top) for top in tops]
+
+
+def test_lines_outside_rows_are_counted_by_kind(printed):
+    summary = [
+        printed.left_item("Total Paid In", 70.0, 40.0),
+        printed.left_item("Closing Balance", 70.0, 50.0),
+    ]
+    first = summary + printed.header_items(HEADER_TOP) + printed.calibrating_rows()
+    first += footer_items(printed, 300.0, 310.0)
+    stray = [printed.left_item("stray between rows", 205.0, 150.0)]
+    later = printed.header_items(40.0) + printed.calibrating_rows(100.0, count=2, first_position=10)
+    later += stray + printed.calibrating_rows(200.0, count=2, first_position=20)
+    later += footer_items(printed, 400.0)
+    statement = printed.statement_of(printed.page_of(first), printed.page_of(later, number=2))
+    assembly = assemble_rows(statement)
+    assert lines_outside_rows(assembly) == {"header": 2, "footer": 3, "summary": 2, "other": 1}
+
+
+def test_unattached_lines_is_the_sum_of_its_kinds(printed):
+    items = printed.header_items(HEADER_TOP) + printed.calibrating_rows()
+    items += footer_items(printed, 300.0)
+    assembly = assemble_rows(one_page(printed, items))
+    assert assembly["layout_counts"]["unattached_lines"] == sum(
+        lines_outside_rows(assembly).values()
+    )
+
+
+def test_page_without_rows_counts_its_header_and_footer(printed):
+    first = printed.page_of(printed.calibrating_rows(), number=1)
+    padding = printed.page_of(printed.header_items(40.0) + footer_items(printed, 300.0), number=2)
+    assembly = assemble_rows(printed.statement_of(first, padding))
+    assert lines_outside_rows(assembly) == {"header": 1, "footer": 1, "summary": 0, "other": 0}
+
+
+def test_first_page_without_rows_is_summary_above_its_header_and_footer_below(printed):
+    summary_page = printed.page_of(
+        [printed.left_item("Total Paid In", 70.0, 40.0)]
+        + printed.header_items(80.0)
+        + footer_items(printed, 300.0),
+        number=1,
+    )
+    rows_page = printed.page_of(printed.calibrating_rows(), number=2)
+    assembly = assemble_rows(printed.statement_of(summary_page, rows_page))
+    assert lines_outside_rows(assembly) == {"header": 1, "footer": 1, "summary": 1, "other": 0}
+
+
+def test_line_above_the_rows_of_a_later_page_without_a_header_is_other(printed):
+    first = printed.page_of(printed.calibrating_rows(), number=1)
+    later = printed.page_of(
+        [printed.left_item("Running title", 70.0, 40.0)]
+        + printed.calibrating_rows(100.0, first_position=5),
+        number=2,
+    )
+    assembly = assemble_rows(printed.statement_of(first, later))
+    assert lines_outside_rows(assembly)["other"] == 1

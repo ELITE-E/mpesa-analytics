@@ -118,6 +118,24 @@ Paths, imports and names only. No assertion changed its meaning.
 | `test_pdf_reader_wiring.py` (was `test_engine_wiring.py`) | CI runs `engine/tests/*.test.js` | CI runs `tests/pdf_readers/*.test.js` | The Node tests moved |
 | Test names with "engine" (6 Python, 3 Node) | for example `test_rows_from_both_engines_are_equal` | `test_rows_from_both_readers_are_equal` | Glossary term. Names about the `engine` contract field keep it |
 
+## Edits for CP4
+
+| Test | Old assertion | New assertion | Reason |
+|---|---|---|---|
+| `test_export_baseline.py`, fake old repo | Held `src/extract.py` only | Also holds stand-ins for `src/security.py` and `src/clean.py` | The export now runs the old pipeline's decrypt, extract and clean steps, as the old pipeline does |
+| `test_password_comes_from_the_prompt_and_reaches_the_old_code` | The extractor received the password: balance equals it | The old decrypt step received it: balance equals the decrypted stream's text | In the old pipeline the password goes to decryption, and the extractor reads the decrypted stream |
+| `test_blank_password_reaches_the_old_code_as_none` | Same, with None | Same change | Same reason |
+| `test_function_with_no_password_parameter_works_when_none_is_typed` | An extractor without a password parameter works | Replaced by `test_extractor_receives_the_decrypted_stream_not_a_path` | The extractor never takes a password in the old pipeline; it takes a stream |
+| `test_old_module_and_function_are_named_constants` | Two constants | Also the decrypt and clean constants | New old steps |
+| `test_compare.py`, `write_baseline` helper | Wrote the baseline only | Also writes `canonical.json` beside it, built with `canonicalize_rows`, under the old cleaning step's names | `compare.py` now needs it. Tests that change it on purpose say so |
+| `test_final_lines_are_the_agreed_gates` | 8 gates | 12, adding the 4 canonical gates | Owner instruction |
+| `test_details_mismatch_is_counted_but_is_not_a_gate` | `returncode == 0` | Renamed `..._and_fails_only_the_canonical_details_gate`: the only failing gate is `zero_mismatch_details_normalized` | A details difference now also reaches the canonical rows, and that gate is new by owner instruction. The stage-1 gates still pass |
+| `test_status_mismatch_passes_when_counted_and_shows_classes` | `returncode == 0` | The only failing gate is `zero_mismatch_status`; `status_mismatches` still passes | Same reason, for status |
+
+Added to existing files, not edits: tests in `test_rows.py`, `test_differential.py`, `test_export_baseline.py` and `test_compare.py`. `tests/core/conftest.py` gained one line putting its own folder on `sys.path`, so the data modules beside it import under CPython and Pyodide.
+
+New tests corrected while still red: `synthetic_details.py` and `test_normalize.py` used a 10-character reference containing a digit and a literal masked phone, both of which the pattern guard rejects outside the fixtures. They became a letters-only reference and an assembled masked phone.
+
 ## Guard changes made during CP0 (not test edits, recorded for review)
 
 | # | Guard | Change | Condition |

@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Export what the old extractor reads from a statement, for the equivalence check.
+"""Export what the old code reads from a statement, for the equivalence check.
+
+Runs the old pipeline's first steps as it ran them: decrypt in memory, extract, clean. It writes
+the extractor's rows (``baseline.json``) and the cleaning step's rows (``canonical.json``).
 
 Run by the owner with the OLD repo's Python, so it uses only the standard library and syntax that
-older versions accept. The baseline holds statement values, so it is owner-only and refused inside
-either repo. Output is counts, or function names and signatures when the old code cannot be called.
+older versions accept. Both files hold statement values, so they are owner-only and refused inside
+either repo. Output is counts, or function names and signatures when an old step cannot be called.
 
     OLD_PYTHON export_baseline.py --old-repo PATH --pdf PATH --out DIR
 """
@@ -24,15 +27,27 @@ import sys
 import warnings
 from pathlib import Path
 
+OLD_DECRYPT_MODULE = "src.security"
+OLD_DECRYPT_FUNCTION = "decrypt_pdf_in_memory"
 OLD_MODULE = "src.extract"
 OLD_FUNCTION = "extract_table_from_pdf"
+OLD_CLEAN_MODULE = "src.clean"
+OLD_CLEAN_FUNCTION = "clean_mpesa_dataframe"
+# Each old step's module and function, in the order the old pipeline runs them.
+OLD_STEPS = {
+    "decrypt": (OLD_DECRYPT_MODULE, OLD_DECRYPT_FUNCTION),
+    "extract": (OLD_MODULE, OLD_FUNCTION),
+    "clean": (OLD_CLEAN_MODULE, OLD_CLEAN_FUNCTION),
+}
 THIS_REPO = Path(__file__).resolve().parents[2]
 BASELINE_NAME = "baseline.json"
+CANONICAL_NAME = "canonical.json"
+CANONICAL_TEXT_FIELDS = ("receipt_no", "completion_time", "details", "transaction_status")
+CANONICAL_AMOUNT_FIELDS = ("paid_in", "withdrawn", "balance")
 CANNOT_RUN = 2
 OWNER_ONLY = 0o600
 OWNER_ONLY_DIRECTORY = 0o700
 PASSWORD_PROMPT = "PDF password: "
-PASSWORD_PARAMETER = "password"
 MISSING_VALUE_TEXTS = {"nan", "NaN", "NaT", "<NA>", "None"}
 # Normalized old column names for each of the seven printed fields.
 FIELD_COLUMNS = {
@@ -47,7 +62,19 @@ FIELD_COLUMNS = {
 
 
 class OldExtractorError(Exception):
-    """The old extractor could not be used. Holds nothing, because its messages can quote a PDF."""
+    """An old step could not be used. Holds the step's name only: its messages can quote a PDF."""
+
+    def __init__(self, step):
+        """Record which step failed.
+
+        Args:
+            step: A key of ``OLD_STEPS``.
+
+        Side Effects:
+            None.
+        """
+        super().__init__(step)
+        self.step = step
 
 
 def main():
@@ -68,6 +95,9 @@ def main():
     old_repo = args.old_repo.resolve()
     pdf_path = args.pdf.resolve()
     out = args.out.resolve()
+    if not pdf_path.is_file():
+        print("export_baseline: ERROR (PDF not found)")
+        return CANNOT_RUN
     if _is_inside_a_repo(out, old_repo):
         print("export_baseline: ERROR (--out must be outside both repos)")
         return CANNOT_RUN
@@ -76,16 +106,17 @@ def main():
     # The old code may write logs beside it. They hold raw values, so they must not land in a repo.
     os.chdir(out)
     try:
-        rows = _read_rows_with_old_code(old_repo, pdf_path, password)
-    except OldExtractorError:
-        print("export_baseline: ERROR (old extractor could not be used)")
-        _print_available_functions(old_repo)
+        rows, canonical_rows = _read_rows_with_old_code(old_repo, pdf_path, password)
+    except OldExtractorError as error:
+        print(f"export_baseline: ERROR (old {error.step} step could not be used)")
+        _print_available_functions(old_repo, error.step)
         return CANNOT_RUN
     if not rows:
         print("rows: 0")
         return CANNOT_RUN
     _write_owner_only(out / BASELINE_NAME, json.dumps({"rows": rows}, indent=1))
-    _print_counts(rows)
+    _write_owner_only(out / CANONICAL_NAME, json.dumps({"rows": canonical_rows}, indent=1))
+    _print_counts(rows, canonical_rows)
     return 0
 
 
@@ -151,7 +182,9 @@ def _ask_for_password():
 
 
 def _read_rows_with_old_code(old_repo, pdf_path, password):
-    """Call the old extractor with everything it prints or logs silenced.
+    """Run the old decrypt, extract and clean steps with everything they print or log silenced.
+
+    As in the old pipeline, the PDF is decrypted in memory and the extractor reads that stream.
 
     Args:
         old_repo: The resolved old repo path.
@@ -159,46 +192,52 @@ def _read_rows_with_old_code(old_repo, pdf_path, password):
         password: The PDF's password, or None.
 
     Returns:
-        The rows, each with the seven raw fields, in print order.
+        Tuple of the extractor's rows, each with the seven raw fields, and the cleaning step's
+        rows, each with its seven canonical fields; both in print order.
 
     Raises:
-        OldExtractorError: If the old code cannot be imported or called, or returns something
-            without the seven fields. The original error is dropped: it can quote the PDF.
+        OldExtractorError: Naming the step that could not be imported or called, or that returned
+            something without the expected fields. The original error is dropped: it can quote
+            the PDF.
 
     Side Effects:
-        Runs the old code, leaves no bytecode in its repo, and silences logging and warnings.
+        Reads the PDF, runs the old code, leaves no bytecode in its repo, and silences logging and
+        warnings.
     """
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(old_repo))
     logging.disable(logging.CRITICAL)
     warnings.simplefilter("ignore")
     sink = io.StringIO()
+    step = "decrypt"
     try:
         with contextlib.redirect_stdout(sink), contextlib.redirect_stderr(sink):
-            extractor = getattr(importlib.import_module(OLD_MODULE), OLD_FUNCTION)
-            extracted = _call_extractor(extractor, pdf_path, password)
-            return [_seven_fields(record) for record in _records_of(extracted)]
+            pdf_stream = io.BytesIO(pdf_path.read_bytes())
+            decrypted = _old_function(step)(file_stream=pdf_stream, password=password)
+            step = "extract"
+            extracted = _old_function(step)(decrypted)
+            rows = [_seven_fields(record) for record in _records_of(extracted)]
+            step = "clean"
+            cleaned = _old_function(step)(extracted)
+            return rows, [_canonical_fields(record) for record in _records_of(cleaned)]
     except Exception:  # noqa: BLE001 - old code can raise anything; the caller reports the failure.
-        raise OldExtractorError from None
+        raise OldExtractorError(step) from None
 
 
-def _call_extractor(extractor, pdf_path, password):
-    """Call the old extractor, passing a password however its signature accepts one.
+def _old_function(step):
+    """Import one old step's function.
 
     Args:
-        extractor: The old function.
-        pdf_path: The resolved PDF path.
-        password: The PDF's password, or None.
+        step: A key of ``OLD_STEPS``.
 
     Returns:
-        Whatever the old function returns.
+        The function.
 
     Side Effects:
-        Runs the old code.
+        Imports the old module.
     """
-    if PASSWORD_PARAMETER in inspect.signature(extractor).parameters:
-        return extractor(str(pdf_path), password=password)
-    return extractor(str(pdf_path))
+    module_name, function_name = OLD_STEPS[step]
+    return getattr(importlib.import_module(module_name), function_name)
 
 
 def _records_of(extracted):
@@ -245,6 +284,25 @@ def _seven_fields(record):
         if not present:
             raise OldExtractorError
         fields[field] = _as_text(by_normalized_name[present[0]])
+    return fields
+
+
+def _canonical_fields(record):
+    """Keep the cleaning step's seven canonical fields, as text and float.
+
+    Args:
+        record: One row from the old cleaning step.
+
+    Returns:
+        Map of canonical name to text, None or float. A missing field or an amount that is not a
+        number raises from the lookup or the conversion, and the caller names the clean step.
+
+    Side Effects:
+        None.
+    """
+    fields = {field: _as_text(record[field]) for field in CANONICAL_TEXT_FIELDS}
+    for field in CANONICAL_AMOUNT_FIELDS:
+        fields[field] = float(record[field])
     return fields
 
 
@@ -297,11 +355,12 @@ def _write_owner_only(path, text):
         baseline.write(text)
 
 
-def _print_counts(rows):
+def _print_counts(rows, canonical_rows):
     """Print fixed labels and counts.
 
     Args:
-        rows: The exported rows.
+        rows: The extractor's rows.
+        canonical_rows: The cleaning step's rows.
 
     Side Effects:
         Writes to stdout.
@@ -309,37 +368,41 @@ def _print_counts(rows):
     print(f"rows: {len(rows)}")
     for field in FIELD_COLUMNS:
         print(f"filled_{field}: {sum(bool(row[field]) for row in rows)}")
+    print(f"canonical_rows: {len(canonical_rows)}")
 
 
-def _print_available_functions(old_repo):
-    """Print what the old module offers, so the constants at the top can be corrected.
+def _print_available_functions(old_repo, step):
+    """Print what a failed step's old module offers, so the constants at the top can be corrected.
 
     Args:
         old_repo: The resolved old repo path.
+        step: A key of ``OLD_STEPS``.
 
     Side Effects:
         Writes function names and signatures to stdout, and reads the module.
     """
+    module_name = OLD_STEPS[step][0]
     sink = io.StringIO()
     try:
         with contextlib.redirect_stdout(sink), contextlib.redirect_stderr(sink):
-            module = importlib.import_module(OLD_MODULE)
+            module = importlib.import_module(module_name)
             signatures = [
                 f"{name}{inspect.signature(function)}"
                 for name, function in inspect.getmembers(module, inspect.isfunction)
                 if function.__module__ == module.__name__
             ]
     except Exception:  # noqa: BLE001 - a module that cannot import is read from its source instead.
-        signatures = _function_names_from_source(old_repo)
+        signatures = _function_names_from_source(old_repo, module_name)
     for signature in signatures:
         print(f"function: {signature}")
 
 
-def _function_names_from_source(old_repo):
+def _function_names_from_source(old_repo, module_name):
     """List a module's top-level functions without importing it.
 
     Args:
         old_repo: The resolved old repo path.
+        module_name: The dotted module name.
 
     Returns:
         Function names; empty if the module's source cannot be read.
@@ -347,7 +410,7 @@ def _function_names_from_source(old_repo):
     Side Effects:
         Reads the module's source.
     """
-    source_path = old_repo.joinpath(*OLD_MODULE.split(".")).with_suffix(".py")
+    source_path = old_repo.joinpath(*module_name.split(".")).with_suffix(".py")
     if not source_path.is_file():
         return []
     tree = ast.parse(source_path.read_bytes())

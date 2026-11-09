@@ -1,6 +1,12 @@
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+
+# Data modules such as synthetic_details.py sit beside the tests, here and under Pyodide. Appended,
+# so this folder never shadows a module of the same name elsewhere, such as the guards' conftest.
+sys.path.append(str(Path(__file__).parent))
 
 CHARACTER_POINTS = 2.5
 ROW_POINTS = 10.0

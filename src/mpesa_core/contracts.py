@@ -58,6 +58,10 @@ class LayoutCounts(TypedDict):
     status_from_non_anchor_line: int
     unassigned_items: int
     unattached_lines: int
+    unattached_header_lines: int
+    unattached_footer_lines: int
+    unattached_summary_lines: int
+    unattached_other_lines: int
     anchor_cells_off_column: int
 
 
