@@ -99,3 +99,12 @@ def test_nothing_on_a_fixture_needs_a_guess(name):
     assert counts["anchor_cells_off_column"] == 0
     assert counts["ambiguous_continuation_lines"] == 0
     assert counts["status_from_non_anchor_line"] == 0
+
+
+@pytest.mark.parametrize("pages_of", [pdfjs_pages, pdfplumber_pages], ids=["pdfjs", "pdfplumber"])
+@pytest.mark.parametrize("name", WITH_ROWS)
+def test_every_line_outside_rows_is_a_header_footer_or_summary(pages_of, name):
+    counts = assemble_rows(pages_of(name))["layout_counts"]
+    assert counts["unattached_other_lines"] == 0
+    assert counts["unattached_header_lines"] > 0
+    assert counts["unattached_footer_lines"] > 0

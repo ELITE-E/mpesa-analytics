@@ -83,6 +83,10 @@ def assemble_rows(statement_pages):
         "status_from_non_anchor_line": 0,
         "unassigned_items": 0,
         "unattached_lines": 0,
+        "unattached_header_lines": 0,
+        "unattached_footer_lines": 0,
+        "unattached_summary_lines": 0,
+        "unattached_other_lines": 0,
         "anchor_cells_off_column": 0,
     }
     rows = []
@@ -109,14 +113,88 @@ def _row_lines_on_page(page, reading, *, is_first_page):
     Side Effects:
         Adds to the unattached and ambiguous counts.
     """
-    segments = _segments_between_headers(_numbered_lines(page))
+    numbered_lines = _numbered_lines(page)
+    segments = _segments_between_headers(numbered_lines)
     if is_first_page:
         segments = _without_summary(segments)
     found = []
+    used_indexes = set()
     for segment in segments:
         for block in _blocks_of_touching_lines(segment):
-            found += _rows_in_block(block, reading.counts)
+            block_rows = _rows_in_block(block, reading.counts)
+            found += block_rows
+            used_indexes.update(index for index, _ in block if block_rows)
+    _count_lines_outside_rows(numbered_lines, used_indexes, reading.counts, is_first_page)
     return found
+
+
+def _count_lines_outside_rows(numbered_lines, used_indexes, counts, is_first_page):
+    """Count the lines that belong to no row, by what they most likely are.
+
+    A header row is a header. On page 1, a line above the first anchor is summary, or above the
+    first header row when the page has no anchor. A line below the page's last row, or below its
+    last header row when it has no rows, is a footer. Anything else is other, which a statement
+    of the expected layout never has.
+
+    Args:
+        numbered_lines: Tuples of line index and line for the whole page.
+        used_indexes: Indexes of the lines that belong to a row.
+        counts: Layout counts to add to.
+        is_first_page: Whether this page holds the statement summary.
+
+    Side Effects:
+        Adds to the unattached counts; ``unattached_lines`` is the sum of the four kinds.
+    """
+    headers = [line.top for _, line in numbered_lines if is_header_row(line)]
+    row_tops = [line.top for index, line in numbered_lines if index in used_indexes]
+    summary_end = _first_anchor_top(numbered_lines, default=min(headers, default=None))
+    footer_start = max(row_tops, default=max(headers, default=None))
+    for index, line in numbered_lines:
+        if index in used_indexes:
+            continue
+        kind = _kind_of_line_outside_rows(line, is_first_page, summary_end, footer_start)
+        counts[f"unattached_{kind}_lines"] += 1
+        counts["unattached_lines"] += 1
+
+
+def _first_anchor_top(numbered_lines, default):
+    """Find the top of the first anchor row on a page.
+
+    Args:
+        numbered_lines: Tuples of line index and line.
+        default: What to return when the page has no anchor row.
+
+    Returns:
+        The top, in points, or the default.
+
+    Side Effects:
+        None.
+    """
+    return next((line.top for _, line in numbered_lines if find_anchor(line)), default)
+
+
+def _kind_of_line_outside_rows(line, is_first_page, summary_end, footer_start):
+    """Name what a line outside every row most likely is.
+
+    Args:
+        line: The printed line.
+        is_first_page: Whether this page holds the statement summary.
+        summary_end: Top of the first anchor, or of the first header row; None if neither.
+        footer_start: Top of the last row line, or of the last header row; None if neither.
+
+    Returns:
+        ``header``, ``summary``, ``footer`` or ``other``.
+
+    Side Effects:
+        None.
+    """
+    if is_header_row(line):
+        return "header"
+    if is_first_page and (summary_end is None or line.top < summary_end):
+        return "summary"
+    if footer_start is not None and line.top > footer_start:
+        return "footer"
+    return "other"
 
 
 def _numbered_lines(page):
@@ -214,14 +292,13 @@ def _rows_in_block(block, counts):
         The ``_RowLines`` of each anchor in the block. A block with no anchor gives none.
 
     Side Effects:
-        Adds to the unattached count, or the ambiguous count for a line between two anchors, which
-        goes below the upper anchor as the plan's default.
+        Adds to the ambiguous count for a line between two anchors, which goes below the upper
+        anchor as the plan's default. A block with no anchor is counted by the caller.
     """
     anchor_positions = [
         position for position, (_, line) in enumerate(block) if find_anchor(line) is not None
     ]
     if not anchor_positions:
-        counts["unattached_lines"] += len(block)
         return []
     found = []
     for rank, position in enumerate(anchor_positions):

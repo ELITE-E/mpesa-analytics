@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import hmac
 import json
+import math
 import os
 import re
 import secrets
@@ -26,6 +27,7 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from mpesa_core.cleaning.canonicalize import canonicalize_rows
 from mpesa_core.errors import ExtractionError
 from mpesa_core.extraction.rows import assemble_rows
 from mpesa_core.reconciliation.reconcile import find_chain_breaks, reconcile
@@ -50,6 +52,11 @@ GATED_FIELDS = ("completion_time", "paid_in", "withdrawn", "balance")
 FAILED = 1
 CANNOT_RUN = 2
 BASELINE_UNREADABLE = "BASELINE_UNREADABLE"
+CANONICAL_UNREADABLE = "CANONICAL_UNREADABLE"
+CANONICAL_NAME = "canonical.json"
+OLD_STATUS_FIELD = "transaction_status"
+CANONICAL_TEXT_FIELDS = ("completion_time", "details", "status")
+CANONICAL_AMOUNT_FIELDS = ("paid_in", "withdrawn", "balance")
 EXTRACTION_FAILED = "EXTRACTION_FAILED"
 CLI_ERROR_CODE = re.compile(r"ERROR \(([A-Z_]+)\)")
 HMAC_KEY_BYTES = 32
@@ -106,6 +113,7 @@ def main():
     args = parser.parse_args()
     try:
         old_rows = _read_baseline(args.baseline)
+        old_canonical = _read_canonical(args.baseline.parent / CANONICAL_NAME)
         statement_pages = _extract_statement_pages(args.pdf)
         assembly = assemble_rows(statement_pages)
     except CompareError as error:
@@ -114,17 +122,18 @@ def main():
     except ExtractionError as error:
         print(f"compare: ERROR ({error.code.value})")
         return CANNOT_RUN
-    lines, gates = build_report(old_rows, assembly, statement_pages)
+    lines, gates = build_report(old_rows, old_canonical, assembly, statement_pages)
     lines += [] if args.share else _mismatch_positions(old_rows, assembly)
     print("\n".join(lines))
     return 0 if all(verdict for verdict, _ in gates) else FAILED
 
 
-def build_report(old_rows, assembly, statement_pages):
+def build_report(old_rows, old_canonical, assembly, statement_pages):
     """Compare both sides and describe the outcome in counts.
 
     Args:
         old_rows: Rows from the baseline, each with the seven fields and a position.
+        old_canonical: The old cleaning step's rows, under this repo's field names.
         assembly: The new ``RowAssembly``.
         statement_pages: The statement pages the new rows came from.
 
@@ -141,10 +150,14 @@ def build_report(old_rows, assembly, statement_pages):
     field_mismatches = _count_field_mismatches(aligned)
     status_counts = _status_matrix(aligned)
     chain_lines, chain_gate = _chain_report(aligned, old_quality, new_quality)
+    canonical_lines, canonical_gates = _canonical_report(
+        old_canonical, canonicalize_rows(assembly["rows"])
+    )
     gates = [
         *_row_and_field_gates(aligned, field_mismatches),
         _status_gate(aligned, field_mismatches["status"], status_counts),
         chain_gate,
+        *canonical_gates,
     ]
     lines = [
         *_row_count_lines(aligned),
@@ -158,6 +171,7 @@ def build_report(old_rows, assembly, statement_pages):
         *_summary_lines("old", old_quality),
         *_summary_lines("new", new_quality),
         *_layout_lines(assembly, new_quality),
+        *canonical_lines,
         *[f"{'PASS' if verdict else 'FAIL'} {label}" for verdict, label in gates],
         f"RESULT: {'PASS' if all(verdict for verdict, _ in gates) else 'FAIL'}",
     ]
@@ -184,6 +198,58 @@ def _read_baseline(baseline_path):
         return [_as_raw_row(row) for row in rows]
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise CompareError(BASELINE_UNREADABLE) from error
+
+
+def _read_canonical(canonical_path):
+    """Read the old cleaning step's rows that ``export_baseline.py`` wrote beside the baseline.
+
+    Args:
+        canonical_path: Path of ``canonical.json``.
+
+    Returns:
+        Rows under this repo's field names: the old ``transaction_status`` becomes ``status``.
+
+    Raises:
+        CompareError: ``CANONICAL_UNREADABLE`` if the file is missing or has the wrong shape.
+
+    Side Effects:
+        Reads the file.
+    """
+    try:
+        rows = json.loads(canonical_path.read_text(encoding="utf-8"))["rows"]
+        return [_as_canonical_row(row) for row in rows]
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise CompareError(CANONICAL_UNREADABLE) from error
+
+
+def _as_canonical_row(row):
+    """Check one old canonical row and give it this repo's field names.
+
+    Args:
+        row: Map holding the old cleaning step's seven fields.
+
+    Returns:
+        The row with text fields as given and amounts as floats.
+
+    Raises:
+        TypeError: If a text field is not text or None, or an amount is not a number.
+
+    Side Effects:
+        None.
+    """
+    canonical = {
+        RECEIPT_FIELD: row[RECEIPT_FIELD],
+        "completion_time": row["completion_time"],
+        "details": row["details"],
+        "status": row[OLD_STATUS_FIELD],
+    }
+    for value in canonical.values():
+        _cell(value)
+    for field in CANONICAL_AMOUNT_FIELDS:
+        if isinstance(row[field], bool) or not isinstance(row[field], int | float):
+            raise TypeError
+        canonical[field] = float(row[field])
+    return canonical
 
 
 def _as_raw_row(row):
@@ -549,6 +615,63 @@ def _layout_lines(assembly, new_quality):
         f"unparsed_amounts_new: {new_quality['unparsed_amounts']}",
         *[f"receipt_length_{length}: {histogram[length]}" for length in sorted(histogram)],
     ]
+
+
+def _canonical_report(old_canonical, new_canonical):
+    """Compare canonical rows from the old cleaning step with this repo's.
+
+    Text fields match after strip, with None equal to an empty string. Amounts must be exactly the
+    same float, and two not-a-number values count as equal.
+
+    Args:
+        old_canonical: The old cleaning step's rows.
+        new_canonical: Canonical rows built from the new rows.
+
+    Returns:
+        Tuple of report lines and the canonical gates.
+
+    Side Effects:
+        None.
+    """
+    aligned = _align(old_canonical, new_canonical)
+    mismatches = {
+        field: sum(_cell(old[field]) != _cell(new[field]) for old, new, _ in aligned.matched)
+        for field in CANONICAL_TEXT_FIELDS
+    }
+    for field in CANONICAL_AMOUNT_FIELDS:
+        mismatches[field] = sum(
+            not _same_amount(old[field], new[field]) for old, new, _ in aligned.matched
+        )
+    lines = [
+        f"canonical_rows_old: {len(old_canonical)}",
+        f"canonical_rows_new: {len(new_canonical)}",
+        f"canonical_matched: {len(aligned.matched)}",
+        *[f"canonical_mismatch_{field}: {count}" for field, count in mismatches.items()],
+    ]
+    amount_mismatches = sum(mismatches[field] for field in CANONICAL_AMOUNT_FIELDS)
+    gates = [
+        (len(old_canonical) == len(new_canonical), "canonical_row_count_equal"),
+        (not mismatches["details"], "zero_mismatch_details_normalized"),
+        (not amount_mismatches, "zero_mismatch_amounts"),
+        (not mismatches["status"], "zero_mismatch_status"),
+    ]
+    return lines, gates
+
+
+def _same_amount(old, new):
+    """Compare two canonical amounts exactly.
+
+    Args:
+        old: The old amount.
+        new: The new amount.
+
+    Returns:
+        True if they are the same float, or both not-a-number.
+
+    Side Effects:
+        None.
+    """
+    return old == new or (math.isnan(old) and math.isnan(new))
 
 
 def _row_and_field_gates(aligned, field_mismatches):

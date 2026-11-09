@@ -7,6 +7,7 @@ import sys
 import pytest
 
 from conftest import REPO
+from mpesa_core.cleaning.canonicalize import canonicalize_rows
 from synth.generate import FAKE_PASSWORD
 from synth.layout import wrap_details
 
@@ -40,10 +41,36 @@ def baseline_from(name, change=None):
     return change(rows) or rows if change else rows
 
 
-def write_baseline(tmp_path, rows):
+def write_baseline(tmp_path, rows, canonical_change=None):
     path = tmp_path / f"{PATH_MARKER}.json"
     path.write_text(json.dumps({"rows": rows}), encoding="utf-8")
+    canonical = old_canonical_rows(rows)
+    if canonical_change:
+        canonical = canonical_change(canonical) or canonical
+    (tmp_path / "canonical.json").write_text(json.dumps({"rows": canonical}), encoding="utf-8")
     return path
+
+
+def old_canonical_rows(rows):
+    """What export_baseline writes from the old cleaning step: its names, float amounts."""
+    raw_rows = [{**row, "page": 0, "line": 0} for row in rows if isinstance(row, dict)]
+    usable = [
+        row
+        for row in raw_rows
+        if all(isinstance(row.get(field), str | None) for field in SEVEN_FIELDS)
+    ]
+    return [
+        {
+            "receipt_no": row["receipt_no"],
+            "completion_time": row["completion_time"],
+            "details": row["details"],
+            "transaction_status": row["status"],
+            "paid_in": row["paid_in"],
+            "withdrawn": row["withdrawn"],
+            "balance": row["balance"],
+        }
+        for row in canonicalize_rows(usable)
+    ]
 
 
 def run_compare(pdf_path, baseline_path, *options, typed=""):
@@ -111,6 +138,10 @@ def test_final_lines_are_the_agreed_gates(tmp_path):
         "zero_mismatch_balance",
         "status_mismatches",
         "chain_breaks",
+        "canonical_row_count_equal",
+        "zero_mismatch_details_normalized",
+        "zero_mismatch_amounts",
+        "zero_mismatch_status",
     }
 
 
@@ -172,13 +203,14 @@ def test_none_and_empty_string_are_equal_after_strip(tmp_path):
     assert all(counts_of(completed)[f"mismatch_{field}"] == "0" for field in SEVEN_FIELDS)
 
 
-def test_details_mismatch_is_counted_but_is_not_a_gate(tmp_path):
+def test_details_mismatch_is_counted_and_fails_only_the_canonical_details_gate(tmp_path):
     def change(rows):
         rows[0]["details"] = "something else"
 
     completed = compare_fixture(tmp_path, "F-GOLDEN", change)
     assert counts_of(completed)["mismatch_details"] == "1"
-    assert completed.returncode == 0
+    failing = {gate for gate, verdict in gates_of(completed).items() if verdict == "FAIL"}
+    assert failing == {"zero_mismatch_details_normalized"}
 
 
 def test_equal_receipts_align_by_occurrence(tmp_path):
@@ -206,8 +238,9 @@ def test_status_mismatch_passes_when_counted_and_shows_classes(tmp_path):
     assert counts["status_old_new Pending x Completed"] == str(COMMON_STATUS_COUNT)
     assert counts["status_old_new OTHER x Completed"] == "1"
     assert counts["status_old_new Completed x Completed"] == str(220 - COMMON_STATUS_COUNT - 1)
+    failing = {gate for gate, verdict in gates_of(completed).items() if verdict == "FAIL"}
     assert gates_of(completed)["status_mismatches"] == "PASS"
-    assert completed.returncode == 0
+    assert failing == {"zero_mismatch_status"}
 
 
 @pytest.mark.parametrize(
@@ -454,3 +487,103 @@ def test_receipts_are_compared_through_a_key_that_changes_every_run(tmp_path):
     source = TOOL.read_text(encoding="utf-8")
     assert "secrets.token_bytes" in source
     assert "hmac.new" in source
+
+
+def test_lines_outside_rows_are_broken_down_and_none_is_unexplained(tmp_path):
+    counts = counts_of(compare_fixture(tmp_path, "F-GOLDEN"))
+    assert counts["unattached_header_lines"] == "2"
+    assert counts["unattached_footer_lines"] == "4"
+    assert counts["unattached_summary_lines"] == "7"
+    assert counts["unattached_other_lines"] == "0"
+    assert counts["unattached_lines"] == "13"
+
+
+CANONICAL_GATES = (
+    "canonical_row_count_equal",
+    "zero_mismatch_details_normalized",
+    "zero_mismatch_amounts",
+    "zero_mismatch_status",
+)
+CANONICAL_FIELDS = ("completion_time", "details", "status", "paid_in", "withdrawn", "balance")
+
+
+def compare_with_canonical(tmp_path, name, canonical_change):
+    baseline = write_baseline(tmp_path, baseline_from(name), canonical_change)
+    return run_compare(FIXTURES / f"{name}.pdf", baseline, "--share")
+
+
+def test_canonical_rows_that_agree_pass_every_canonical_gate(tmp_path):
+    completed = compare_fixture(tmp_path, "F-GOLDEN")
+    counts = counts_of(completed)
+    assert counts["canonical_rows_old"] == "60"
+    assert counts["canonical_rows_new"] == "60"
+    assert counts["canonical_matched"] == "60"
+    for field in CANONICAL_FIELDS:
+        assert counts[f"canonical_mismatch_{field}"] == "0"
+    gates = gates_of(completed)
+    assert all(gates[gate] == "PASS" for gate in CANONICAL_GATES)
+    assert completed.returncode == 0
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "gate"),
+    [
+        ("details", "something else", "zero_mismatch_details_normalized"),
+        ("paid_in", 1.25, "zero_mismatch_amounts"),
+        ("withdrawn", 1.25, "zero_mismatch_amounts"),
+        ("balance", 1.25, "zero_mismatch_amounts"),
+        ("transaction_status", "Pending", "zero_mismatch_status"),
+    ],
+)
+def test_a_canonical_mismatch_fails_its_gate(tmp_path, field, value, gate):
+    def change(canonical):
+        canonical[3][field] = value
+
+    completed = compare_with_canonical(tmp_path, "F-GOLDEN", change)
+    counted_as = "status" if field == "transaction_status" else field
+    assert counts_of(completed)[f"canonical_mismatch_{counted_as}"] == "1"
+    assert gates_of(completed)[gate] == "FAIL"
+    assert completed.returncode == FAILED
+
+
+def test_amounts_are_compared_exactly_as_floats(tmp_path):
+    def change(canonical):
+        canonical[0]["balance"] = canonical[0]["balance"] + 1e-9
+
+    completed = compare_with_canonical(tmp_path, "F-GOLDEN", change)
+    assert counts_of(completed)["canonical_mismatch_balance"] == "1"
+
+
+def test_completion_time_mismatch_is_counted_but_is_not_a_gate(tmp_path):
+    def change(canonical):
+        canonical[0]["completion_time"] = "2000-01-01 00:00:00"
+
+    completed = compare_with_canonical(tmp_path, "F-GOLDEN", change)
+    assert counts_of(completed)["canonical_mismatch_completion_time"] == "1"
+    assert completed.returncode == 0
+
+
+def test_a_missing_canonical_row_fails_the_canonical_row_count(tmp_path):
+    completed = compare_with_canonical(tmp_path, "F-GOLDEN", lambda canonical: canonical[1:])
+    counts = counts_of(completed)
+    assert counts["canonical_rows_old"] == "59"
+    assert gates_of(completed)["canonical_row_count_equal"] == "FAIL"
+    assert gates_of(completed)["row_count_equal"] == "PASS"
+
+
+def test_missing_canonical_file_reports_an_error(tmp_path):
+    baseline = write_baseline(tmp_path, baseline_from("F-GOLDEN"))
+    (tmp_path / "canonical.json").unlink()
+    completed = run_compare(FIXTURES / "F-GOLDEN.pdf", baseline, "--share")
+    assert completed.returncode == CANNOT_RUN
+    assert "compare: ERROR (CANONICAL_UNREADABLE)" in completed.stdout
+
+
+def test_canonical_text_never_appears_in_the_output(tmp_path):
+    def change(canonical):
+        for field in ("details", "transaction_status", "completion_time"):
+            canonical[0][field] = MARKER
+
+    completed = compare_with_canonical(tmp_path, "F-GOLDEN", change)
+    assert counts_of(completed)["canonical_mismatch_details"] == "1"
+    assert MARKER not in completed.stdout + completed.stderr

@@ -27,7 +27,9 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | Term | Meaning | Code name | Avoid |
 |---|---|---|---|
 | row | One transaction as printed, possibly over several text lines, before cleaning | `RawRow`, `build_rows` | line, record, entry |
-| canonical row | A row after cleaning: typed amounts, normalized details | `CanonicalRow`, `canonicalize` | clean row, normalized row |
+| canonical row | A row after cleaning: typed amounts, normalized details | `CanonicalRow`, `canonicalize_rows` | clean row, normalized row |
+| normalized details | Details text after `normalize_name`: what classification and entity detection read | `normalize_name` | cleaned details |
+| printed amount | An amount as the statement prints it, before `parse_currency` reads it as a float | `parse_currency` | raw amount |
 | transaction | A canonical row plus its classification | `ClassifiedRow` | txn, tx, entry, record |
 | receipt number | The code printed for each transaction | `receipt_no` | ref, reference, transaction_id |
 | completion time | When the transaction completed | `completion_time` | date, timestamp |
