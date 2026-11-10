@@ -455,3 +455,37 @@ def test_line_above_the_rows_of_a_later_page_without_a_header_is_other(printed):
     )
     assembly = assemble_rows(printed.statement_of(first, later))
     assert lines_outside_rows(assembly)["other"] == 1
+
+
+def test_other_lines_are_located_by_page_and_offset_from_the_header(printed):
+    first = printed.page_of(printed.header_items(HEADER_TOP) + printed.calibrating_rows(), number=1)
+    later = printed.page_of(
+        [printed.left_item("Running title", 70.0, 25.0)]
+        + printed.header_items(40.0)
+        + printed.calibrating_rows(100.0, first_position=5),
+        number=2,
+    )
+    assembly = assemble_rows(printed.statement_of(first, later))
+    assert assembly["unattached_other_positions"] == [{"page": 2, "offset_from_header": -15.0}]
+
+
+def test_other_line_on_a_page_without_a_header_has_no_offset(printed):
+    first = printed.page_of(printed.calibrating_rows(), number=1)
+    later = printed.page_of(
+        [printed.left_item("Running title", 70.0, 40.0)]
+        + printed.calibrating_rows(100.0, first_position=5),
+        number=2,
+    )
+    positions = assemble_rows(printed.statement_of(first, later))["unattached_other_positions"]
+    assert positions == [{"page": 2, "offset_from_header": None}]
+
+
+def test_other_positions_hold_no_text(printed):
+    first = printed.page_of(printed.calibrating_rows(), number=1)
+    later = printed.page_of(
+        [printed.left_item("PLANTED TITLE", 70.0, 40.0)]
+        + printed.calibrating_rows(100.0, first_position=5),
+        number=2,
+    )
+    assembly = assemble_rows(printed.statement_of(first, later))
+    assert "PLANTED" not in repr(assembly["unattached_other_positions"])

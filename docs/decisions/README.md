@@ -16,6 +16,7 @@ Architecture decision records (ADRs) and logs. An ADR records one decision, why,
 | 0008 | Layout profile of the synthetic golden statement | Accepted (CP1) |
 | 0009 | Column calibration and row assembly | Accepted (CP3); OQ-03 and OQ-10 await the real counts |
 | 0010 | Restructure for readability | Proposed |
+| 0011 | Timing of the pandas-free core | Measured (CP5) |
 
 ## Logs
 
@@ -24,6 +25,9 @@ Architecture decision records (ADRs) and logs. An ADR records one decision, why,
 | `behaviour-changes.md` | Every deliberate difference from the old behaviour |
 | `test-edits.md` | Every edit to an existing test, and guard changes made during review |
 | `cp8-notes.md` | Caveats to act on at CP8 |
+| `equivalence-results.md` | Counts from the owner's runs on real statements, and the open questions they answer |
+| `cleaning-behaviour.md` | The old cleaning step's rules, which `cleaning/` ports |
+| `classification-behaviour.md` | The old classifier's and entity step's rules, which `classification/` ports |
 
 ## ADR template
 

@@ -27,8 +27,10 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from mpesa_core.classification.classify import classify_transactions
+from mpesa_core.classification.taxonomy import CashFlowDirection, EconomicMeaning, FinancialEvent
 from mpesa_core.cleaning.canonicalize import canonicalize_rows
-from mpesa_core.errors import ExtractionError
+from mpesa_core.errors import DomainRowError, ExtractionError
 from mpesa_core.extraction.rows import assemble_rows
 from mpesa_core.reconciliation.reconcile import find_chain_breaks, reconcile
 
@@ -57,6 +59,17 @@ CANONICAL_NAME = "canonical.json"
 OLD_STATUS_FIELD = "transaction_status"
 CANONICAL_TEXT_FIELDS = ("completion_time", "details", "status")
 CANONICAL_AMOUNT_FIELDS = ("paid_in", "withdrawn", "balance")
+CLASSIFIED_UNREADABLE = "CLASSIFIED_UNREADABLE"
+CLASSIFIED_NAME = "classified.json"
+OLD_NO_ENTITY = "NO_ENTITY_IDENTIFIED"
+# Each class field, its gate's label, and the class names that may print.
+CLASS_FIELDS = {
+    "event_type": ("event_type", frozenset(FinancialEvent)),
+    "cash_flow_direction": ("direction", frozenset(CashFlowDirection)),
+    "economic_meaning": ("meaning", frozenset(EconomicMeaning)),
+}
+CLASSIFIED_AMOUNT_FIELDS = ("total_cost", "paid_out")
+HALF_CENT = 0.005
 EXTRACTION_FAILED = "EXTRACTION_FAILED"
 CLI_ERROR_CODE = re.compile(r"ERROR \(([A-Z_]+)\)")
 HMAC_KEY_BYTES = 32
@@ -66,6 +79,15 @@ SHOWABLE_STATUS = re.compile(r"[A-Za-z ]{3,20}")
 SHOWABLE_STATUS_MINIMUM = 20
 OTHER_STATUS = "OTHER"
 SUMMARY_WORDS = {True: "true", False: "false", None: "not_found"}
+
+
+@dataclass(frozen=True)
+class OldSide:
+    """Everything the old code produced: extracted rows, canonical rows and classified rows."""
+
+    rows: list
+    canonical: list
+    classified: list
 
 
 class CompareError(Exception):
@@ -112,29 +134,36 @@ def main():
     parser.add_argument("--share", action="store_true")
     args = parser.parse_args()
     try:
-        old_rows = _read_baseline(args.baseline)
-        old_canonical = _read_canonical(args.baseline.parent / CANONICAL_NAME)
+        old = OldSide(
+            _read_baseline(args.baseline),
+            _read_canonical(args.baseline.parent / CANONICAL_NAME),
+            _read_classified(args.baseline.parent / CLASSIFIED_NAME),
+        )
         statement_pages = _extract_statement_pages(args.pdf)
         assembly = assemble_rows(statement_pages)
+        new_classified = classify_transactions(canonicalize_rows(assembly["rows"]))[0]
     except CompareError as error:
         print(f"compare: ERROR ({error.code})")
         return CANNOT_RUN
     except ExtractionError as error:
         print(f"compare: ERROR ({error.code.value})")
         return CANNOT_RUN
-    lines, gates = build_report(old_rows, old_canonical, assembly, statement_pages)
-    lines += [] if args.share else _mismatch_positions(old_rows, assembly)
+    except DomainRowError as error:
+        print(f"compare: ERROR (CLASSIFICATION_STOPPED at row {error.row_index})")
+        return CANNOT_RUN
+    lines, gates = build_report(old, assembly, new_classified, statement_pages)
+    lines += [] if args.share else _mismatch_positions(old.rows, assembly)
     print("\n".join(lines))
     return 0 if all(verdict for verdict, _ in gates) else FAILED
 
 
-def build_report(old_rows, old_canonical, assembly, statement_pages):
+def build_report(old, assembly, new_classified, statement_pages):
     """Compare both sides and describe the outcome in counts.
 
     Args:
-        old_rows: Rows from the baseline, each with the seven fields and a position.
-        old_canonical: The old cleaning step's rows, under this repo's field names.
+        old: The old code's rows, as an ``OldSide``.
         assembly: The new ``RowAssembly``.
+        new_classified: The new rows, cleaned and classified, in print order.
         statement_pages: The statement pages the new rows came from.
 
     Returns:
@@ -144,20 +173,22 @@ def build_report(old_rows, old_canonical, assembly, statement_pages):
     Side Effects:
         None.
     """
-    aligned = _align(old_rows, assembly["rows"])
+    aligned = _align(old.rows, assembly["rows"])
     old_quality = reconcile(statement_pages, aligned.old_rows)
     new_quality = reconcile(statement_pages, aligned.new_rows)
     field_mismatches = _count_field_mismatches(aligned)
     status_counts = _status_matrix(aligned)
     chain_lines, chain_gate = _chain_report(aligned, old_quality, new_quality)
     canonical_lines, canonical_gates = _canonical_report(
-        old_canonical, canonicalize_rows(assembly["rows"])
+        old.canonical, canonicalize_rows(assembly["rows"])
     )
+    classified_lines, classified_gates = _classified_report(old.classified, new_classified)
     gates = [
         *_row_and_field_gates(aligned, field_mismatches),
         _status_gate(aligned, field_mismatches["status"], status_counts),
         chain_gate,
         *canonical_gates,
+        *classified_gates,
     ]
     lines = [
         *_row_count_lines(aligned),
@@ -172,6 +203,8 @@ def build_report(old_rows, old_canonical, assembly, statement_pages):
         *_summary_lines("new", new_quality),
         *_layout_lines(assembly, new_quality),
         *canonical_lines,
+        *classified_lines,
+        *_chain_breaks_by_event_type(aligned.new_rows, new_classified, new_quality),
         *[f"{'PASS' if verdict else 'FAIL'} {label}" for verdict, label in gates],
         f"RESULT: {'PASS' if all(verdict for verdict, _ in gates) else 'FAIL'}",
     ]
@@ -220,6 +253,56 @@ def _read_canonical(canonical_path):
         return [_as_canonical_row(row) for row in rows]
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise CompareError(CANONICAL_UNREADABLE) from error
+
+
+def _read_classified(classified_path):
+    """Read the old classifier's rows that ``export_baseline.py`` wrote beside the baseline.
+
+    Args:
+        classified_path: Path of ``classified.json``.
+
+    Returns:
+        Rows holding the receipt number, the three classes, the entity and the two amounts. The
+        old marker for no entity becomes None, which is how this repo says it.
+
+    Raises:
+        CompareError: ``CLASSIFIED_UNREADABLE`` if the file is missing or has the wrong shape.
+
+    Side Effects:
+        Reads the file.
+    """
+    try:
+        rows = json.loads(classified_path.read_text(encoding="utf-8"))["rows"]
+        return [_as_classified_row(row) for row in rows]
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise CompareError(CLASSIFIED_UNREADABLE) from error
+
+
+def _as_classified_row(row):
+    """Check one old classified row.
+
+    Args:
+        row: Map holding the receipt number, classes, entity and amounts.
+
+    Returns:
+        The row, with the no-entity marker as None and amounts as floats.
+
+    Raises:
+        TypeError: If a text field is not text or None, or an amount is not a number.
+
+    Side Effects:
+        None.
+    """
+    classified = {field: row[field] for field in (RECEIPT_FIELD, *CLASS_FIELDS, "entity")}
+    for value in classified.values():
+        _cell(value)
+    if classified["entity"] == OLD_NO_ENTITY:
+        classified["entity"] = None
+    for field in CLASSIFIED_AMOUNT_FIELDS:
+        if isinstance(row[field], bool) or not isinstance(row[field], int | float):
+            raise TypeError
+        classified[field] = float(row[field])
+    return classified
 
 
 def _as_canonical_row(row):
@@ -612,6 +695,7 @@ def _layout_lines(assembly, new_quality):
     histogram = new_quality["receipt_length_histogram"]
     return [
         *[f"{name}: {count}" for name, count in assembly["layout_counts"].items()],
+        *_other_line_lines(assembly["unattached_other_positions"]),
         f"unparsed_amounts_new: {new_quality['unparsed_amounts']}",
         *[f"receipt_length_{length}: {histogram[length]}" for length in sorted(histogram)],
     ]
@@ -658,6 +742,140 @@ def _canonical_report(old_canonical, new_canonical):
     return lines, gates
 
 
+def _classified_report(old_classified, new_classified):
+    """Compare the old classification with this repo's, row by row and as class counts.
+
+    Args:
+        old_classified: The old classifier's rows.
+        new_classified: The new rows, classified.
+
+    Returns:
+        Tuple of report lines and the classification gates. Entities are compared but never
+        printed; only counts are.
+
+    Side Effects:
+        None.
+    """
+    aligned = _align(old_classified, new_classified)
+    pairs = aligned.matched
+    mismatches = {
+        field: sum(_cell(_text(old[field])) != _cell(_text(new[field])) for old, new, _ in pairs)
+        for field in (*CLASS_FIELDS, "entity")
+    }
+    over_half_cent = {}
+    for field in CLASSIFIED_AMOUNT_FIELDS:
+        mismatches[field] = sum(not _same_amount(old[field], new[field]) for old, new, _ in pairs)
+        over_half_cent[field] = sum(
+            abs(old[field] - new[field]) > HALF_CENT for old, new, _ in pairs
+        )
+    old_tables, new_tables = _class_tables(old_classified), _class_tables(new_classified)
+    lines = [
+        f"classified_rows_old: {len(old_classified)}",
+        f"classified_rows_new: {len(new_classified)}",
+        f"classified_matched: {len(pairs)}",
+        *[f"classified_mismatch_{field}: {count}" for field, count in mismatches.items()],
+        *[
+            f"classified_mismatch_{field}_over_half_cent: {count}"
+            for field, count in over_half_cent.items()
+        ],
+        *_class_table_lines("old", old_tables),
+        *_class_table_lines("new", new_tables),
+    ]
+    gates = [
+        *[
+            (not mismatches[field], f"zero_mismatch_{label}")
+            for field, (label, _) in CLASS_FIELDS.items()
+        ],
+        (not mismatches["entity"], "zero_mismatch_entity"),
+        (not mismatches["total_cost"], "zero_mismatch_total_cost"),
+        (old_tables == new_tables, "class_count_table_identical"),
+    ]
+    return lines, gates
+
+
+def _text(value):
+    """Give a class or entity as plain text, so an enum member compares by its value.
+
+    Args:
+        value: A class, an entity, or None.
+
+    Returns:
+        The text, or None.
+
+    Side Effects:
+        None.
+    """
+    return None if value is None else str(value)
+
+
+def _class_tables(classified):
+    """Count rows by each class field.
+
+    Args:
+        classified: Classified rows.
+
+    Returns:
+        Map of class field to a ``Counter`` of class names. A value that is not a known class
+        name counts as OTHER, so nothing from a row can print.
+
+    Side Effects:
+        None.
+    """
+    return {
+        field: Counter(
+            str(row[field]) if str(row[field]) in known else OTHER_STATUS for row in classified
+        )
+        for field, (_, known) in CLASS_FIELDS.items()
+    }
+
+
+def _class_table_lines(side, tables):
+    """Print class-count tables.
+
+    Args:
+        side: ``old`` or ``new``.
+        tables: The tables from ``_class_tables``.
+
+    Returns:
+        Report lines, one per class seen.
+
+    Side Effects:
+        None.
+    """
+    return [
+        f"class_count_{side}_{field} {name}: {count}"
+        for field, table in tables.items()
+        for name, count in sorted(table.items())
+    ]
+
+
+def _chain_breaks_by_event_type(new_rows, new_classified, new_quality):
+    """Count the new chain breaks by the event type of the row whose balance does not follow.
+
+    That row is the newer of the two: the upper one when the statement prints newest first.
+
+    Args:
+        new_rows: The new rows in print order.
+        new_classified: The same rows, classified, in the same order.
+        new_quality: ``DataQuality`` of the new rows, which names the orientation.
+
+    Returns:
+        Report lines, one per event type seen; none if the two lists do not line up.
+
+    Side Effects:
+        None.
+    """
+    if len(new_rows) != len(new_classified):
+        return []
+    orientation = new_quality["chain_orientation"]
+    newer_offset = 0 if orientation == "newest_first" else 1
+    counts = Counter(
+        str(new_classified[link + newer_offset]["event_type"])
+        for link in find_chain_breaks(new_rows, orientation)
+    )
+    return [f"chain_breaks_new_after_{name}: {count}" for name, count in sorted(counts.items())]
+
+
 def _same_amount(old, new):
     """Compare two canonical amounts exactly.
 
@@ -672,6 +890,39 @@ def _same_amount(old, new):
         None.
     """
     return old == new or (math.isnan(old) and math.isnan(new))
+
+
+def _other_line_lines(positions):
+    """Describe where the unexplained lines sit, by page and by offset from the header row.
+
+    Args:
+        positions: The assembly's ``unattached_other_positions``.
+
+    Returns:
+        Report lines: how many pages hold such lines, how many pages hold each number of them,
+        and how many lines sit at each offset from the header, rounded to the nearest point.
+        Positions only, never text.
+
+    Side Effects:
+        None.
+    """
+    per_page = Counter(position["page"] for position in positions)
+    pages_by_line_count = Counter(per_page.values())
+    offsets = Counter(
+        "none" if position["offset_from_header"] is None else round(position["offset_from_header"])
+        for position in positions
+    )
+    return [
+        f"unattached_other_pages: {len(per_page)}",
+        *[
+            f"unattached_other_pages_with_{lines}_lines: {pages}"
+            for lines, pages in sorted(pages_by_line_count.items())
+        ],
+        *[
+            f"unattached_other_offset_{offset}: {count}"
+            for offset, count in sorted(offsets.items(), key=lambda pair: str(pair[0]))
+        ],
+    ]
 
 
 def _row_and_field_gates(aligned, field_mismatches):

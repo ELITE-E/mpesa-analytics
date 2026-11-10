@@ -7,7 +7,9 @@ import sys
 import pytest
 
 from conftest import REPO
+from mpesa_core.classification.classify import classify_transactions
 from mpesa_core.cleaning.canonicalize import canonicalize_rows
+from mpesa_core.errors import DomainRowError
 from synth.generate import FAKE_PASSWORD
 from synth.layout import wrap_details
 
@@ -41,14 +43,51 @@ def baseline_from(name, change=None):
     return change(rows) or rows if change else rows
 
 
-def write_baseline(tmp_path, rows, canonical_change=None):
+def write_baseline(tmp_path, rows, canonical_change=None, classified_change=None):
     path = tmp_path / f"{PATH_MARKER}.json"
     path.write_text(json.dumps({"rows": rows}), encoding="utf-8")
     canonical = old_canonical_rows(rows)
     if canonical_change:
         canonical = canonical_change(canonical) or canonical
     (tmp_path / "canonical.json").write_text(json.dumps({"rows": canonical}), encoding="utf-8")
+    classified = old_classified_rows(rows)
+    if classified_change:
+        classified = classified_change(classified) or classified
+    (tmp_path / "classified.json").write_text(json.dumps({"rows": classified}), encoding="utf-8")
     return path
+
+
+def old_classified_rows(rows):
+    """What export_baseline writes from the old classifier and entity step, in its format."""
+    usable = [
+        {**row, "page": 0, "line": 0}
+        for row in rows
+        if isinstance(row, dict)
+        and all(isinstance(row.get(field), str | None) for field in SEVEN_FIELDS)
+    ]
+    canonical = canonicalize_rows(usable)
+    try:
+        classified = classify_transactions(canonical)[0]
+    except DomainRowError:
+        # A planted row with no amount stops the run; classify the others one by one.
+        classified = []
+        for row in canonical:
+            try:
+                classified += classify_transactions([row])[0]
+            except DomainRowError:
+                continue
+    return [
+        {
+            "receipt_no": row["receipt_no"],
+            "event_type": str(row["event_type"]),
+            "cash_flow_direction": str(row["cash_flow_direction"]),
+            "economic_meaning": str(row["economic_meaning"]),
+            "entity": row["entity"] or "NO_ENTITY_IDENTIFIED",
+            "total_cost": row["total_cost"],
+            "paid_out": row["paid_out"],
+        }
+        for row in classified
+    ]
 
 
 def old_canonical_rows(rows):
@@ -127,6 +166,18 @@ def test_identical_rows_pass(tmp_path):
     assert completed.stdout.strip().splitlines()[-1] == "RESULT: PASS"
 
 
+STAGE_ONE_GATES = (
+    "row_count_equal",
+    "zero_mismatch_receipt_no",
+    "zero_mismatch_completion_time",
+    "zero_mismatch_paid_in",
+    "zero_mismatch_withdrawn",
+    "zero_mismatch_balance",
+    "status_mismatches",
+    "chain_breaks",
+)
+
+
 def test_final_lines_are_the_agreed_gates(tmp_path):
     gates = gates_of(compare_fixture(tmp_path, "F-GOLDEN"))
     assert set(gates) == {
@@ -142,6 +193,12 @@ def test_final_lines_are_the_agreed_gates(tmp_path):
         "zero_mismatch_details_normalized",
         "zero_mismatch_amounts",
         "zero_mismatch_status",
+        "zero_mismatch_event_type",
+        "zero_mismatch_direction",
+        "zero_mismatch_meaning",
+        "zero_mismatch_entity",
+        "zero_mismatch_total_cost",
+        "class_count_table_identical",
     }
 
 
@@ -209,8 +266,9 @@ def test_details_mismatch_is_counted_and_fails_only_the_canonical_details_gate(t
 
     completed = compare_fixture(tmp_path, "F-GOLDEN", change)
     assert counts_of(completed)["mismatch_details"] == "1"
-    failing = {gate for gate, verdict in gates_of(completed).items() if verdict == "FAIL"}
-    assert failing == {"zero_mismatch_details_normalized"}
+    gates = gates_of(completed)
+    assert all(gates[gate] == "PASS" for gate in STAGE_ONE_GATES)
+    assert gates["zero_mismatch_details_normalized"] == "FAIL"
 
 
 def test_equal_receipts_align_by_occurrence(tmp_path):
@@ -587,3 +645,128 @@ def test_canonical_text_never_appears_in_the_output(tmp_path):
     completed = compare_with_canonical(tmp_path, "F-GOLDEN", change)
     assert counts_of(completed)["canonical_mismatch_details"] == "1"
     assert MARKER not in completed.stdout + completed.stderr
+
+
+def test_other_lines_are_broken_down_by_page_and_offset_counts_only(tmp_path):
+    counts = counts_of(compare_fixture(tmp_path, "F-GOLDEN"))
+    assert counts["unattached_other_pages"] == "0"
+    assert not [label for label in counts if label.startswith("unattached_other_offset_")]
+
+
+CLASSIFIED_GATES = (
+    "zero_mismatch_event_type",
+    "zero_mismatch_direction",
+    "zero_mismatch_meaning",
+    "zero_mismatch_entity",
+    "zero_mismatch_total_cost",
+    "class_count_table_identical",
+)
+
+
+def compare_with_classified(tmp_path, name, classified_change):
+    baseline = write_baseline(tmp_path, baseline_from(name), classified_change=classified_change)
+    return run_compare(FIXTURES / f"{name}.pdf", baseline, "--share")
+
+
+def test_classification_that_agrees_passes_every_classification_gate(tmp_path):
+    completed = compare_fixture(tmp_path, "F-GOLDEN")
+    counts = counts_of(completed)
+    assert counts["classified_rows_old"] == "60"
+    assert counts["classified_rows_new"] == "60"
+    for field in (
+        "event_type",
+        "cash_flow_direction",
+        "economic_meaning",
+        "entity",
+        "total_cost",
+        "paid_out",
+    ):
+        assert counts[f"classified_mismatch_{field}"] == "0"
+    gates = gates_of(completed)
+    assert all(gates[gate] == "PASS" for gate in CLASSIFIED_GATES)
+    assert completed.returncode == 0
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "gate"),
+    [
+        ("event_type", "DEPOSIT", "zero_mismatch_event_type"),
+        ("cash_flow_direction", "INFLOW", "zero_mismatch_direction"),
+        ("economic_meaning", "UNKNOWN", "zero_mismatch_meaning"),
+        ("entity", "Example Other Entity", "zero_mismatch_entity"),
+        ("total_cost", 12345.0, "zero_mismatch_total_cost"),
+    ],
+)
+def test_a_classification_mismatch_fails_its_gate(tmp_path, field, value, gate):
+    def change(classified):
+        classified[3][field] = value
+
+    completed = compare_with_classified(tmp_path, "F-GOLDEN", change)
+    assert counts_of(completed)[f"classified_mismatch_{field}"] == "1"
+    assert gates_of(completed)[gate] == "FAIL"
+    assert completed.returncode == FAILED
+
+
+def test_a_changed_class_changes_the_class_count_table(tmp_path):
+    def change(classified):
+        classified[3]["event_type"] = "DEPOSIT"
+
+    completed = compare_with_classified(tmp_path, "F-GOLDEN", change)
+    counts = counts_of(completed)
+    assert counts["class_count_old_event_type DEPOSIT"] == "1"
+    assert "class_count_new_event_type DEPOSIT" not in counts
+    assert gates_of(completed)["class_count_table_identical"] == "FAIL"
+
+
+def test_class_count_tables_name_classes_only(tmp_path):
+    def change(classified):
+        classified[0]["event_type"] = MARKER
+
+    completed = compare_with_classified(tmp_path, "F-GOLDEN", change)
+    counts = counts_of(completed)
+    assert counts["class_count_old_event_type OTHER"] == "1"
+    assert MARKER not in completed.stdout
+
+
+def test_the_no_entity_marker_equals_no_entity(tmp_path):
+    completed = compare_fixture(tmp_path, "F-GOLDEN")
+    assert counts_of(completed)["classified_mismatch_entity"] == "0"
+
+
+def test_entity_values_never_appear_in_the_output(tmp_path):
+    def change(classified):
+        for row in classified:
+            row["entity"] = MARKER
+
+    completed = compare_with_classified(tmp_path, "F-GOLDEN", change)
+    assert counts_of(completed)["classified_mismatch_entity"] == "60"
+    assert MARKER not in completed.stdout + completed.stderr
+
+
+def test_total_cost_mismatches_beyond_half_a_cent_are_counted_separately(tmp_path):
+    def change(classified):
+        classified[0]["total_cost"] += 0.001
+        classified[1]["total_cost"] += 1.0
+
+    counts = counts_of(compare_with_classified(tmp_path, "F-GOLDEN", change))
+    assert counts["classified_mismatch_total_cost"] == "2"
+    assert counts["classified_mismatch_total_cost_over_half_cent"] == "1"
+
+
+def test_chain_breaks_are_split_by_the_event_type_of_the_row_after_the_break(tmp_path):
+    counts = counts_of(compare_fixture(tmp_path, "F-CHAIN-BREAK"))
+    split = {
+        label: int(value)
+        for label, value in counts.items()
+        if label.startswith("chain_breaks_new_after_")
+    }
+    assert sum(split.values()) == 5
+    assert all(label.removeprefix("chain_breaks_new_after_").isupper() for label in split)
+
+
+def test_missing_classification_file_reports_an_error(tmp_path):
+    baseline = write_baseline(tmp_path, baseline_from("F-GOLDEN"))
+    (tmp_path / "classified.json").unlink()
+    completed = run_compare(FIXTURES / "F-GOLDEN.pdf", baseline, "--share")
+    assert completed.returncode == CANNOT_RUN
+    assert "compare: ERROR (CLASSIFIED_UNREADABLE)" in completed.stdout
