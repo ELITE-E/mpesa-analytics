@@ -136,6 +136,17 @@ Added to existing files, not edits: tests in `test_rows.py`, `test_differential.
 
 New tests corrected while still red: `synthetic_details.py` and `test_normalize.py` used a 10-character reference containing a digit and a literal masked phone, both of which the pattern guard rejects outside the fixtures. They became a letters-only reference and an assembled masked phone.
 
+## Edits for CP5
+
+| Test | Old assertion | New assertion | Reason |
+|---|---|---|---|
+| `test_export_baseline.py`, fake old repo | Held the decrypt, extract and clean stand-ins | Also holds stand-ins for `src/engine.py` and `src/entity.py` | The export now runs the old classifier and entity step |
+| `test_compare.py`, `write_baseline` helper | Wrote the baseline and canonical rows | Also writes `classified.json` in the old format, built with `classify_transactions` | `compare.py` now needs it. A planted row with no amount is classified on its own or skipped, as the old run would have stopped |
+| `test_final_lines_are_the_agreed_gates` | 12 gates | 18, adding the 6 classification gates | Owner instruction |
+| `test_details_mismatch_is_counted_and_fails_only_the_canonical_details_gate` | The only failing gate is the canonical details gate | Every stage-1 gate passes and the canonical details gate fails | A changed details text now also changes the old classification, so classification gates fail too. The point of the test, that details are not a stage-1 gate, is unchanged |
+
+The three log tests in `test_behaviours.md` were rewritten for the new seam, as the plan says (REWRITE), in `tests/core/test_diagnostics.py`. Writes a structured event became `test_unresolved_row_is_returned_as_a_structured_diagnostic`. Appends separate records became `test_each_unresolved_row_is_a_separate_diagnostic_in_the_old_order`. Accepts a string log path became `test_diagnostics_are_returned_and_nothing_is_logged_or_written`.
+
 ## Guard changes made during CP0 (not test edits, recorded for review)
 
 | # | Guard | Change | Condition |

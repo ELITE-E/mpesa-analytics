@@ -23,6 +23,7 @@ LARGEST_WRAP_GAP_POINTS = WRAP_GAP_POINTS + LINE_TOLERANCE_POINTS
 # Items further apart than this read as separate words even with no whitespace item between them.
 WORD_GAP_POINTS = 1.0
 AMOUNT_FIELDS = ("paid_in", "withdrawn", "balance")
+DIGITS_PER_OFFSET = 2
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,8 @@ class _Reading:
     layout: object
     counts: dict
     page_number: int
+    # Where each "other" line sits, as positions only, never text.
+    other_positions: list
 
 
 @dataclass(frozen=True)
@@ -91,12 +94,18 @@ def assemble_rows(statement_pages):
     }
     rows = []
     printed_line_counts = []
+    other_positions = []
     for position, page in enumerate(statement_pages["pages"]):
-        reading = _Reading(layout, counts, page["page_number"])
+        reading = _Reading(layout, counts, page["page_number"], other_positions)
         for row_lines in _row_lines_on_page(page, reading, is_first_page=position == 0):
             rows.append(_read_row(row_lines, reading))
             printed_line_counts.append(1 + len(row_lines.above) + len(row_lines.below))
-    return {"rows": rows, "printed_line_counts": printed_line_counts, "layout_counts": counts}
+    return {
+        "rows": rows,
+        "printed_line_counts": printed_line_counts,
+        "layout_counts": counts,
+        "unattached_other_positions": other_positions,
+    }
 
 
 def _row_lines_on_page(page, reading, *, is_first_page):
@@ -124,11 +133,11 @@ def _row_lines_on_page(page, reading, *, is_first_page):
             block_rows = _rows_in_block(block, reading.counts)
             found += block_rows
             used_indexes.update(index for index, _ in block if block_rows)
-    _count_lines_outside_rows(numbered_lines, used_indexes, reading.counts, is_first_page)
+    _count_lines_outside_rows(numbered_lines, used_indexes, reading, is_first_page)
     return found
 
 
-def _count_lines_outside_rows(numbered_lines, used_indexes, counts, is_first_page):
+def _count_lines_outside_rows(numbered_lines, used_indexes, reading, is_first_page):
     """Count the lines that belong to no row, by what they most likely are.
 
     A header row is a header. On page 1, a line above the first anchor is summary, or above the
@@ -139,11 +148,12 @@ def _count_lines_outside_rows(numbered_lines, used_indexes, counts, is_first_pag
     Args:
         numbered_lines: Tuples of line index and line for the whole page.
         used_indexes: Indexes of the lines that belong to a row.
-        counts: Layout counts to add to.
+        reading: The page's counts, page number and list of other-line positions.
         is_first_page: Whether this page holds the statement summary.
 
     Side Effects:
-        Adds to the unattached counts; ``unattached_lines`` is the sum of the four kinds.
+        Adds to the unattached counts, where ``unattached_lines`` is the sum of the four kinds, and
+        records each other line's page and offset from the page's first header row.
     """
     headers = [line.top for _, line in numbered_lines if is_header_row(line)]
     row_tops = [line.top for index, line in numbered_lines if index in used_indexes]
@@ -153,8 +163,13 @@ def _count_lines_outside_rows(numbered_lines, used_indexes, counts, is_first_pag
         if index in used_indexes:
             continue
         kind = _kind_of_line_outside_rows(line, is_first_page, summary_end, footer_start)
-        counts[f"unattached_{kind}_lines"] += 1
-        counts["unattached_lines"] += 1
+        reading.counts[f"unattached_{kind}_lines"] += 1
+        reading.counts["unattached_lines"] += 1
+        if kind == "other":
+            offset = None if not headers else round(line.top - headers[0], DIGITS_PER_OFFSET)
+            reading.other_positions.append(
+                {"page": reading.page_number, "offset_from_header": offset}
+            )
 
 
 def _first_anchor_top(numbered_lines, default):

@@ -184,3 +184,43 @@ def test_glossary_names_the_calibration_terms(name):
 def test_module_move_record_no_longer_promises_legacy_table_rows():
     record = next(DECISIONS.glob("0005-*.md")).read_text(encoding="utf-8")
     assert "legacy_table_rows" not in record
+
+
+@pytest.mark.parametrize(
+    "label",
+    ["cold_load_seconds", "first_run_seconds", "median_run_seconds", "wasm_memory_bytes", "5,700"],
+)
+def test_pandas_free_timing_is_recorded(label):
+    assert label in next(DECISIONS.glob("0011-*.md")).read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("change", ["D-02", "D-07"])
+def test_classification_changes_are_marked_done(change):
+    log = (DECISIONS / "behaviour-changes.md").read_text(encoding="utf-8")
+    row = next(line for line in log.splitlines() if line.startswith(f"| {change} |"))
+    assert "| Done" in row
+
+
+def test_classification_behaviour_names_the_rule_order_and_d02():
+    record = (DECISIONS / "classification-behaviour.md").read_text(encoding="utf-8")
+    assert "Event type rules, in order" in record
+    assert "D-02" in record
+    assert "D-07" in record
+
+
+@pytest.mark.parametrize("question", ["OQ-01", "OQ-02", "OQ-03", "OQ-10"])
+def test_equivalence_results_record_the_open_questions(question):
+    assert question in (DECISIONS / "equivalence-results.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "classify_transactions",
+        "FinancialEvent",
+        "extract_entity",
+        "EVENT_CLASSIFICATION_UNRESOLVED",
+    ],
+)
+def test_glossary_names_the_classification_terms(name):
+    assert name in (REPO / "docs" / "glossary.md").read_text(encoding="utf-8")

@@ -48,10 +48,10 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 
 | Term | Meaning | Code name | Avoid |
 |---|---|---|---|
-| event type | The classified kind of transaction, one of the `EventType` values | `event_type` | type, category, kind |
+| event type | The classified kind of transaction, one of the `FinancialEvent` values | `event_type`, `FinancialEvent`, `classify_transactions` | type, category, kind |
 | cash flow direction | Whether money came in, went out, or neither | `cash_flow_direction` | direction on its own |
 | economic meaning | The economic purpose of a transaction, one of the `EconomicMeaning` values | `economic_meaning` | purpose, category |
-| entity | The counterparty identified from the details (a person, merchant, till or paybill) | `entity` | counterparty (in code), party |
+| entity | The counterparty identified from the details (a person, merchant, till or paybill); None when no grammar reads it | `entity`, `extract_entity` | counterparty (in code), party |
 | fee | A charge row attached to a parent transaction | `fee` | charge (except the analytic named transfer charges) |
 | parent transaction | The transaction a fee belongs to; they share a receipt number | `parent` | main transaction |
 | total cost | A transaction's amount plus the fees attributed to it | `total_cost` | full cost |
@@ -65,7 +65,7 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | statement summary | The totals printed on page 1 of the statement | `statement_summary` | header totals |
 | reconciliation | Comparing parsed rows with the statement summary and the balance chain | `reconcile` | validation, verification |
 | data quality | Counts of problems found while processing (row counts, status counts, chain breaks, unparsed amounts) | `DataQuality`, `quality` | warnings, errors |
-| diagnostic | An item describing one row that could not be resolved. Held in memory only | `Diagnostic` | issue, problem |
+| diagnostic | An item describing one row that could not be resolved. Held in memory only. Codes: `EVENT_CLASSIFICATION_UNRESOLVED`, `ECONOMIC_MEANING_UNRESOLVED`, `ENTITY_EXTRACTION_UNRESOLVED` | `Diagnostic` | issue, problem |
 | baseline | The old extractor's rows for one statement, kept outside both repos for the equivalence check | `export_baseline.py`, `compare.py` | snapshot, golden |
 | verification token | The value `attest` produces, tying a result to its statement | `verification_token` | hash, signature |
 | recurring | Seen at least three times, so an isolated transaction is not treated as recurring. | `recurring` | repeat, regular, subscription |

@@ -65,12 +65,20 @@ class LayoutCounts(TypedDict):
     anchor_cells_off_column: int
 
 
+class OtherLinePosition(TypedDict):
+    """Where a line outside every row, of no known kind, sits. A position only, never text."""
+
+    page: int
+    offset_from_header: float | None
+
+
 class RowAssembly(TypedDict):
     """Rows built from statement pages, with counts describing how they were built."""
 
     rows: list[RawRow]
     printed_line_counts: list[int]
     layout_counts: LayoutCounts
+    unattached_other_positions: list[OtherLinePosition]
 
 
 class CanonicalRow(TypedDict):
@@ -92,6 +100,7 @@ class ClassifiedRow(CanonicalRow):
     event_type: str
     cash_flow_direction: str
     economic_meaning: str
+    total_cost: float
     entity: str | None
 
 

@@ -93,6 +93,36 @@ def _amount(printed):
 """
 
 
+# Stand-ins for the old classifier and entity step. The classes mimic the old str-based enums,
+# whose text is not their value, so the export must write each member's value.
+ENGINE_MODULE = """
+from enum import Enum
+
+class Event(str, Enum):
+    AIRTIME_PURCHASE = "AIRTIME_PURCHASE"
+
+class Direction(str, Enum):
+    OUTFLOW = "OUTFLOW"
+
+class Meaning(str, Enum):
+    CONSUMPTION = "CONSUMPTION"
+
+def process_engine(cleaned):
+    with open("diagnostics.jsonl", "a") as log:
+        log.write("engine ran")
+    return [
+        {**row, "paid_out": abs(row["withdrawn"]), "event_type": Event.AIRTIME_PURCHASE,
+         "cash_flow_direction": Direction.OUTFLOW, "economic_meaning": Meaning.CONSUMPTION,
+         "total_cost": abs(row["withdrawn"])}
+        for row in cleaned
+    ]
+"""
+ENTITY_MODULE = """
+def enrich_transactions_with_entities(classified):
+    return [{**row, "entity": "NO_ENTITY_IDENTIFIED"} for row in classified]
+"""
+
+
 @pytest.fixture
 def old_repo(tmp_path):
     repo = tmp_path / "old-repo"
@@ -101,6 +131,8 @@ def old_repo(tmp_path):
     (repo / "src" / "extract.py").write_text(GOOD_FUNCTION)
     (repo / "src" / "security.py").write_text(SECURITY_MODULE)
     (repo / "src" / "clean.py").write_text(CLEAN_MODULE)
+    (repo / "src" / "engine.py").write_text(ENGINE_MODULE)
+    (repo / "src" / "entity.py").write_text(ENTITY_MODULE)
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
     return repo
 
@@ -549,3 +581,85 @@ def test_missing_pdf_says_so_and_writes_nothing(old_repo, tmp_path):
 def test_missing_pdf_is_reported_before_any_password_prompt(old_repo, tmp_path):
     completed = run_export(old_repo, tmp_path / "absent.pdf", tmp_path / "out")
     assert "PDF password" not in completed.stderr
+
+
+CLASSIFIED_FIELDS = {
+    "receipt_no",
+    "event_type",
+    "cash_flow_direction",
+    "economic_meaning",
+    "entity",
+    "total_cost",
+    "paid_out",
+}
+
+
+def classified_rows(out):
+    return json.loads((out / "classified.json").read_text(encoding="utf-8"))["rows"]
+
+
+def test_old_classifier_and_entity_constants_are_named():
+    source = TOOL.read_text(encoding="utf-8")
+    assert 'OLD_ENGINE_MODULE = "src.engine"' in source
+    assert 'OLD_ENGINE_FUNCTION = "process_engine"' in source
+    assert 'OLD_ENTITY_MODULE = "src.entity"' in source
+    assert 'OLD_ENTITY_FUNCTION = "enrich_transactions_with_entities"' in source
+
+
+def test_writes_the_old_classification_beside_the_baseline(old_repo, pdf_path, tmp_path):
+    out = tmp_path / "out"
+    completed = run_export(old_repo, pdf_path, out)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    rows = classified_rows(out)
+    assert [row["receipt_no"] for row in rows] == ["first", "second"]
+    assert all(set(row) == CLASSIFIED_FIELDS for row in rows)
+    assert rows[0]["event_type"] == "AIRTIME_PURCHASE"
+    assert rows[0]["cash_flow_direction"] == "OUTFLOW"
+    assert rows[0]["economic_meaning"] == "CONSUMPTION"
+    assert rows[0]["entity"] == "NO_ENTITY_IDENTIFIED"
+    assert rows[0]["total_cost"] == 5.0
+    assert rows[0]["paid_out"] == 5.0
+
+
+def test_classification_is_readable_by_the_owner_only(old_repo, pdf_path, tmp_path):
+    out = tmp_path / "out"
+    assert run_export(old_repo, pdf_path, out).returncode == 0
+    assert stat.S_IMODE((out / "classified.json").stat().st_mode) == OWNER_ONLY
+
+
+def test_counts_include_the_classified_rows(old_repo, pdf_path, tmp_path):
+    labels = dict(
+        line.split(": ")
+        for line in run_export(old_repo, pdf_path, tmp_path / "out").stdout.strip().splitlines()
+    )
+    assert labels["classified_rows"] == "2"
+
+
+def test_old_classifier_log_lands_in_the_output_directory(old_repo, pdf_path, tmp_path):
+    elsewhere = tmp_path / "started-here"
+    elsewhere.mkdir()
+    out = tmp_path / "out"
+    assert run_export(old_repo, pdf_path, out, cwd=elsewhere).returncode == 0
+    assert (out / "diagnostics.jsonl").exists()
+    assert not (elsewhere / "diagnostics.jsonl").exists()
+
+
+@pytest.mark.parametrize(
+    "failing_step",
+    [
+        ("engine.py", "def process_engine(cleaned):", "classify"),
+        ("entity.py", "def enrich_transactions_with_entities(classified):", "entities"),
+    ],
+    ids=["classify", "entities"],
+)
+def test_classification_step_that_fails_lists_its_functions_and_writes_nothing(
+    old_repo, pdf_path, tmp_path, failing_step
+):
+    module, function, step = failing_step
+    (old_repo / "src" / module).write_text(f'{function}\n    raise ValueError("{MARKER}")\n')
+    out = tmp_path / "out"
+    completed = run_export(old_repo, pdf_path, out)
+    assert_lists_names_and_signatures_only(completed, function[4:-1])
+    assert f"old {step} step" in completed.stdout
+    for name in ("baseline.json", "canonical.json", "classified.json"):
+        assert not (out / name).exists()

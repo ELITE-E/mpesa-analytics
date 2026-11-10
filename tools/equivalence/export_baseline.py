@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Export what the old code reads from a statement, for the equivalence check.
 
-Runs the old pipeline's first steps as it ran them: decrypt in memory, extract, clean. It writes
-the extractor's rows (``baseline.json``) and the cleaning step's rows (``canonical.json``).
+Runs the old pipeline's steps as it ran them: decrypt in memory, extract, clean, classify, then
+find entities. It writes the extractor's rows (``baseline.json``), the cleaning step's rows
+(``canonical.json``) and the classified rows (``classified.json``).
 
 Run by the owner with the OLD repo's Python, so it uses only the standard library and syntax that
 older versions accept. Both files hold statement values, so they are owner-only and refused inside
@@ -33,17 +34,32 @@ OLD_MODULE = "src.extract"
 OLD_FUNCTION = "extract_table_from_pdf"
 OLD_CLEAN_MODULE = "src.clean"
 OLD_CLEAN_FUNCTION = "clean_mpesa_dataframe"
+OLD_ENGINE_MODULE = "src.engine"
+OLD_ENGINE_FUNCTION = "process_engine"
+OLD_ENTITY_MODULE = "src.entity"
+OLD_ENTITY_FUNCTION = "enrich_transactions_with_entities"
 # Each old step's module and function, in the order the old pipeline runs them.
 OLD_STEPS = {
     "decrypt": (OLD_DECRYPT_MODULE, OLD_DECRYPT_FUNCTION),
     "extract": (OLD_MODULE, OLD_FUNCTION),
     "clean": (OLD_CLEAN_MODULE, OLD_CLEAN_FUNCTION),
+    "classify": (OLD_ENGINE_MODULE, OLD_ENGINE_FUNCTION),
+    "entities": (OLD_ENTITY_MODULE, OLD_ENTITY_FUNCTION),
 }
 THIS_REPO = Path(__file__).resolve().parents[2]
 BASELINE_NAME = "baseline.json"
 CANONICAL_NAME = "canonical.json"
 CANONICAL_TEXT_FIELDS = ("receipt_no", "completion_time", "details", "transaction_status")
 CANONICAL_AMOUNT_FIELDS = ("paid_in", "withdrawn", "balance")
+CLASSIFIED_NAME = "classified.json"
+CLASSIFIED_TEXT_FIELDS = (
+    "receipt_no",
+    "event_type",
+    "cash_flow_direction",
+    "economic_meaning",
+    "entity",
+)
+CLASSIFIED_AMOUNT_FIELDS = ("total_cost", "paid_out")
 CANNOT_RUN = 2
 OWNER_ONLY = 0o600
 OWNER_ONLY_DIRECTORY = 0o700
@@ -106,7 +122,9 @@ def main():
     # The old code may write logs beside it. They hold raw values, so they must not land in a repo.
     os.chdir(out)
     try:
-        rows, canonical_rows = _read_rows_with_old_code(old_repo, pdf_path, password)
+        rows, canonical_rows, classified_rows = _read_rows_with_old_code(
+            old_repo, pdf_path, password
+        )
     except OldExtractorError as error:
         print(f"export_baseline: ERROR (old {error.step} step could not be used)")
         _print_available_functions(old_repo, error.step)
@@ -116,7 +134,8 @@ def main():
         return CANNOT_RUN
     _write_owner_only(out / BASELINE_NAME, json.dumps({"rows": rows}, indent=1))
     _write_owner_only(out / CANONICAL_NAME, json.dumps({"rows": canonical_rows}, indent=1))
-    _print_counts(rows, canonical_rows)
+    _write_owner_only(out / CLASSIFIED_NAME, json.dumps({"rows": classified_rows}, indent=1))
+    _print_counts(rows, canonical_rows, classified_rows)
     return 0
 
 
@@ -192,8 +211,9 @@ def _read_rows_with_old_code(old_repo, pdf_path, password):
         password: The PDF's password, or None.
 
     Returns:
-        Tuple of the extractor's rows, each with the seven raw fields, and the cleaning step's
-        rows, each with its seven canonical fields; both in print order.
+        Tuple of the extractor's rows, each with the seven raw fields; the cleaning step's rows,
+        each with its seven canonical fields; and the classified rows, each with its receipt
+        number and classification. All in print order.
 
     Raises:
         OldExtractorError: Naming the step that could not be imported or called, or that returned
@@ -219,7 +239,12 @@ def _read_rows_with_old_code(old_repo, pdf_path, password):
             rows = [_seven_fields(record) for record in _records_of(extracted)]
             step = "clean"
             cleaned = _old_function(step)(extracted)
-            return rows, [_canonical_fields(record) for record in _records_of(cleaned)]
+            canonical = [_canonical_fields(record) for record in _records_of(cleaned)]
+            step = "classify"
+            classified = _old_function(step)(cleaned)
+            step = "entities"
+            enriched = _old_function(step)(classified)
+            return rows, canonical, [_classified_fields(record) for record in _records_of(enriched)]
     except Exception:  # noqa: BLE001 - old code can raise anything; the caller reports the failure.
         raise OldExtractorError(step) from None
 
@@ -306,6 +331,28 @@ def _canonical_fields(record):
     return fields
 
 
+def _classified_fields(record):
+    """Keep a classified row's receipt number and classification, as text and float.
+
+    Args:
+        record: One row from the old entity step.
+
+    Returns:
+        Map of field to text, None or float. An old enum member is written as its value. A
+        missing field or a cost that is not a number raises, and the caller names the step.
+
+    Side Effects:
+        None.
+    """
+    fields = {
+        field: _as_text(getattr(record[field], "value", record[field]))
+        for field in CLASSIFIED_TEXT_FIELDS
+    }
+    for field in CLASSIFIED_AMOUNT_FIELDS:
+        fields[field] = float(record[field])
+    return fields
+
+
 def _normalized(column_name):
     """Normalize an old column name, so punctuation and case do not matter.
 
@@ -355,12 +402,13 @@ def _write_owner_only(path, text):
         baseline.write(text)
 
 
-def _print_counts(rows, canonical_rows):
+def _print_counts(rows, canonical_rows, classified_rows):
     """Print fixed labels and counts.
 
     Args:
         rows: The extractor's rows.
         canonical_rows: The cleaning step's rows.
+        classified_rows: The classified rows.
 
     Side Effects:
         Writes to stdout.
@@ -369,6 +417,7 @@ def _print_counts(rows, canonical_rows):
     for field in FIELD_COLUMNS:
         print(f"filled_{field}: {sum(bool(row[field]) for row in rows)}")
     print(f"canonical_rows: {len(canonical_rows)}")
+    print(f"classified_rows: {len(classified_rows)}")
 
 
 def _print_available_functions(old_repo, step):
