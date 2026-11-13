@@ -19,6 +19,7 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | layout | The printed arrangement of a statement. "Format" is reserved for file formats | `layout` | format, template |
 | printed line | Text items sharing a vertical position on a page. Not a row: a row can span several printed lines | `PrintedLine`, `group_lines` | row, record |
 | column layout | The calibrated column positions: left edges for text, right edges for amounts | `ColumnLayout`, `calibrate_columns` | column map |
+| page heading | A line repeated above the header row on every page after the first. Outside every row; counted, never read | `unattached_page_heading_lines` | page title, running header |
 | continuation line | A printed line with no anchor that adds to its row's details, above or below the anchor | `continuation_lines_above`, `continuation_lines_below` | wrap row, extra line |
 | layout counts | Counts of what row building met on the page instead of guessing | `LayoutCounts`, `assemble_rows` | warnings, errors |
 
@@ -61,10 +62,11 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | Term | Meaning | Code name | Avoid |
 |---|---|---|---|
 | period | The date range being analysed | `period` | range, window |
-| report | The analytics result (the keys of `AnalyticsResult.to_json_safe()`) | `report` | analytics (as a noun), summary |
+| report | The analysis result, with the old `AnalyticsResult.to_json_safe()` keys exactly | `report`, `analyze_transactions` | analytics (as a noun), summary |
+| prepared frame | The one pandas frame the analyses read, built from classified rows with every class as plain text (D-01) | `prepared_frame` | dataframe, df (in prose) |
 | statement summary | The totals printed on page 1 of the statement | `statement_summary` | header totals |
 | reconciliation | Comparing parsed rows with the statement summary and the balance chain | `reconcile` | validation, verification |
-| data quality | Counts of problems found while processing (row counts, status counts, chain breaks, unparsed amounts) | `DataQuality`, `quality` | warnings, errors |
+| data quality | Counts of problems found while processing (row counts, status counts, chain breaks, unparsed amounts, unclassified rows) | `DataQuality`, `quality`, `measure_unclassified` | warnings, errors |
 | diagnostic | An item describing one row that could not be resolved. Held in memory only. Codes: `EVENT_CLASSIFICATION_UNRESOLVED`, `ECONOMIC_MEANING_UNRESOLVED`, `ENTITY_EXTRACTION_UNRESOLVED` | `Diagnostic` | issue, problem |
 | baseline | The old extractor's rows for one statement, kept outside both repos for the equivalence check | `export_baseline.py`, `compare.py` | snapshot, golden |
 | verification token | The value `attest` produces, tying a result to its statement | `verification_token` | hash, signature |

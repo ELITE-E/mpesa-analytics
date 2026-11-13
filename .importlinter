@@ -29,6 +29,24 @@ forbidden_modules =
     mpesa_core.bridge
     mpesa_core.extraction.rows
 
+[importlinter:contract:pandas-only-in-analysis]
+name = pandas is used only inside analysis (ADR 0006)
+type = forbidden
+source_modules =
+    mpesa_core.extraction
+    mpesa_core.cleaning
+    mpesa_core.classification
+    mpesa_core.reconciliation
+    mpesa_core.contracts
+    mpesa_core.errors
+    mpesa_core.pipeline
+    mpesa_core.bridge
+    mpesa_core.types
+forbidden_modules =
+    pandas
+# The pipeline calls analysis, which uses pandas; only a direct import is forbidden.
+allow_indirect_imports = true
+
 [importlinter:contract:contracts-no-pandas]
 name = Contracts are types only and do not load pandas
 type = forbidden

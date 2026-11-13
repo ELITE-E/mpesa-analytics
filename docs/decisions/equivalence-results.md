@@ -13,6 +13,35 @@ All 12 gates passed: rows, the seven printed fields, status, chain breaks, and t
 | Mismatches in the canonical fields | 0 |
 | Unassigned items, anchor cells off column, unparsed amounts | 0, 0, 0 |
 
+## Run 2: CP5, the same statement, 2026-11-10
+
+All 18 gates passed: the 12 from run 1, and the classification gates.
+
+| Measure | Count |
+|---|---|
+| Rows, old and new | 5,698 and 5,698; all paired |
+| Mismatches in event type, direction, meaning, entity, total cost, paid out | 0 each |
+| Total cost or paid out differing by more than 0.005 | 0 |
+| Class-count tables | identical, old and new |
+
+| Event type | Rows |
+|---|---|
+| MERCHANT_PAYMENT | 1,142 |
+| BILL_PAYMENT | 1,017 |
+| TRANSFER_IN | 627 |
+| TRANSFER_OUT | 519 |
+| FEE | 457 |
+| BUNDLE_PURCHASE | 445 |
+| INVESTMENT | 70 |
+| AIRTIME_PURCHASE | 25 |
+| REVERSAL | 6 |
+| DEPOSIT | 4 |
+| UNCLASSIFIED | 1,386 |
+
+Directions: 1,465 inflow, 4,233 outflow. Economic meanings: 2,629 consumption, 631 inflow, 519 not determinable, 457 fee, 70 investment, 6 reversal, 1,386 unknown.
+
+The 147 "other" lines from run 1 are now explained: one line on each of 147 pages, every one 18 points above the page's header row. They are a repeated page heading. From CP6, `compare.py` counts them as `page_heading`, so `other` should read 0 on a statement of this layout.
+
 ## Open questions
 
 | ID | Question | Outcome on this statement |
@@ -30,5 +59,6 @@ All 12 gates passed: rows, the seven printed fields, status, chain breaks, and t
 
 ## Follow-ups
 
-1. **147 unattached "other" lines**, beside 148 header lines. `compare.py` now prints where they sit, as positions only: how many pages hold them, how many pages hold each number of them, and their offset from the page's header row in whole points. The next run will show whether they are one line per page at a fixed offset, such as a running title.
-2. **Statement summary labels:** all five read `not_found` on both sides, because the real wording differs from the generator's. The owner will supply the wording.
+1. **Statement summary labels:** all five read `not_found` on both sides, because the real wording differs from the generator's. The owner will supply the wording.
+2. **Unclassified rows: 1,386 of 5,698 (24%)** match no classifier rule, old or new. This is the largest gap for analysis. Finding what they are needs counts by text pattern, never the text; adding rules is a separate, logged behaviour change.
+3. **Chain breaks by the event type of the row after the break** (268 in all): 78 UNCLASSIFIED, 63 FEE, 57 BILL_PAYMENT, 19 MERCHANT_PAYMENT, 19 TRANSFER_IN, 17 TRANSFER_OUT, 13 BUNDLE_PURCHASE, 2 AIRTIME_PURCHASE. Fees and unclassified rows together are over half, which points at how they move the balance rather than at reading errors.

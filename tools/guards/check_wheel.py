@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Guard 8 (CI only): the wheel is py3-none-any and contains only mpesa_core."""
+"""Guard 8 (CI only): the wheel is py3-none-any, contains only mpesa_core, and needs nothing.
+
+Its one allowed dependency is pandas, pinned, under the optional extra ``analysis`` (ADR 0006).
+"""
 
 import argparse
 import re
@@ -8,6 +11,9 @@ import zipfile
 from pathlib import Path
 
 NAME = re.compile(r"mpesa_core-([^-]+)-py3-none-any\.whl")
+REQUIREMENT = re.compile(r"^Requires-Dist:\s*(?P<requirement>[^;]+?)\s*(?:;\s*(?P<marker>.*))?$")
+ALLOWED_EXTRA_REQUIREMENT = re.compile(r"pandas==[0-9][0-9.]*")
+ALLOWED_EXTRA_MARKER = re.compile(r"""extra\s*==\s*['"]analysis['"]""")
 
 
 def main():
@@ -35,7 +41,7 @@ def main():
 
 
 def count_problems(path):
-    """Count naming and content problems in one wheel.
+    """Count naming, content and dependency problems in one wheel.
 
     Args:
         path: Path of the wheel.
@@ -49,10 +55,39 @@ def count_problems(path):
     match = NAME.fullmatch(path.name)
     if not match:
         return 1
-    allowed = {"mpesa_core", f"mpesa_core-{match.group(1)}.dist-info"}
+    metadata_name = f"mpesa_core-{match.group(1)}.dist-info"
+    allowed = {"mpesa_core", metadata_name}
     with zipfile.ZipFile(path) as archive:
-        tops = [entry.split("/", 1)[0] for entry in archive.namelist()]
-    return sum(top not in allowed for top in tops) + ("mpesa_core" not in tops)
+        names = archive.namelist()
+        tops = [entry.split("/", 1)[0] for entry in names]
+        metadata_path = f"{metadata_name}/METADATA"
+        metadata = archive.read(metadata_path).decode() if metadata_path in names else ""
+    content_problems = sum(top not in allowed for top in tops) + ("mpesa_core" not in tops)
+    return content_problems + count_dependency_problems(metadata)
+
+
+def count_dependency_problems(metadata):
+    """Count the dependencies a wheel declares beyond the one allowed.
+
+    Args:
+        metadata: Text of the wheel's METADATA file.
+
+    Returns:
+        Number of ``Requires-Dist`` lines other than pinned pandas under the extra ``analysis``.
+
+    Side Effects:
+        None.
+    """
+    problems = 0
+    for line in metadata.splitlines():
+        declared = REQUIREMENT.match(line)
+        if declared is None:
+            continue
+        is_allowed = ALLOWED_EXTRA_REQUIREMENT.fullmatch(
+            declared["requirement"]
+        ) and ALLOWED_EXTRA_MARKER.fullmatch(declared["marker"] or "")
+        problems += not is_allowed
+    return problems
 
 
 if __name__ == "__main__":

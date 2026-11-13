@@ -11,7 +11,7 @@ Architecture decision records (ADRs) and logs. An ADR records one decision, why,
 | 0003 | Fake phone ranges for fixtures | Proposed, allocation not confirmed |
 | 0004 | Error messages carry no statement values | Proposed |
 | 0005 | Module moves from mpesa-parser | Proposed |
-| 0006 | Runtime dependencies of `mpesa_core` | Open: decided at the CP5 gate |
+| 0006 | Runtime dependencies of `mpesa_core` | Accepted for v1 (CP6): pandas in `analysis` only |
 | 0007 | Replace PagesDocument with StatementPages | Proposed |
 | 0008 | Layout profile of the synthetic golden statement | Accepted (CP1) |
 | 0009 | Column calibration and row assembly | Accepted (CP3); OQ-03 and OQ-10 await the real counts |
@@ -28,6 +28,7 @@ Architecture decision records (ADRs) and logs. An ADR records one decision, why,
 | `equivalence-results.md` | Counts from the owner's runs on real statements, and the open questions they answer |
 | `cleaning-behaviour.md` | The old cleaning step's rules, which `cleaning/` ports |
 | `classification-behaviour.md` | The old classifier's and entity step's rules, which `classification/` ports |
+| `analysis-behaviour.md` | The old analytics' rules and report keys, which `analysis/` ports |
 
 ## ADR template
 

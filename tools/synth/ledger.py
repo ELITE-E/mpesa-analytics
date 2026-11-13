@@ -26,7 +26,7 @@ def compute_expected(rows, summary_lines=()):
         summary_lines: Tuples of label and printed value from the statement summary.
 
     Returns:
-        A map of totals, balances, counts, chain breaks by kind, the summary's printed totals and
+        A map of totals, cash flow, balances, counts, chain breaks by kind, the summary's totals and
         whether each agrees with the rows, and the rows themselves. ``opening_balance`` and
         ``closing_balance`` are None for an empty statement.
 
@@ -55,6 +55,11 @@ def compute_expected(rows, summary_lines=()):
         "row_count": len(rows),
         "total_paid_in": totals["Total Paid In"],
         "total_withdrawn": totals["Total Withdrawn"],
+        "total_inflow": totals["Total Paid In"],
+        "total_outflow": totals["Total Withdrawn"],
+        "net_cash_flow": _text(
+            _parse_amount(0, totals["Total Paid In"]) - _parse_amount(0, totals["Total Withdrawn"])
+        ),
         "total_fees": _text(sum(fees, ZERO)),
         "opening_balance": totals["Opening Balance"],
         "closing_balance": totals["Closing Balance"],

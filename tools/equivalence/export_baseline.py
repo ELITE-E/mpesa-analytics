@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Export what the old code reads from a statement, for the equivalence check.
 
-Runs the old pipeline's steps as it ran them: decrypt in memory, extract, clean, classify, then
-find entities. It writes the extractor's rows (``baseline.json``), the cleaning step's rows
-(``canonical.json``) and the classified rows (``classified.json``).
+Runs the old pipeline's steps as it ran them: decrypt in memory, extract, clean, classify, find
+entities, then analyze. It writes the extractor's rows (``baseline.json``), the cleaning step's
+rows (``canonical.json``), the classified rows (``classified.json``) and the old report
+(``report.json``).
 
 Run by the owner with the OLD repo's Python, so it uses only the standard library and syntax that
 older versions accept. Both files hold statement values, so they are owner-only and refused inside
@@ -38,6 +39,8 @@ OLD_ENGINE_MODULE = "src.engine"
 OLD_ENGINE_FUNCTION = "process_engine"
 OLD_ENTITY_MODULE = "src.entity"
 OLD_ENTITY_FUNCTION = "enrich_transactions_with_entities"
+OLD_ANALYTICS_MODULE = "src.analytics"
+OLD_ANALYTICS_FUNCTION = "orchestrate_analytics"
 # Each old step's module and function, in the order the old pipeline runs them.
 OLD_STEPS = {
     "decrypt": (OLD_DECRYPT_MODULE, OLD_DECRYPT_FUNCTION),
@@ -45,6 +48,7 @@ OLD_STEPS = {
     "clean": (OLD_CLEAN_MODULE, OLD_CLEAN_FUNCTION),
     "classify": (OLD_ENGINE_MODULE, OLD_ENGINE_FUNCTION),
     "entities": (OLD_ENTITY_MODULE, OLD_ENTITY_FUNCTION),
+    "analyze": (OLD_ANALYTICS_MODULE, OLD_ANALYTICS_FUNCTION),
 }
 THIS_REPO = Path(__file__).resolve().parents[2]
 BASELINE_NAME = "baseline.json"
@@ -60,6 +64,7 @@ CLASSIFIED_TEXT_FIELDS = (
     "entity",
 )
 CLASSIFIED_AMOUNT_FIELDS = ("total_cost", "paid_out")
+REPORT_NAME = "report.json"
 CANNOT_RUN = 2
 OWNER_ONLY = 0o600
 OWNER_ONLY_DIRECTORY = 0o700
@@ -122,7 +127,7 @@ def main():
     # The old code may write logs beside it. They hold raw values, so they must not land in a repo.
     os.chdir(out)
     try:
-        rows, canonical_rows, classified_rows = _read_rows_with_old_code(
+        rows, canonical_rows, classified_rows, report = _read_rows_with_old_code(
             old_repo, pdf_path, password
         )
     except OldExtractorError as error:
@@ -135,7 +140,9 @@ def main():
     _write_owner_only(out / BASELINE_NAME, json.dumps({"rows": rows}, indent=1))
     _write_owner_only(out / CANONICAL_NAME, json.dumps({"rows": canonical_rows}, indent=1))
     _write_owner_only(out / CLASSIFIED_NAME, json.dumps({"rows": classified_rows}, indent=1))
+    _write_owner_only(out / REPORT_NAME, json.dumps(report, indent=1))
     _print_counts(rows, canonical_rows, classified_rows)
+    print(f"report_values: {_count_values(report)}")
     return 0
 
 
@@ -201,7 +208,7 @@ def _ask_for_password():
 
 
 def _read_rows_with_old_code(old_repo, pdf_path, password):
-    """Run the old decrypt, extract and clean steps with everything they print or log silenced.
+    """Run every old step, from decrypt to analyze, with all they print or log silenced.
 
     As in the old pipeline, the PDF is decrypted in memory and the extractor reads that stream.
 
@@ -212,8 +219,8 @@ def _read_rows_with_old_code(old_repo, pdf_path, password):
 
     Returns:
         Tuple of the extractor's rows, each with the seven raw fields; the cleaning step's rows,
-        each with its seven canonical fields; and the classified rows, each with its receipt
-        number and classification. All in print order.
+        each with its seven canonical fields; the classified rows, each with its receipt number
+        and classification; and the old report as plain JSON values. Rows are in print order.
 
     Raises:
         OldExtractorError: Naming the step that could not be imported or called, or that returned
@@ -244,7 +251,10 @@ def _read_rows_with_old_code(old_repo, pdf_path, password):
             classified = _old_function(step)(cleaned)
             step = "entities"
             enriched = _old_function(step)(classified)
-            return rows, canonical, [_classified_fields(record) for record in _records_of(enriched)]
+            classified_rows = [_classified_fields(record) for record in _records_of(enriched)]
+            step = "analyze"
+            report = _plain_report(_old_function(step)(enriched))
+            return rows, canonical, classified_rows, report
     except Exception:  # noqa: BLE001 - old code can raise anything; the caller reports the failure.
         raise OldExtractorError(step) from None
 
@@ -351,6 +361,69 @@ def _classified_fields(record):
     for field in CLASSIFIED_AMOUNT_FIELDS:
         fields[field] = float(record[field])
     return fields
+
+
+def _plain_report(analytics_result):
+    """Turn the old analytics result into plain JSON values.
+
+    Args:
+        analytics_result: What the old analytics returned: a result object or a map.
+
+    Returns:
+        The report as a map of plain values. A number type JSON cannot write, such as a pandas
+        sum, is written through its ``item`` method.
+
+    Raises:
+        TypeError: If the result is not a map; the caller names the step.
+
+    Side Effects:
+        None.
+    """
+    report = analytics_result
+    if hasattr(analytics_result, "to_json_safe"):
+        report = analytics_result.to_json_safe()
+    if not isinstance(report, dict):
+        raise TypeError
+    return json.loads(json.dumps(report, default=_plain_number))
+
+
+def _plain_number(value):
+    """Convert one value JSON cannot write.
+
+    Args:
+        value: The value.
+
+    Returns:
+        Its plain Python value.
+
+    Raises:
+        TypeError: If the value has no ``item`` method to give one.
+
+    Side Effects:
+        None.
+    """
+    if hasattr(value, "item"):
+        return value.item()
+    raise TypeError
+
+
+def _count_values(report):
+    """Count the values in a report, however deeply they sit.
+
+    Args:
+        report: A JSON value.
+
+    Returns:
+        The number of values that are not themselves a map or a list.
+
+    Side Effects:
+        None.
+    """
+    if isinstance(report, dict):
+        return sum(_count_values(inner) for inner in report.values())
+    if isinstance(report, list):
+        return sum(_count_values(inner) for inner in report)
+    return 1
 
 
 def _normalized(column_name):

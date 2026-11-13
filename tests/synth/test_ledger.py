@@ -145,3 +145,24 @@ def test_a_chain_break_is_counted_under_one_kind(upper_changes, lower_changes, k
     kinds = compute_expected(broken_pair(upper_changes, lower_changes))["chain_break_kinds"]
     assert kinds[kind] == 1
     assert sum(kinds.values()) == 1
+
+
+def test_cash_flow_totals_come_from_the_printed_amounts():
+    expected = compute_expected(PRINT_ORDER)
+    assert expected["total_inflow"] == "1000.00"
+    assert expected["total_outflow"] == "125.00"
+    assert expected["net_cash_flow"] == "875.00"
+
+
+def test_net_cash_flow_can_be_negative():
+    spent = [row("0.00", withdrawn="50.00")]
+    assert compute_expected(spent)["net_cash_flow"] == "-50.00"
+
+
+def test_cash_flow_totals_are_zero_for_an_empty_statement():
+    expected = compute_expected([])
+    assert (expected["total_inflow"], expected["total_outflow"], expected["net_cash_flow"]) == (
+        "0.00",
+        "0.00",
+        "0.00",
+    )

@@ -61,12 +61,13 @@ class LayoutCounts(TypedDict):
     unattached_header_lines: int
     unattached_footer_lines: int
     unattached_summary_lines: int
+    unattached_page_heading_lines: int
     unattached_other_lines: int
     anchor_cells_off_column: int
 
 
 class OtherLinePosition(TypedDict):
-    """Where a line outside every row, of no known kind, sits. A position only, never text."""
+    """Where a page heading, or a line of no known kind, sits. A position only, never text."""
 
     page: int
     offset_from_header: float | None
@@ -78,6 +79,7 @@ class RowAssembly(TypedDict):
     rows: list[RawRow]
     printed_line_counts: list[int]
     layout_counts: LayoutCounts
+    unattached_page_heading_positions: list[OtherLinePosition]
     unattached_other_positions: list[OtherLinePosition]
 
 
@@ -136,6 +138,11 @@ class DataQuality(TypedDict):
     unparsed_amounts: int
     summary_reconciliation: dict[str, bool | None]
     receipt_length_histogram: dict[int, int]
+    # From ``measure_unclassified``, over the classified rows. Not part of the report.
+    unclassified_rows: int
+    unclassified_share: float
+    unclassified_paid_in: float
+    unclassified_withdrawn: float
 
 
 class PipelineResult(TypedDict):

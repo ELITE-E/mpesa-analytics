@@ -27,6 +27,7 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from mpesa_core.analysis import analyze_transactions
 from mpesa_core.classification.classify import classify_transactions
 from mpesa_core.classification.taxonomy import CashFlowDirection, EconomicMeaning, FinancialEvent
 from mpesa_core.cleaning.canonicalize import canonicalize_rows
@@ -70,6 +71,73 @@ CLASS_FIELDS = {
 }
 CLASSIFIED_AMOUNT_FIELDS = ("total_cost", "paid_out")
 HALF_CENT = 0.005
+REPORT_UNREADABLE = "REPORT_UNREADABLE"
+REPORT_NAME = "report.json"
+MASKED_KEY = "<key>"
+# Every key the report's schema uses. Any other key prints as MASKED_KEY, so no value can leak
+# through a key.
+REPORT_SCHEMA_KEYS = frozenset(
+    {
+        "cash_flow",
+        "spending",
+        "bills",
+        "investments",
+        "transfers",
+        "fees",
+        "total_inflow",
+        "total_outflow",
+        "net_cash_flow",
+        "closing_balance",
+        "monthly_expenditure",
+        "month",
+        "expenditure",
+        "top_recipients",
+        "recipient",
+        "amount_received",
+        "ranking",
+        "largest_purchases",
+        "transaction",
+        "amount",
+        "date",
+        "spending_by_entity",
+        "entity",
+        "merchant_usage_frequency",
+        "merchant",
+        "transaction_count",
+        "recurring_purchases",
+        "occurrences",
+        "dates",
+        "intervals",
+        "amounts",
+        "recurrence_interval",
+        "recurring_bills",
+        "bill",
+        "bill_spending",
+        "period",
+        "start",
+        "end",
+        "total_investment",
+        "investment_amount",
+        "by_platform",
+        "platform",
+        "amount_invested",
+        "frequency",
+        "investment_transactions",
+        "monthly_investment",
+        "total_transfers",
+        "total_transfer_amount",
+        "total_received",
+        "by_recipient_count",
+        "monthly_transfer_amounts",
+        "transfer_amount",
+        "largest_transfers",
+        "total_fees",
+        "mpesa_fees",
+        "fee_amount",
+        "transfer_charges",
+        "transfer_charge_amount",
+    }
+)
 EXTRACTION_FAILED = "EXTRACTION_FAILED"
 CLI_ERROR_CODE = re.compile(r"ERROR \(([A-Z_]+)\)")
 HMAC_KEY_BYTES = 32
@@ -88,6 +156,7 @@ class OldSide:
     rows: list
     canonical: list
     classified: list
+    report: dict
 
 
 class CompareError(Exception):
@@ -138,10 +207,12 @@ def main():
             _read_baseline(args.baseline),
             _read_canonical(args.baseline.parent / CANONICAL_NAME),
             _read_classified(args.baseline.parent / CLASSIFIED_NAME),
+            _read_report(args.baseline.parent / REPORT_NAME),
         )
         statement_pages = _extract_statement_pages(args.pdf)
         assembly = assemble_rows(statement_pages)
         new_classified = classify_transactions(canonicalize_rows(assembly["rows"]))[0]
+        new_report = analyze_transactions(new_classified)
     except CompareError as error:
         print(f"compare: ERROR ({error.code})")
         return CANNOT_RUN
@@ -151,19 +222,24 @@ def main():
     except DomainRowError as error:
         print(f"compare: ERROR (CLASSIFICATION_STOPPED at row {error.row_index})")
         return CANNOT_RUN
-    lines, gates = build_report(old, assembly, new_classified, statement_pages)
+    except TypeError:
+        # Under the pinned pandas a date-based analysis cannot compare a missing date (A-3).
+        print("compare: ERROR (ANALYSIS_STOPPED)")
+        return CANNOT_RUN
+    lines, gates = build_report(old, assembly, (new_classified, new_report), statement_pages)
     lines += [] if args.share else _mismatch_positions(old.rows, assembly)
     print("\n".join(lines))
     return 0 if all(verdict for verdict, _ in gates) else FAILED
 
 
-def build_report(old, assembly, new_classified, statement_pages):
+def build_report(old, assembly, new_results, statement_pages):
     """Compare both sides and describe the outcome in counts.
 
     Args:
-        old: The old code's rows, as an ``OldSide``.
+        old: The old code's results, as an ``OldSide``.
         assembly: The new ``RowAssembly``.
-        new_classified: The new rows, cleaned and classified, in print order.
+        new_results: Tuple of the new rows, cleaned and classified, in print order, and the new
+            report.
         statement_pages: The statement pages the new rows came from.
 
     Returns:
@@ -173,6 +249,7 @@ def build_report(old, assembly, new_classified, statement_pages):
     Side Effects:
         None.
     """
+    new_classified, new_report = new_results
     aligned = _align(old.rows, assembly["rows"])
     old_quality = reconcile(statement_pages, aligned.old_rows)
     new_quality = reconcile(statement_pages, aligned.new_rows)
@@ -183,12 +260,14 @@ def build_report(old, assembly, new_classified, statement_pages):
         old.canonical, canonicalize_rows(assembly["rows"])
     )
     classified_lines, classified_gates = _classified_report(old.classified, new_classified)
+    report_lines, report_gate = _report_comparison(old.report, new_report)
     gates = [
         *_row_and_field_gates(aligned, field_mismatches),
         _status_gate(aligned, field_mismatches["status"], status_counts),
         chain_gate,
         *canonical_gates,
         *classified_gates,
+        report_gate,
     ]
     lines = [
         *_row_count_lines(aligned),
@@ -205,6 +284,7 @@ def build_report(old, assembly, new_classified, statement_pages):
         *canonical_lines,
         *classified_lines,
         *_chain_breaks_by_event_type(aligned.new_rows, new_classified, new_quality),
+        *report_lines,
         *[f"{'PASS' if verdict else 'FAIL'} {label}" for verdict, label in gates],
         f"RESULT: {'PASS' if all(verdict for verdict, _ in gates) else 'FAIL'}",
     ]
@@ -276,6 +356,30 @@ def _read_classified(classified_path):
         return [_as_classified_row(row) for row in rows]
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise CompareError(CLASSIFIED_UNREADABLE) from error
+
+
+def _read_report(report_path):
+    """Read the old report that ``export_baseline.py`` wrote beside the baseline.
+
+    Args:
+        report_path: Path of ``report.json``.
+
+    Returns:
+        The report as plain JSON values.
+
+    Raises:
+        CompareError: ``REPORT_UNREADABLE`` if the file is missing or is not a map.
+
+    Side Effects:
+        Reads the file.
+    """
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise CompareError(REPORT_UNREADABLE) from error
+    if not isinstance(report, dict):
+        raise CompareError(REPORT_UNREADABLE)
+    return report
 
 
 def _as_classified_row(row):
@@ -695,7 +799,8 @@ def _layout_lines(assembly, new_quality):
     histogram = new_quality["receipt_length_histogram"]
     return [
         *[f"{name}: {count}" for name, count in assembly["layout_counts"].items()],
-        *_other_line_lines(assembly["unattached_other_positions"]),
+        *_line_position_lines("page_heading", assembly["unattached_page_heading_positions"]),
+        *_line_position_lines("other", assembly["unattached_other_positions"]),
         f"unparsed_amounts_new: {new_quality['unparsed_amounts']}",
         *[f"receipt_length_{length}: {histogram[length]}" for length in sorted(histogram)],
     ]
@@ -876,6 +981,90 @@ def _chain_breaks_by_event_type(new_rows, new_classified, new_quality):
     return [f"chain_breaks_new_after_{name}: {count}" for name, count in sorted(counts.items())]
 
 
+def _report_comparison(old_report, new_report):
+    """Compare two reports value by value, by JSON path. Paths print; values never do.
+
+    Args:
+        old_report: The old analytics' report.
+        new_report: This repo's report.
+
+    Returns:
+        Tuple of report lines and the gate. A path present on one side only counts as different.
+        Every differing path is listed, with its list positions, and any key outside the schema
+        shows as ``<key>``.
+
+    Side Effects:
+        None.
+    """
+    old_values, new_values = dict(_report_leaves(old_report)), dict(_report_leaves(new_report))
+    paths = old_values.keys() | new_values.keys()
+    missing = object()
+    different = sorted(
+        path for path in paths if old_values.get(path, missing) != new_values.get(path, missing)
+    )
+    below_half_cent = sum(
+        _is_below_half_cent(old_values.get(path), new_values.get(path)) for path in different
+    )
+    lines = [
+        f"report_paths_total: {len(paths)}",
+        f"report_paths_equal: {len(paths) - len(different)}",
+        f"report_paths_different: {len(different)}",
+        f"report_paths_different_below_half_cent: {below_half_cent}",
+        *[f"report_path_different: {path}" for path in different],
+    ]
+    return lines, (not different, "report_paths_equal")
+
+
+def _report_leaves(value, path=""):
+    """List every value in a report with its path.
+
+    Args:
+        value: A JSON value.
+        path: The path so far.
+
+    Returns:
+        Tuples of path and value, for every value that is not a map or a list. Keys outside the
+        schema are written as ``<key>``, so their text never reaches a path. Two such keys at one
+        place share a path, so a change in either still shows as a difference there.
+
+    Side Effects:
+        None.
+    """
+    if isinstance(value, dict):
+        leaves = []
+        for key, inner in value.items():
+            name = key if key in REPORT_SCHEMA_KEYS else MASKED_KEY
+            leaves += _report_leaves(inner, f"{path}.{name}" if path else name)
+        return leaves
+    if isinstance(value, list):
+        leaves = []
+        for position, inner in enumerate(value):
+            leaves += _report_leaves(inner, f"{path}[{position}]")
+        return leaves
+    return [(path, value)]
+
+
+def _is_below_half_cent(old, new):
+    """Tell whether two report values are numbers less than half a cent apart.
+
+    Args:
+        old: The old value.
+        new: The new value.
+
+    Returns:
+        True only for two numbers, neither a boolean, whose difference is under half a cent.
+
+    Side Effects:
+        None.
+    """
+    numbers = [
+        value
+        for value in (old, new)
+        if isinstance(value, int | float) and not isinstance(value, bool)
+    ]
+    return len(numbers) == 2 and abs(old - new) < HALF_CENT
+
+
 def _same_amount(old, new):
     """Compare two canonical amounts exactly.
 
@@ -892,11 +1081,12 @@ def _same_amount(old, new):
     return old == new or (math.isnan(old) and math.isnan(new))
 
 
-def _other_line_lines(positions):
-    """Describe where the unexplained lines sit, by page and by offset from the header row.
+def _line_position_lines(kind, positions):
+    """Describe where lines of one kind sit, by page and by offset from the header row.
 
     Args:
-        positions: The assembly's ``unattached_other_positions``.
+        kind: ``page_heading`` or ``other``, used in the labels.
+        positions: The assembly's positions for that kind.
 
     Returns:
         Report lines: how many pages hold such lines, how many pages hold each number of them,
@@ -913,13 +1103,13 @@ def _other_line_lines(positions):
         for position in positions
     )
     return [
-        f"unattached_other_pages: {len(per_page)}",
+        f"unattached_{kind}_pages: {len(per_page)}",
         *[
-            f"unattached_other_pages_with_{lines}_lines: {pages}"
+            f"unattached_{kind}_pages_with_{lines}_lines: {pages}"
             for lines, pages in sorted(pages_by_line_count.items())
         ],
         *[
-            f"unattached_other_offset_{offset}: {count}"
+            f"unattached_{kind}_offset_{offset}: {count}"
             for offset, count in sorted(offsets.items(), key=lambda pair: str(pair[0]))
         ],
     ]
