@@ -7,6 +7,7 @@ import sys
 import pytest
 
 from conftest import REPO
+from mpesa_core.analysis import analyze_transactions
 from mpesa_core.classification.classify import classify_transactions
 from mpesa_core.cleaning.canonicalize import canonicalize_rows
 from mpesa_core.errors import DomainRowError
@@ -43,7 +44,9 @@ def baseline_from(name, change=None):
     return change(rows) or rows if change else rows
 
 
-def write_baseline(tmp_path, rows, canonical_change=None, classified_change=None):
+def write_baseline(
+    tmp_path, rows, canonical_change=None, classified_change=None, report_change=None
+):
     path = tmp_path / f"{PATH_MARKER}.json"
     path.write_text(json.dumps({"rows": rows}), encoding="utf-8")
     canonical = old_canonical_rows(rows)
@@ -54,7 +57,38 @@ def write_baseline(tmp_path, rows, canonical_change=None, classified_change=None
     if classified_change:
         classified = classified_change(classified) or classified
     (tmp_path / "classified.json").write_text(json.dumps({"rows": classified}), encoding="utf-8")
+    report = old_report(rows)
+    if report_change:
+        report = report_change(report) or report
+    (tmp_path / "report.json").write_text(json.dumps(report), encoding="utf-8")
     return path
+
+
+def old_report(rows):
+    """What export_baseline writes from the old analytics, built here from the new analysis."""
+    usable = [
+        {**row, "page": 0, "line": 0}
+        for row in rows
+        if isinstance(row, dict)
+        and all(isinstance(row.get(field), str | None) for field in SEVEN_FIELDS)
+    ]
+    canonical = canonicalize_rows(usable)
+    try:
+        classified = classify_transactions(canonical)[0]
+    except DomainRowError:
+        classified = []
+        for row in canonical:
+            try:
+                classified += classify_transactions([row])[0]
+            except DomainRowError:
+                continue
+    try:
+        return analyze_transactions(classified)
+    except TypeError:
+        # A planted row with an unreadable date stops the old analytics too (A-3).
+        return analyze_transactions(
+            [row for row in classified if row["completion_time"][:2] == "20"]
+        )
 
 
 def old_classified_rows(rows):
@@ -199,6 +233,7 @@ def test_final_lines_are_the_agreed_gates(tmp_path):
         "zero_mismatch_entity",
         "zero_mismatch_total_cost",
         "class_count_table_identical",
+        "report_paths_equal",
     }
 
 
@@ -553,6 +588,7 @@ def test_lines_outside_rows_are_broken_down_and_none_is_unexplained(tmp_path):
     assert counts["unattached_footer_lines"] == "4"
     assert counts["unattached_summary_lines"] == "7"
     assert counts["unattached_other_lines"] == "0"
+    assert counts["unattached_page_heading_lines"] == "0"
     assert counts["unattached_lines"] == "13"
 
 
@@ -770,3 +806,94 @@ def test_missing_classification_file_reports_an_error(tmp_path):
     completed = run_compare(FIXTURES / "F-GOLDEN.pdf", baseline, "--share")
     assert completed.returncode == CANNOT_RUN
     assert "compare: ERROR (CLASSIFIED_UNREADABLE)" in completed.stdout
+
+
+def compare_with_report(tmp_path, name, report_change):
+    baseline = write_baseline(tmp_path, baseline_from(name), report_change=report_change)
+    return run_compare(FIXTURES / f"{name}.pdf", baseline, "--share")
+
+
+def report_lines(completed):
+    return [line for line in completed.stdout.splitlines() if line.startswith("report_")]
+
+
+def test_reports_that_agree_pass_the_report_gate(tmp_path):
+    completed = compare_fixture(tmp_path, "F-GOLDEN")
+    counts = counts_of(completed)
+    assert int(counts["report_paths_total"]) > 50
+    assert counts["report_paths_equal"] == counts["report_paths_total"]
+    assert counts["report_paths_different"] == "0"
+    assert counts["report_paths_different_below_half_cent"] == "0"
+    assert gates_of(completed)["report_paths_equal"] == "PASS"
+    assert completed.returncode == 0
+
+
+def test_a_changed_figure_is_reported_by_its_path_never_its_value(tmp_path):
+    def change(report):
+        report["cash_flow"]["total_inflow"] = 123456.78
+        report["transfers"]["largest_transfers"][2]["amount"] = 98765.43
+
+    completed = compare_with_report(tmp_path, "F-GOLDEN", change)
+    counts = counts_of(completed)
+    assert counts["report_paths_different"] == "2"
+    assert "report_path_different: cash_flow.total_inflow" in completed.stdout
+    assert "report_path_different: transfers.largest_transfers[2].amount" in completed.stdout
+    assert "123456" not in completed.stdout
+    assert "98765" not in completed.stdout
+    assert gates_of(completed)["report_paths_equal"] == "FAIL"
+    assert completed.returncode == FAILED
+
+
+def test_a_difference_below_half_a_cent_is_counted_on_its_own(tmp_path):
+    def change(report):
+        report["cash_flow"]["total_outflow"] += 0.001
+
+    counts = counts_of(compare_with_report(tmp_path, "F-GOLDEN", change))
+    assert counts["report_paths_different"] == "1"
+    assert counts["report_paths_different_below_half_cent"] == "1"
+
+
+def test_a_path_on_one_side_only_counts_as_different(tmp_path):
+    def change(report):
+        report["spending"]["largest_purchases"].append({"recipient": MARKER, "amount": 1.0})
+
+    completed = compare_with_report(tmp_path, "F-GOLDEN", change)
+    counts = counts_of(completed)
+    assert counts["report_paths_different"] == "2"
+    assert MARKER not in completed.stdout
+
+
+def test_a_key_outside_the_schema_is_masked(tmp_path):
+    def change(report):
+        report["cash_flow"][MARKER] = 1.0
+
+    completed = compare_with_report(tmp_path, "F-GOLDEN", change)
+    assert "report_path_different: cash_flow.<key>" in completed.stdout
+    assert MARKER not in completed.stdout + completed.stderr
+
+
+def test_report_text_values_never_appear(tmp_path):
+    def change(report):
+        for transfer in report["transfers"]["largest_transfers"]:
+            transfer["recipient"] = MARKER
+
+    completed = compare_with_report(tmp_path, "F-GOLDEN", change)
+    assert int(counts_of(completed)["report_paths_different"]) > 0
+    assert MARKER not in completed.stdout + completed.stderr
+
+
+def test_missing_report_file_reports_an_error(tmp_path):
+    baseline = write_baseline(tmp_path, baseline_from("F-GOLDEN"))
+    (tmp_path / "report.json").unlink()
+    completed = run_compare(FIXTURES / "F-GOLDEN.pdf", baseline, "--share")
+    assert completed.returncode == CANNOT_RUN
+    assert "compare: ERROR (REPORT_UNREADABLE)" in completed.stdout
+
+
+def test_every_report_line_is_a_label_a_path_or_a_count(tmp_path):
+    def change(report):
+        report["cash_flow"]["total_inflow"] = 1.0
+
+    completed = compare_with_report(tmp_path, "F-GOLDEN", change)
+    for line in report_lines(completed):
+        assert re.fullmatch(r"report_[a-z_]+: [a-z_.<>\[\]0-9]+", line), line

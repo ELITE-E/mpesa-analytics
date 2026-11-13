@@ -147,6 +147,24 @@ New tests corrected while still red: `synthetic_details.py` and `test_normalize.
 
 The three log tests in `test_behaviours.md` were rewritten for the new seam, as the plan says (REWRITE), in `tests/core/test_diagnostics.py`. Writes a structured event became `test_unresolved_row_is_returned_as_a_structured_diagnostic`. Appends separate records became `test_each_unresolved_row_is_a_separate_diagnostic_in_the_old_order`. Accepts a string log path became `test_diagnostics_are_returned_and_nothing_is_logged_or_written`.
 
+## Edits for CP6
+
+| Test | Old assertion | New assertion | Reason |
+|---|---|---|---|
+| `test_no_pandas.py`, `test_no_core_module_imports_pandas` | No core module imports pandas | Renamed `..._outside_analysis_...`: no module outside `analysis` imports pandas; new tests check that `analysis/__init__.py` imports nothing at load, and that pandas is the pinned optional extra | Owner decision (ADR 0006): pandas allowed in `analysis` only |
+| `test_contracts.py`, `test_importing_the_contracts_does_not_load_pandas` | `"pandas" not in sys.modules` | Importing the contracts in a fresh module table does not load pandas | The old assertion depended on test order: once an analysis test has run, pandas is loaded in the same process. The meaning is unchanged |
+| `test_imports.py`, `test_synth_independence.py`, planted packages | Planted a few core modules | Also plant `classification`, `reconciliation`, `errors`, `pipeline` and `types` | The new import-linter contract names them, and import-linter fails on a named module that does not exist. Test ids are unchanged |
+| `test_wheel.py`, `wheel` helper | Wrote empty files | Also takes METADATA text | The wheel check now reads declared dependencies |
+| `test_rows.py`, `test_other_lines_are_located_by_page_and_offset_from_the_header` | A line above a later page's header is `other`, at offset -15 | A stray line between rows is `other`, at offset 110 | That line is now a page heading, by owner instruction. A new test pins the page heading |
+| `test_rows.py`, four counting tests | Four kinds of line outside rows | Five, adding `page_heading` | Same reason |
+| `test_compare.py`, `write_baseline` helper | Wrote baseline, canonical and classified rows | Also writes `report.json`, built with `analyze_transactions` | `compare.py` now needs it |
+| `test_final_lines_are_the_agreed_gates` | 18 gates | 19, adding `report_paths_equal` | Owner instruction |
+| `test_export_baseline.py`, fake old repo | Held stand-ins up to the entity step | Also holds `src/analytics.py` | The export now runs the old analytics |
+
+The 94 tests in `cp6_test_behaviours.md` were written for the new seam. Old tests that asserted on a frame now assert on the same function's frame turned into records, or, where the old test drove the orchestrator, on the report from `analyze_transactions`. The meaning of each is kept; the names are the old ones. Two were read from their names alone, because only names were supplied: `test_orchestrator_excludes_heavy_hitters_and_keeps_calc_count` and `test_orchestrator_calls_existing_calculations_without_recalculation`.
+
+New tests corrected while still red: the malformed-dates test was narrowed to monthly expenditure, because under the pinned pandas the old code raises on a missing date in date-based analyses (A-3); a separate test pins that. Two report-diff tests pointed at largest purchases, which the synthetic fixtures leave empty, and now point at largest transfers.
+
 ## Guard changes made during CP0 (not test edits, recorded for review)
 
 | # | Guard | Change | Condition |

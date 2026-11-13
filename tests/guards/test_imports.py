@@ -24,6 +24,11 @@ PLANTED_MODULES = (
     "extraction/rows",
     "cleaning/__init__",
     "cleaning/normalize",
+    "classification/__init__",
+    "reconciliation/__init__",
+    "errors",
+    "pipeline",
+    "types",
 )
 
 
@@ -70,4 +75,33 @@ def test_analysis_may_not_import_bridge_indirectly(package):
 
 def test_real_repo_passes():
     guard_run = run_guard(GUARD)
+    assert guard_run.returncode == 0, guard_run.stdout + guard_run.stderr
+
+
+@pytest.mark.parametrize(
+    "rel",
+    [
+        "src/mpesa_core/cleaning/normalize.py",
+        "src/mpesa_core/extraction/rows.py",
+        "src/mpesa_core/classification/__init__.py",
+        "src/mpesa_core/reconciliation/__init__.py",
+        "src/mpesa_core/pipeline.py",
+        "src/mpesa_core/bridge.py",
+    ],
+)
+def test_pandas_outside_analysis_fails(package, rel):
+    plant(package, rel, "import pandas\n")
+    assert_fails_quietly(run_guard(GUARD, "--root", package), rel, "-> pandas")
+
+
+def test_pandas_inside_analysis_passes(package):
+    plant(package, "src/mpesa_core/analysis/summary.py", "import pandas\n")
+    guard_run = run_guard(GUARD, "--root", package)
+    assert guard_run.returncode == 0, guard_run.stdout + guard_run.stderr
+
+
+def test_the_pipeline_may_call_analysis_that_uses_pandas(package):
+    plant(package, "src/mpesa_core/analysis/summary.py", "import pandas\n")
+    plant(package, "src/mpesa_core/pipeline.py", "from mpesa_core.analysis import summary\n")
+    guard_run = run_guard(GUARD, "--root", package)
     assert guard_run.returncode == 0, guard_run.stdout + guard_run.stderr

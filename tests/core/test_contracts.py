@@ -1,7 +1,7 @@
-import sys
 import typing
 
 import pytest
+from fresh_imports import pandas_loaded_by_importing
 
 from mpesa_core import contracts
 
@@ -109,7 +109,7 @@ def test_pipeline_result_ties_the_contracts_together():
 
 
 def test_importing_the_contracts_does_not_load_pandas():
-    assert "pandas" not in sys.modules
+    assert not pandas_loaded_by_importing(["mpesa_core.contracts"])
 
 
 def test_contracts_are_only_types_at_runtime():

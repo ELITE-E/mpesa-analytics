@@ -61,7 +61,8 @@ async function main() {
   }
   const { loadPyodide } = await import(pathToFileURL(join(indexURL, "pyodide.mjs")));
   const pyodide = await loadPyodide({ indexURL });
-  await pyodide.loadPackage("pytest", { messageCallback: () => {} });
+  // pandas is for the analysis tests only; the core itself still installs with no dependency.
+  await pyodide.loadPackage(["pytest", "pandas"], { messageCallback: () => {} });
   // Pyodide rejects a Node Buffer here, so hand it a plain typed array.
   const extractDir = pyodide.runPython("import site; site.getsitepackages()[0]");
   pyodide.unpackArchive(new Uint8Array(readFileSync(wheelPath)), "wheel", { extractDir });

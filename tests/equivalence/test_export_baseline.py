@@ -123,6 +123,38 @@ def enrich_transactions_with_entities(classified):
 """
 
 
+# A stand-in for the old analytics. Its figures use a number type that JSON cannot write as it is,
+# as pandas sums are, so the export must turn them into plain numbers.
+ANALYTICS_MODULE = """
+class Figure:
+    def __init__(self, amount):
+        self.amount = amount
+
+    def item(self):
+        return self.amount
+
+
+class Result:
+    def __init__(self, enriched):
+        self.enriched = enriched
+
+    def to_json_safe(self):
+        return {
+            "cash_flow": {"total_outflow": Figure(sum(row["paid_out"] for row in self.enriched))},
+            "spending": {
+                "largest_purchases": [
+                    {"recipient": row["entity"], "amount": row["total_cost"]}
+                    for row in self.enriched
+                ]
+            },
+        }
+
+
+def orchestrate_analytics(enriched):
+    return Result(enriched)
+"""
+
+
 @pytest.fixture
 def old_repo(tmp_path):
     repo = tmp_path / "old-repo"
@@ -133,6 +165,7 @@ def old_repo(tmp_path):
     (repo / "src" / "clean.py").write_text(CLEAN_MODULE)
     (repo / "src" / "engine.py").write_text(ENGINE_MODULE)
     (repo / "src" / "entity.py").write_text(ENTITY_MODULE)
+    (repo / "src" / "analytics.py").write_text(ANALYTICS_MODULE)
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
     return repo
 
@@ -663,3 +696,65 @@ def test_classification_step_that_fails_lists_its_functions_and_writes_nothing(
     assert f"old {step} step" in completed.stdout
     for name in ("baseline.json", "canonical.json", "classified.json"):
         assert not (out / name).exists()
+
+
+def old_report(out):
+    return json.loads((out / "report.json").read_text(encoding="utf-8"))
+
+
+def test_old_analytics_constants_are_named():
+    source = TOOL.read_text(encoding="utf-8")
+    assert 'OLD_ANALYTICS_MODULE = "src.analytics"' in source
+    assert 'OLD_ANALYTICS_FUNCTION = "orchestrate_analytics"' in source
+
+
+def test_writes_the_old_report_beside_the_baseline(old_repo, pdf_path, tmp_path):
+    out = tmp_path / "out"
+    completed = run_export(old_repo, pdf_path, out)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    report = old_report(out)
+    assert report["cash_flow"] == {"total_outflow": 5.0}
+    assert report["spending"]["largest_purchases"][0] == {
+        "recipient": "NO_ENTITY_IDENTIFIED",
+        "amount": 5.0,
+    }
+
+
+def test_old_report_is_readable_by_the_owner_only(old_repo, pdf_path, tmp_path):
+    out = tmp_path / "out"
+    assert run_export(old_repo, pdf_path, out).returncode == 0
+    assert stat.S_IMODE((out / "report.json").stat().st_mode) == OWNER_ONLY
+
+
+def test_counts_include_the_report_values(old_repo, pdf_path, tmp_path):
+    labels = dict(
+        line.split(": ")
+        for line in run_export(old_repo, pdf_path, tmp_path / "out").stdout.strip().splitlines()
+    )
+    assert labels["report_values"] == "5"
+
+
+def test_analytics_step_that_fails_lists_its_functions_and_writes_nothing(
+    old_repo, pdf_path, tmp_path
+):
+    failing_analytics = (
+        "def orchestrate_analytics(enriched, *, period_start=None):\n"
+        f'    raise ValueError("{MARKER}")\n'
+    )
+    (old_repo / "src" / "analytics.py").write_text(failing_analytics)
+    out = tmp_path / "out"
+    completed = run_export(old_repo, pdf_path, out)
+    assert_lists_names_and_signatures_only(
+        completed, "orchestrate_analytics(enriched, *, period_start=None)"
+    )
+    assert "old analyze step" in completed.stdout
+    for name in ("baseline.json", "canonical.json", "classified.json", "report.json"):
+        assert not (out / name).exists()
+
+
+def test_report_that_is_not_a_map_fails(old_repo, pdf_path, tmp_path):
+    (old_repo / "src" / "analytics.py").write_text(
+        f'def orchestrate_analytics(enriched):\n    return "{MARKER}"\n'
+    )
+    completed = run_export(old_repo, pdf_path, tmp_path / "out")
+    assert_lists_names_and_signatures_only(completed, "orchestrate_analytics(enriched)")

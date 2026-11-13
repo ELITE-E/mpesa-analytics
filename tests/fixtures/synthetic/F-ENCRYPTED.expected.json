@@ -7,8 +7,9 @@
  },
  "chain_breaks": 0,
  "closing_balance": "13558.00",
- "generator_version": "1.3.0",
+ "generator_version": "1.4.0",
  "name": "F-ENCRYPTED",
+ "net_cash_flow": "8558.00",
  "opening_balance": "5000.00",
  "row_count": 20,
  "rows": [
@@ -259,6 +260,8 @@
   "Transaction Count": "20"
  },
  "total_fees": "102.00",
+ "total_inflow": "13879.00",
+ "total_outflow": "5321.00",
  "total_paid_in": "13879.00",
  "total_withdrawn": "5321.00"
 }

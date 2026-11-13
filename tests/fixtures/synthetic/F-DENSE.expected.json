@@ -7,8 +7,9 @@
  },
  "chain_breaks": 0,
  "closing_balance": "10154.00",
- "generator_version": "1.3.0",
+ "generator_version": "1.4.0",
  "name": "F-DENSE",
+ "net_cash_flow": "5154.00",
  "opening_balance": "5000.00",
  "row_count": 10,
  "rows": [
@@ -146,6 +147,8 @@
   "Transaction Count": "10"
  },
  "total_fees": "63.00",
+ "total_inflow": "7997.00",
+ "total_outflow": "2843.00",
  "total_paid_in": "7997.00",
  "total_withdrawn": "2843.00"
 }

@@ -7,8 +7,9 @@
  },
  "chain_breaks": 0,
  "closing_balance": "28070.00",
- "generator_version": "1.3.0",
+ "generator_version": "1.4.0",
  "name": "F-SUMMARY-MISMATCH",
+ "net_cash_flow": "23070.00",
  "opening_balance": "5000.00",
  "row_count": 30,
  "rows": [
@@ -371,6 +372,8 @@
   "Transaction Count": "30"
  },
  "total_fees": "164.00",
+ "total_inflow": "30360.00",
+ "total_outflow": "7290.00",
  "total_paid_in": "30360.00",
  "total_withdrawn": "7290.00"
 }

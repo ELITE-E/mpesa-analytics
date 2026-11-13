@@ -33,8 +33,8 @@ class _Reading:
     layout: object
     counts: dict
     page_number: int
-    # Where each "other" line sits, as positions only, never text.
-    other_positions: list
+    # Where each page heading and each "other" line sits, by kind: positions only, never text.
+    positions: dict
 
 
 @dataclass(frozen=True)
@@ -89,14 +89,15 @@ def assemble_rows(statement_pages):
         "unattached_header_lines": 0,
         "unattached_footer_lines": 0,
         "unattached_summary_lines": 0,
+        "unattached_page_heading_lines": 0,
         "unattached_other_lines": 0,
         "anchor_cells_off_column": 0,
     }
     rows = []
     printed_line_counts = []
-    other_positions = []
+    positions = {"page_heading": [], "other": []}
     for position, page in enumerate(statement_pages["pages"]):
-        reading = _Reading(layout, counts, page["page_number"], other_positions)
+        reading = _Reading(layout, counts, page["page_number"], positions)
         for row_lines in _row_lines_on_page(page, reading, is_first_page=position == 0):
             rows.append(_read_row(row_lines, reading))
             printed_line_counts.append(1 + len(row_lines.above) + len(row_lines.below))
@@ -104,7 +105,8 @@ def assemble_rows(statement_pages):
         "rows": rows,
         "printed_line_counts": printed_line_counts,
         "layout_counts": counts,
-        "unattached_other_positions": other_positions,
+        "unattached_page_heading_positions": positions["page_heading"],
+        "unattached_other_positions": positions["other"],
     }
 
 
@@ -141,19 +143,20 @@ def _count_lines_outside_rows(numbered_lines, used_indexes, reading, is_first_pa
     """Count the lines that belong to no row, by what they most likely are.
 
     A header row is a header. On page 1, a line above the first anchor is summary, or above the
-    first header row when the page has no anchor. A line below the page's last row, or below its
-    last header row when it has no rows, is a footer. Anything else is other, which a statement
-    of the expected layout never has.
+    first header row when the page has no anchor. On a later page, a line above the first header
+    row is a page heading. A line below the page's last row, or below its last header row when it
+    has no rows, is a footer. Anything else is other, which a statement of the expected layout
+    never has.
 
     Args:
         numbered_lines: Tuples of line index and line for the whole page.
         used_indexes: Indexes of the lines that belong to a row.
-        reading: The page's counts, page number and list of other-line positions.
+        reading: The page's counts, page number and lists of line positions by kind.
         is_first_page: Whether this page holds the statement summary.
 
     Side Effects:
-        Adds to the unattached counts, where ``unattached_lines`` is the sum of the four kinds, and
-        records each other line's page and offset from the page's first header row.
+        Adds to the unattached counts, where ``unattached_lines`` is the sum of the five kinds, and
+        records each page heading's and other line's page and offset from the first header row.
     """
     headers = [line.top for _, line in numbered_lines if is_header_row(line)]
     row_tops = [line.top for index, line in numbered_lines if index in used_indexes]
@@ -162,12 +165,17 @@ def _count_lines_outside_rows(numbered_lines, used_indexes, reading, is_first_pa
     for index, line in numbered_lines:
         if index in used_indexes:
             continue
-        kind = _kind_of_line_outside_rows(line, is_first_page, summary_end, footer_start)
+        first_header = min(headers, default=None)
+        kind = _kind_of_line_outside_rows(
+            line, is_first_page, summary_end, footer_start, first_header
+        )
         reading.counts[f"unattached_{kind}_lines"] += 1
         reading.counts["unattached_lines"] += 1
-        if kind == "other":
-            offset = None if not headers else round(line.top - headers[0], DIGITS_PER_OFFSET)
-            reading.other_positions.append(
+        if kind in reading.positions:
+            offset = (
+                None if first_header is None else round(line.top - first_header, DIGITS_PER_OFFSET)
+            )
+            reading.positions[kind].append(
                 {"page": reading.page_number, "offset_from_header": offset}
             )
 
@@ -188,7 +196,7 @@ def _first_anchor_top(numbered_lines, default):
     return next((line.top for _, line in numbered_lines if find_anchor(line)), default)
 
 
-def _kind_of_line_outside_rows(line, is_first_page, summary_end, footer_start):
+def _kind_of_line_outside_rows(line, is_first_page, summary_end, footer_start, first_header):
     """Name what a line outside every row most likely is.
 
     Args:
@@ -196,9 +204,10 @@ def _kind_of_line_outside_rows(line, is_first_page, summary_end, footer_start):
         is_first_page: Whether this page holds the statement summary.
         summary_end: Top of the first anchor, or of the first header row; None if neither.
         footer_start: Top of the last row line, or of the last header row; None if neither.
+        first_header: Top of the page's first header row; None if it has none.
 
     Returns:
-        ``header``, ``summary``, ``footer`` or ``other``.
+        ``header``, ``summary``, ``page_heading``, ``footer`` or ``other``.
 
     Side Effects:
         None.
@@ -207,6 +216,8 @@ def _kind_of_line_outside_rows(line, is_first_page, summary_end, footer_start):
         return "header"
     if is_first_page and (summary_end is None or line.top < summary_end):
         return "summary"
+    if not is_first_page and first_header is not None and line.top < first_header:
+        return "page_heading"
     if footer_start is not None and line.top > footer_start:
         return "footer"
     return "other"

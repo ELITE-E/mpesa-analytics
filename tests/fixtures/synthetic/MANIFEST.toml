@@ -2,7 +2,7 @@
 # from its seed (tools/guards/check_fixture_provenance.py).
 # Rewrite it with: python tools/synth/generate.py --write-fixtures tests/fixtures/synthetic
 # Then re-record from pdf.js with: node tools/pdf_readers/record_items.mjs
-generator_version = "1.3.0"
+generator_version = "1.4.0"
 fake_password = "synthetic-only"
 
 [[fixture]]
@@ -18,7 +18,7 @@ sha256 = "c0f4b3442108d2db64a3b640738e03f3285674e8f3fe68dea34a5cc89e832f5c"
 [[fixture]]
 path = "F-GOLDEN.expected.json"
 seed = 1001
-sha256 = "c0d297023f75be9ce3229bbd5bb671ed3402d3f18c37cc0771a9d6acb669222b"
+sha256 = "e48f2c18057d8acc1a13f29e2bcc78cb421d051cc30a561a0f1051a5e27c1c55"
 
 [[fixture]]
 path = "F-ENCRYPTED.pdf"
@@ -33,7 +33,7 @@ sha256 = "500925884eb82adc7d44efd4ae041bad7b0c6b39a3ca8e6da66d77b0b748db6c"
 [[fixture]]
 path = "F-ENCRYPTED.expected.json"
 seed = 1002
-sha256 = "2d9fe187ccb7c7373cdd5d5bb94e1ddbda294395dc378e3ffbbb2b1d8e211301"
+sha256 = "dbd584673a5113b7eccc8b781ca5b410bcf4b78f0e33b3a5d56b44dde81cbe61"
 
 [[fixture]]
 path = "F-TIES.pdf"
@@ -48,7 +48,7 @@ sha256 = "4d4cca4a79434fa31e2be5354b420b195d32a8ce0f8f96018d513bb018e92331"
 [[fixture]]
 path = "F-TIES.expected.json"
 seed = 1003
-sha256 = "3c41ce9c97a7eaa53dae2907044d87cfdbf7d7c6f2564654d5ab9c09192efe08"
+sha256 = "3dc4ba0b4bf4a6f27b722b374e88668638893c3a8d6b89950048163e654935d1"
 
 [[fixture]]
 path = "F-SPLIT.pdf"
@@ -63,7 +63,7 @@ sha256 = "e5e481b5e5bc8945ac9e9c1436681ecb0ed07dc8e20e27ed57e00b65b984196a"
 [[fixture]]
 path = "F-SPLIT.expected.json"
 seed = 1004
-sha256 = "9737440287e1e272b7de4d7e137eb170b19c1b3866cbd3385dce4ac12b6dcc72"
+sha256 = "f237e2287c2100cfe82246b503ae467fa58ed9b023d02c8b4c979c08800384c7"
 
 [[fixture]]
 path = "F-DENSE.pdf"
@@ -78,7 +78,7 @@ sha256 = "da86177effbe74eb59bd78858c82d491ae59f097ec3ac92df88425b161d62c10"
 [[fixture]]
 path = "F-DENSE.expected.json"
 seed = 1006
-sha256 = "78a13650154ab419feb27b603e2802d151ec723cb77140d9023badc2a3b6dbac"
+sha256 = "7b23f10ebd2c5cc4c5fafcdaa6c6e7c47f22dda412724ca4ff8002b91ab20116"
 
 [[fixture]]
 path = "F-MANY-PAGES.pdf"
@@ -93,7 +93,7 @@ sha256 = "95d87ab9873cd9cf4af00653e01416ec3ce1194d8545beeda3fa27b59b6648ad"
 [[fixture]]
 path = "F-MANY-PAGES.expected.json"
 seed = 1007
-sha256 = "ea4b2b586cab8b71e6f871b8d324c4607e9dff585df15fc9b14c64f2b00b1230"
+sha256 = "29740865738729c837432c0202428887e7676dd0e0a33a5374aa1b19b9a0eece"
 
 [[fixture]]
 path = "F-BASIC.pdf"
@@ -108,7 +108,7 @@ sha256 = "24e1f1833a1eebbd05be25783e370d53f89ff6125db3244327dda5fc0409f81a"
 [[fixture]]
 path = "F-BASIC.expected.json"
 seed = 1008
-sha256 = "3d9a6a44f1c085220abad89ff70f35b139e75f2bad77b463eedae4cb16bb56b8"
+sha256 = "949baeef854ba7b21b1bdc19df0bb80815c592e46a4872db3d6812dae6901b7e"
 
 [[fixture]]
 path = "F-MULTILINE.pdf"
@@ -123,7 +123,7 @@ sha256 = "183b1045dd05d73b48d41e06bfa7f0f41d7b7c188cfdacbc9d07b8b369655182"
 [[fixture]]
 path = "F-MULTILINE.expected.json"
 seed = 1009
-sha256 = "3c7b4308e250f4aae91400e7d2c288d38e5aba14ff5e1b9f9a2d7ff46ae8c820"
+sha256 = "adfe6da6b71b655e61e806edd5566e740ac69f5e1326ca0ca00ab81473d33204"
 
 [[fixture]]
 path = "F-MULTIPAGE.pdf"
@@ -138,7 +138,7 @@ sha256 = "e3ef21c778b8dd7b1b6f1dba8dbb27cb57be1c05af31410960b4ed516d7dc014"
 [[fixture]]
 path = "F-MULTIPAGE.expected.json"
 seed = 1010
-sha256 = "7f5f9f70d05e7e6e63c6d6a88678f8ac2d2ebd183988d8c2517591e10e4d28a7"
+sha256 = "0808f674f0962ff569f0e08f2a1030d2ec43a4f8f3c670a5a9e52e1c6c508138"
 
 [[fixture]]
 path = "F-NOTABLE.pdf"
@@ -153,7 +153,7 @@ sha256 = "9e3504d02ac2f1f9931e6afd4666d90938c36b12457d42548b7f948eb0ea509f"
 [[fixture]]
 path = "F-NOTABLE.expected.json"
 seed = 1011
-sha256 = "22f7eef25cba9281fffeacb2164bd8c5dd2c7568e02aea997613e0d752e58386"
+sha256 = "160b39dda9c21d369eacbd8bf12224b0a30fe72f41e984c4cbfd2518176fab09"
 
 [[fixture]]
 path = "F-JITTER.pdf"
@@ -168,7 +168,7 @@ sha256 = "377d3c8a92d1039999d2bc876d6e31554bdc846e3257295db79ea7c17c38bf27"
 [[fixture]]
 path = "F-JITTER.expected.json"
 seed = 1012
-sha256 = "ccfad321fa39f98bbe6b3fe706db1dd253a459bf9ca0bcdef491cb056c0683f5"
+sha256 = "97ebf260d03c342feeebf2108c95a099b4d9f581c2bf404dca0339a37dfd385c"
 
 [[fixture]]
 path = "F-CONT-ABOVE.pdf"
@@ -183,7 +183,7 @@ sha256 = "4d805d1093ee58e1843c1db54bca2f63bfc2930b98b170a240ed99c6bc4b74ae"
 [[fixture]]
 path = "F-CONT-ABOVE.expected.json"
 seed = 1013
-sha256 = "86d95c4bd7566357267ca5c1895075b82aaa42f6dee05d857b06f4053b61b606"
+sha256 = "75cb16b9fdd7ebdee4e50b7b68f77fe1eafd70496f3640db20e5e35b51f9e43f"
 
 [[fixture]]
 path = "F-SUMMARY-MISMATCH.pdf"
@@ -198,7 +198,7 @@ sha256 = "03199ff77a700aed7496e64dced0c7bfad85d66bc5a5fb165d6f9362b8fcf524"
 [[fixture]]
 path = "F-SUMMARY-MISMATCH.expected.json"
 seed = 1014
-sha256 = "8743365dd58b15dc76975d3822cf40ea0b28c2f201d1f4c9bea32e86517e1637"
+sha256 = "9bbc10b5cf8386562873445436615eb421c5be6e88e34df1267d1aa40fec8105"
 
 [[fixture]]
 path = "F-CHAIN-BREAK.pdf"
@@ -213,7 +213,7 @@ sha256 = "0fe248f025894a1dd8ef701ac1bf66e8e7b62b675ff5cdd4d29ad55e2794ceb8"
 [[fixture]]
 path = "F-CHAIN-BREAK.expected.json"
 seed = 1015
-sha256 = "c7b6a87195d88af5c3df4a5e532e288e99dbd109e0827913c4de333bccf145b8"
+sha256 = "64544feef480d4808d640347bb93a2cfedcfee99b60cee908229ddb6d6ade8c8"
 
 [[recorded]]
 path = "F-GOLDEN.items.json"

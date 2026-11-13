@@ -9,10 +9,25 @@ GUARD = "check_imports.py"
 SYNTH = REPO / "tools" / "synth"
 
 
+CORE_MODULES = (
+    "__init__",
+    "contracts",
+    "bridge",
+    "errors",
+    "pipeline",
+    "types",
+    "extraction/__init__",
+    "extraction/rows",
+    "cleaning/__init__",
+    "classification/__init__",
+    "reconciliation/__init__",
+)
+
+
 @pytest.fixture
 def package(tmp_path):
     shutil.copy(REPO / ".importlinter", tmp_path / ".importlinter")
-    for module in ("__init__", "contracts", "extraction/__init__", "extraction/rows", "bridge"):
+    for module in CORE_MODULES:
         plant(tmp_path, f"src/mpesa_core/{module}.py", "")
     plant(tmp_path, "src/mpesa_core/analysis/__init__.py", "")
     plant(tmp_path, "tools/synth/__init__.py", "")

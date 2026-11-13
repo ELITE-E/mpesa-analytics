@@ -10,6 +10,7 @@ NEWEST_FIRST = "newest_first"
 OLDEST_FIRST = "oldest_first"
 CHAIN_TOLERANCE = 0.005
 EMPTY_STATUS = ""
+UNCLASSIFIED = "UNCLASSIFIED"
 TRANSACTION_COUNT_LABEL = "Transaction Count"
 TOTAL_PAID_IN_LABEL = "Total Paid In"
 TOTAL_WITHDRAWN_LABEL = "Total Withdrawn"
@@ -53,6 +54,30 @@ def reconcile(statement_pages, rows):
         "unparsed_amounts": _count_unparsed_amounts(rows),
         "summary_reconciliation": _reconcile_summary(statement_pages, rows),
         "receipt_length_histogram": _receipt_length_histogram(statement_pages),
+    }
+
+
+def measure_unclassified(transactions):
+    """Measure how much of a statement no classification rule recognized.
+
+    These go in ``quality``, not in the report: the report's keys stay exactly as they were.
+
+    Args:
+        transactions: ``ClassifiedRow`` records.
+
+    Returns:
+        The count of unclassified rows, their share of all rows (0.0 with no rows), and their
+        paid in and withdrawn totals, the latter as a size. Numbers only.
+
+    Side Effects:
+        None.
+    """
+    unclassified = [row for row in transactions if row["event_type"] == UNCLASSIFIED]
+    return {
+        "unclassified_rows": len(unclassified),
+        "unclassified_share": len(unclassified) / len(transactions) if transactions else 0.0,
+        "unclassified_paid_in": float(sum(row["paid_in"] for row in unclassified)),
+        "unclassified_withdrawn": float(sum(row["paid_out"] for row in unclassified)),
     }
 
 

@@ -224,3 +224,43 @@ def test_equivalence_results_record_the_open_questions(question):
 )
 def test_glossary_names_the_classification_terms(name):
     assert name in (REPO / "docs" / "glossary.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("change", ["D-01", "A-4", "A-5"])
+def test_analysis_fixes_are_marked_done(change):
+    log = (DECISIONS / "behaviour-changes.md").read_text(encoding="utf-8")
+    row = next(line for line in log.splitlines() if line.startswith(f"| {change} |"))
+    assert "| Done" in row
+
+
+@pytest.mark.parametrize("change", ["D-06", "A-1", "A-2", "A-3"])
+def test_figure_changing_items_are_deferred(change):
+    log = (DECISIONS / "behaviour-changes.md").read_text(encoding="utf-8")
+    row = next(line for line in log.splitlines() if line.startswith(f"| {change} |"))
+    assert "Deferred: changes figures; decide with data" in row
+
+
+def test_adr_0006_records_the_pandas_decision():
+    record = next(DECISIONS.glob("0006-*.md")).read_text(encoding="utf-8")
+    assert "Accepted for v1" in record
+    assert "26 to 47 hours" in record
+    assert "only inside `mpesa_core.analysis`" in record
+
+
+@pytest.mark.parametrize(
+    "needle",
+    ["How UNCLASSIFIED rows flow through", "default sort order for ties", "to_json_safe()"],
+)
+def test_analysis_behaviour_is_recorded(needle):
+    assert needle in (DECISIONS / "analysis-behaviour.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "name", ["analyze_transactions", "measure_unclassified", "page heading", "prepared_frame"]
+)
+def test_glossary_names_the_analysis_terms(name):
+    assert name in (REPO / "docs" / "glossary.md").read_text(encoding="utf-8")
+
+
+def test_test_edit_log_records_the_cp6_edits():
+    assert "## Edits for CP6" in (DECISIONS / "test-edits.md").read_text(encoding="utf-8")

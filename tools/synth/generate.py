@@ -34,7 +34,7 @@ from synth.layout import (  # noqa: E402
 from synth.ledger import compute_expected  # noqa: E402
 from synth.render import PDFJS_TOP_SHIFT, build_dense_lines, render_pdf  # noqa: E402
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 SCHEMA_VERSION = 1
 ENGINE_NAME = "synthetic"
 STATUS_COMPLETED = "Completed"

@@ -1,6 +1,6 @@
 # 0006. Runtime dependencies of `mpesa_core`
 
-Status: Open. Decided at the CP5 gate (about Nov 7).
+Status: Accepted for v1 (CP6, 2026-11-12). The plain-Python rewrite of analysis is a v1.1 task.
 Date: 2026-11-02
 
 ## Context
@@ -27,6 +27,20 @@ The pandas audit found: 68 functions touch pandas; no hard cases; 23 semantic di
    - Keep pandas for analytics, loaded lazily, **or**
    - rewrite analytics in plain Python.
 3. The gate decision uses: the measured start-up of the pandas-free core, any phone numbers a friend sends from the static probe page, and the audit's rule (full rewrite if the remaining cost fits the schedule).
+
+## Decision at the CP5 gate (owner, 2026-11-12)
+
+**The ledger path stays pandas-free:** extraction, cleaning, classification and reconciliation. **pandas is allowed only inside `mpesa_core.analysis`, imported lazily, for v1.** Rewriting analysis in plain Python is a v1.1 task.
+
+Reasons:
+- **Schedule.** The audit put the full rewrite at 26 to 47 hours, and the analytics modules alone at 9 to 14 hours plus test rewrites. Porting them on pandas keeps v1's dates.
+- **The cost is contained.** The pandas-free core loads in about 10 seconds under Pyodide, against 34 to 43 seconds with pandas, on the same machine (ADR 0011). Loading pandas only when analysis runs keeps that cost off everything else.
+- **The D-01 risk is designed out.** Rows enter pandas at one boundary as plain strings, never enum members.
+
+How it is held in place:
+- **Import-linter:** a contract forbids pandas in every core package except `analysis`.
+- **A test:** importing every other core module in a fresh interpreter leaves pandas out of `sys.modules`.
+- **The wheel:** it still declares no runtime dependency. pandas is the optional extra `analysis`, pinned to the Pyodide runtime's version, 3.0.2.
 
 ## Alternatives considered
 
