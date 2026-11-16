@@ -190,3 +190,61 @@ class PipelineResult(TypedDict):
     report: dict[str, object]
     quality: DataQuality
     diagnostics: list[Diagnostic]
+
+
+class IdentityResolution(TypedDict):
+    """Whether an incoming transaction is new, already known, or collides (``identity.py``).
+
+    Positions refer to the candidates list the caller passed.
+    """
+
+    # "new", "match" or "collision".
+    outcome: str
+    matched_index: int | None
+    # Every candidate sharing the candidate key, in the order passed.
+    candidate_indices: list[int]
+    # The domain observation category, for a collision only.
+    anomaly: str | None
+
+
+class PlanReference(TypedDict):
+    """A stored transaction: an existing one, or a row the same plan adds."""
+
+    # "existing" or "incoming".
+    source: str
+    # Position among the existing transactions, or the incoming row's index.
+    index: int
+
+
+class CollisionObservation(TypedDict):
+    """The domain observation the store records for a preserved row."""
+
+    category: str
+
+
+class ImportAction(TypedDict):
+    """What the store does with one incoming row."""
+
+    row_index: int
+    # "insert", "link" or "preserve".
+    action: str
+    # For "link": the transaction the row is.
+    target: PlanReference | None
+    # For "preserve": every transaction sharing the row's candidate key.
+    collides_with: list[PlanReference]
+    observation: CollisionObservation | None
+
+
+class ImportPlanCounts(TypedDict):
+    """How many rows are inserted, linked and preserved."""
+
+    new: int
+    matched: int
+    collided: int
+
+
+class ImportPlan(TypedDict):
+    """A pure description of one statement's import, applied by the store in one transaction."""
+
+    actions: list[ImportAction]
+    counts: ImportPlanCounts

@@ -166,3 +166,24 @@ def test_data_quality_carries_the_summary_totals_and_the_breaks_before_and_after
     assert hints["chain_breaks_raw"] is int
     assert hints["chain_breaks_after_reorder"] is int
     assert "summary_reconciliation" not in hints
+
+
+def test_identity_resolution_names_the_outcome_and_the_candidates():
+    hints = fields_of("IdentityResolution")
+    assert hints["outcome"] is str
+    assert hints["matched_index"] == int | None
+    assert hints["candidate_indices"] == list[int]
+    assert hints["anomaly"] == str | None
+
+
+def test_import_plan_holds_one_action_per_row_and_the_counts():
+    plan = fields_of("ImportPlan")
+    assert plan["actions"] == list[contracts.ImportAction]
+    assert plan["counts"] is contracts.ImportPlanCounts
+    action = fields_of("ImportAction")
+    assert action["row_index"] is int
+    assert action["action"] is str
+    assert action["target"] == contracts.PlanReference | None
+    assert action["collides_with"] == list[contracts.PlanReference]
+    assert set(fields_of("ImportPlanCounts")) == {"new", "matched", "collided"}
+    assert fields_of("PlanReference") == {"source": str, "index": int}

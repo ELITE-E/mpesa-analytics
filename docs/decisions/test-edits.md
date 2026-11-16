@@ -231,3 +231,9 @@ New tests corrected while still red: a four-amount summary row in `test_summary.
 ## Fixture changes for CP7a-3
 
 Generator version 1.6.0. Every fixture regenerated and re-recorded from pdf.js. Page 1 now prints an invented name, phone (fake range) and email, then the summary block: `SUMMARY`, seven type rows and TOTAL (invented sums from the generated rows by event type; fees and the rest in OTHERS), then `DETAILED STATEMENT`. A statement without rows (F-NOTABLE) prints no block. F-SUMMARY-MISMATCH prints TOTAL paid in wrong. `expected.json` replaced `summary_totals` and `summary_reconciliation` with `summary_total`, the two `*_matches` fields and `summary_type_rows_parsed`.
+
+## Edits for CP7b
+
+No existing assertion was changed. New tests: `test_identity.py` (the 13 old identity behaviour names, plus field lists, derived fields, earliest match and JSON values), `test_import_plan.py` (the 4 old collision behaviour names, plus repeat imports, overlapping statements, one action per row, validation and errors), `test_bridge.py`, `tests/synth/test_import_plan_agreement.py`, and additions to `test_contracts.py` and `test_standards_docs.py`. The old collision tests were marked REWRITE for the browser store (CP9); their decisions are tested here against the plan, and the store will still need its own tests.
+
+New tests corrected while still red: in F-RECORDS the changed details value equalled record 2's own details, so the property-style test's precondition failed for that record; the changed value is now distinct. A docs needle (`src/persistence/orchestration.py` in PORT_MAP) was already present, so it could not fail first; it was replaced by `plan_statement_import`.

@@ -26,6 +26,10 @@ To find which stage a mismatch starts in, read the gates top to bottom: rows and
 
 The summary lines read page 1's summary block: from a line reading only `SUMMARY` up to one reading only `DETAILED STATEMENT`, seven type rows and a TOTAL row, each `LABEL: paid_in paid_out`. A row that is missing or unreadable is counted, never guessed. To see the block's wording on your own screen, digits masked: `compare.py --pdf <statement.pdf> --labels`. It prints nothing above the block, and nothing at all (exit 2) if a marker is missing.
 
+### Why a row was inserted, linked or preserved
+
+Run `plan_statement_import(incoming_rows, stored)` in a Python shell on F-RECORDS (`tests/core/synthetic_records.py`) or on a fixture's transactions, then `resolve_identity(row, stored)` for the row in question: `candidate_indices` lists every stored transaction sharing its candidate key, and comparing `fingerprint(row)` with each candidate's shows which material field differs. Rules: `docs/decisions/identity-behaviour.md` and `docs/decisions/import-plan-behaviour.md`.
+
 ### How reordering groups are defined
 
 Some chain breaks only mean two rows printed in the other order. The reorder diagnostics test that:
@@ -86,6 +90,8 @@ To make a statement of your own: `.venv/bin/python tools/synth/generate.py --nam
 | Analysis | `analysis/` | `pytest tests/core/analysis/` |
 | Reconciliation and balances | `reconciliation/reconcile.py` | `pytest tests/core/test_reconcile.py tests/core/test_balances.py tests/core/test_unclassified_quality.py tests/core/test_chain_diagnostics.py` |
 | Summary block | `reconciliation/summary.py` | `pytest tests/core/test_summary.py` |
+| Identity | `reconciliation/identity.py` | `pytest tests/core/test_identity.py` |
+| Import plan and bridge | `reconciliation/import_plan.py`, `bridge.py` | `pytest tests/core/test_import_plan.py tests/core/test_bridge.py tests/synth/test_import_plan_agreement.py` |
 | The whole run | `pipeline.py` | `pytest tests/core/test_pipeline.py tests/synth/test_pipeline_fixtures.py` |
 | Core against the ledger | all | `pytest tests/synth/test_ledger_agreement.py` |
 | Errors | `errors.py` | `pytest tests/core/test_errors.py` |
@@ -103,3 +109,4 @@ Every core error carries a code and, at most, a position; never a statement valu
 | `AttestationError` | `NO_PAGES`, `BRAND_MISSING`, `ANCHOR_MISSING`, `TOKEN_MISSING` | `attest` |
 | `DomainRowError` | row index only | `classify_transactions` (a row with both or neither amount) |
 | `AnalysisError` | `DATE_UNREADABLE` (with the row), `ANALYSIS_FAILED` | `analyze_transactions` |
+| `ImportPlanError` | `INCOMING_ROW_INVALID`, `EXISTING_ROW_INVALID` (with the row), `REQUEST_INVALID`, `ROW_ACTION_COUNT`, `PRESERVE_NOT_COLLISION`, `PLAN_MISMATCH` | `plan_statement_import`, `validate_import_plan`, the bridge |

@@ -30,6 +30,8 @@ Architecture decision records (ADRs) and logs. An ADR records one decision, why,
 | `cleaning-behaviour.md` | The old cleaning step's rules, which `cleaning/` ports |
 | `classification-behaviour.md` | The old classifier's and entity step's rules, which `classification/` ports |
 | `analysis-behaviour.md` | The old analytics' rules and report keys, which `analysis/` ports |
+| `identity-behaviour.md` | The old identity rules (candidate key, material fingerprint, NEW, MATCH, COLLISION) and what the old atomic import stored |
+| `import-plan-behaviour.md` | What `plan_statement_import` decides for the browser store, and how a plan is checked |
 
 ## ADR template
 

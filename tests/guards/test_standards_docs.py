@@ -416,3 +416,87 @@ def test_adr_0006_is_accepted_with_pandas_lazy_and_optional_in_analysis_only():
         if line.startswith("| 0006 |")
     )
     assert "| Accepted" in row
+
+
+IDENTITY_RECORD = DECISIONS / "identity-behaviour.md"
+IMPORT_PLAN_RECORD = DECISIONS / "import-plan-behaviour.md"
+
+
+@pytest.mark.parametrize(
+    "needle",
+    [
+        "candidate key",
+        "material fields",
+        "`transaction_status`",
+        "`total_cost`",
+        "fingerprint",
+        "NEW",
+        "MATCH",
+        "COLLISION",
+        "several candidates",
+        "provenance",
+        "observation",
+        "snapshot",
+        "one database transaction",
+    ],
+)
+def test_identity_behaviour_is_recorded(needle):
+    assert needle in IDENTITY_RECORD.read_text(encoding="utf-8")
+
+
+def test_identity_behaviour_is_in_words_only():
+    text = IDENTITY_RECORD.read_text(encoding="utf-8")
+    assert "```" not in text
+    assert "def " not in text
+
+
+def test_identity_behaviour_says_total_cost_is_not_material():
+    text = IDENTITY_RECORD.read_text(encoding="utf-8")
+    assert "`total_cost` is not" in text
+
+
+@pytest.mark.parametrize(
+    "needle",
+    [
+        "plan_statement_import",
+        "validate_import_plan",
+        "insert",
+        "link",
+        "preserve",
+        "one IndexedDB transaction",
+        "Python decides, JavaScript persists",
+        "bridge",
+        "ImportPlanError",
+    ],
+)
+def test_import_plan_behaviour_is_recorded(needle):
+    assert needle in IMPORT_PLAN_RECORD.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("document", "needle"),
+    [
+        ("PORT_MAP.md", "reconciliation/import_plan.py"),
+        ("PORT_MAP.md", "`plan_statement_import`"),
+        ("TOUR.md", "plan_statement_import"),
+        ("DEBUGGING.md", "test_identity.py"),
+        ("DEBUGGING.md", "test_import_plan.py"),
+        ("DEBUGGING.md", "ImportPlanError"),
+    ],
+)
+def test_maintainer_docs_cover_identity_and_the_import_plan(document, needle):
+    assert needle in (DOCS / document).read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["candidate key", "material fingerprint", "collision", "import plan", "resolve_identity"],
+)
+def test_glossary_names_the_cp7b_terms(name):
+    assert name in (DOCS / "glossary.md").read_text(encoding="utf-8")
+
+
+def test_decision_index_lists_the_identity_and_import_plan_records():
+    index = (DECISIONS / "README.md").read_text(encoding="utf-8")
+    assert "identity-behaviour.md" in index
+    assert "import-plan-behaviour.md" in index

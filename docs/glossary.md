@@ -68,6 +68,11 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | prepared frame | The one pandas frame the analyses read, built from classified rows with every class as plain text (D-01) | `prepared_frame` | dataframe, df (in prose) |
 | statement summary | The summary block on page 1, from the `SUMMARY` line up to the `DETAILED STATEMENT` line: seven transaction type rows and a TOTAL row, each paid in then paid out | `summary_block_lines`, `read_summary_block` | header totals |
 | reorder group | A run of neighbouring rows, each sharing a receipt number or a completion time with the next, whose order the chain diagnostics may change | `reorder_within_groups`, `GROUP_RULES` | cluster, block |
+| candidate key | The receipt number and event type: only transactions sharing both can be the same transaction | `CANDIDATE_KEY` | duplicate key, id |
+| material fingerprint | The values of the material fields (receipt, event type, completion time, details, status, paid in, paid out, balance), compared exactly; `total_cost` is not one | `fingerprint`, `MATERIAL_FIELDS` | hash, checksum |
+| identity | Whether an incoming transaction is new, one already stored (match) or a collision | `resolve_identity`, `IdentityResolution`, `NEW`, `MATCH`, `COLLISION` | dedup, duplicate check |
+| collision | A transaction sharing a stored one's candidate key but not its fingerprint; both are kept, with a domain observation | `COLLISION`, `COLLISION_CATEGORY`, `preserve` | conflict, duplicate |
+| import plan | A pure description of what the browser store must do with one statement's rows: insert, link or preserve each, with counts | `plan_statement_import`, `ImportPlan`, `validate_import_plan` | merge script, sync |
 | reconciliation | Comparing parsed rows with the statement summary and the balance chain | `reconcile` | validation, verification |
 | data quality | Counts of problems found while processing (row counts, status counts, chain breaks, unparsed amounts, unclassified rows) | `DataQuality`, `quality`, `measure_unclassified` | warnings, errors |
 | diagnostic | An item describing one row that could not be resolved. Held in memory only. Codes: `EVENT_CLASSIFICATION_UNRESOLVED`, `ECONOMIC_MEANING_UNRESOLVED`, `ENTITY_EXTRACTION_UNRESOLVED` | `Diagnostic` | issue, problem |
