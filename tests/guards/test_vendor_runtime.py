@@ -20,15 +20,14 @@ from vendor import (
     verify_runtime,
 )
 
-WHEEL = REPO / "dist" / "mpesa_core-0.0.0-py3-none-any.whl"
 TEST_RUNNER_WHEELS = ("pytest", "pluggy", "iniconfig", "pygments", "setuptools", "attrs")
 LOADED_PACKAGES = ("numpy", "pandas", "python_dateutil", "pytz", "six")
 
 
 @pytest.fixture(scope="module")
-def built_runtime(tmp_path_factory):
+def built_runtime(tmp_path_factory, built_wheel):
     root = tmp_path_factory.mktemp("runtime")
-    version = build_runtime(WHEEL, runtime_root=root)
+    version = build_runtime(built_wheel, runtime_root=root)
     return root, version
 
 
@@ -70,13 +69,15 @@ def test_the_version_is_the_start_of_the_manifest_digest_so_any_change_moves_it(
     assert runtime_manifest({"a.mjs": b"alpha"}, "core/x.whl") == first
 
 
-def test_a_build_writes_the_version_directory_its_manifest_and_a_pointer(built_runtime):
+def test_a_build_writes_the_version_directory_its_manifest_and_a_pointer(
+    built_runtime, built_wheel
+):
     root, version = built_runtime
     manifest_bytes = (root / version / "manifest.json").read_bytes()
     assert runtime_version(manifest_bytes) == version
     assert json.loads((root / "current.json").read_text()) == {"version": version}
     manifest = json.loads(manifest_bytes)
-    assert manifest["wheel"] == f"core/{WHEEL.name}"
+    assert manifest["wheel"] == f"core/{built_wheel.name}"
     for path, entry in manifest["files"].items():
         content = (root / version / path).read_bytes()
         assert hashlib.sha256(content).hexdigest() == entry["sha256"], path
@@ -102,25 +103,25 @@ def test_a_tampered_manifest_fails_verification(built_runtime, tmp_path):
     assert verify_runtime(copy) == 1
 
 
-def test_a_vendored_file_that_differs_from_its_pin_stops_the_build(tmp_path):
+def test_a_vendored_file_that_differs_from_its_pin_stops_the_build(tmp_path, built_wheel):
     vendor = tmp_path / "vendor"
     shutil.copytree(VENDOR, vendor)
     (vendor / "pyodide" / "pyodide.mjs").write_bytes(b"// not the pinned file\n")
     with pytest.raises(SystemExit):
-        build_runtime(WHEEL, runtime_root=tmp_path / "runtime", vendor=vendor)
+        build_runtime(built_wheel, runtime_root=tmp_path / "runtime", vendor=vendor)
 
 
-def test_a_wheel_that_is_not_pure_python_stops_the_build(tmp_path):
+def test_a_wheel_that_is_not_pure_python_stops_the_build(tmp_path, built_wheel):
     wheel = tmp_path / "mpesa_core-0.0.0-cp314-cp314-linux_x86_64.whl"
-    wheel.write_bytes(WHEEL.read_bytes())
+    wheel.write_bytes(built_wheel.read_bytes())
     with pytest.raises(SystemExit):
         build_runtime(wheel, runtime_root=tmp_path / "runtime")
 
 
-def test_a_rebuild_leaves_only_the_current_version(tmp_path):
+def test_a_rebuild_leaves_only_the_current_version(tmp_path, built_wheel):
     root = tmp_path / "runtime"
     (root / "0000000000000000").mkdir(parents=True)
-    version = build_runtime(WHEEL, runtime_root=root)
+    version = build_runtime(built_wheel, runtime_root=root)
     assert sorted(entry.name for entry in root.iterdir()) == sorted([version, "current.json"])
 
 

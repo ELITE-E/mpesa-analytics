@@ -19,13 +19,12 @@ from measure_bundle import (
 from vendor import build_runtime
 
 TOOL = REPO / "tools" / "measure_bundle.py"
-WHEEL = REPO / "dist" / "mpesa_core-0.0.0-py3-none-any.whl"
 
 
 @pytest.fixture(scope="module")
-def runtime_root(tmp_path_factory):
+def runtime_root(tmp_path_factory, built_wheel):
     root = tmp_path_factory.mktemp("runtime")
-    build_runtime(WHEEL, runtime_root=root)
+    build_runtime(built_wheel, runtime_root=root)
     return root
 
 
