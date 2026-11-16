@@ -51,6 +51,22 @@ def prepared_frame(rows):
     return frame
 
 
+def first_unreadable_date(rows):
+    """Find the first row whose completion time the analyses cannot read.
+
+    Args:
+        rows: ``ClassifiedRow`` records in print order.
+
+    Returns:
+        The row's position in print order, or None if every completion time reads.
+
+    Side Effects:
+        None.
+    """
+    unreadable = prepared_frame(rows)["completion_time"].isna()
+    return int(unreadable.idxmax()) if unreadable.any() else None
+
+
 def resolve_period(frame):
     """Work out the default period: the span of the readable completion times.
 

@@ -43,40 +43,46 @@ endobj
 endobj
 8 0 obj
 <<
-/Length 1185
+/Length 1463
 >>
 stream
 1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
 BT /F1 5.5 Tf 6.6 TL ET
-BT 1 0 0 1 67.556 803.6385 Tm (Customer Name) Tj T* ET
+BT 1 0 0 1 67.556 803.6385 Tm (Customer Name:) Tj T* ET
 BT /F1 5.5 Tf 6.6 TL ET
 BT 1 0 0 1 180.016 803.6385 Tm (Example Person 00) Tj T* ET
 BT /F1 5.5 Tf 6.6 TL ET
-BT 1 0 0 1 67.428 793.6385 Tm (Mobile Number) Tj T* ET
+BT 1 0 0 1 67.428 793.6385 Tm (Mobile Number:) Tj T* ET
 BT /F1 5.5 Tf 6.6 TL ET
 BT 1 0 0 1 179.93 793.6385 Tm (0700000000) Tj T* ET
 BT /F1 5.5 Tf 6.6 TL ET
-BT 1 0 0 1 67.55 783.6385 Tm (Notice) Tj T* ET
+BT 1 0 0 1 67.55 783.6385 Tm (Email Address:) Tj T* ET
 BT /F1 5.5 Tf 6.6 TL ET
-BT 1 0 0 1 180.085 783.6385 Tm (No transactions in this period) Tj T* ET
+BT 1 0 0 1 180.085 783.6385 Tm (example.person@example.invalid) Tj T* ET
+BT /F1 5.5 Tf 6.6 TL ET
+BT 1 0 0 1 67.433 773.6385 Tm (Notice) Tj T* ET
+BT /F1 5.5 Tf 6.6 TL ET
+BT 1 0 0 1 180.066 773.6385 Tm (No transactions in this period) Tj T* ET
 BT /F2 6 Tf 7.2 TL ET
-BT 1 0 0 1 81.764 763.242 Tm (Receipt No) Tj T* ET
+BT 1 0 0 1 81.757 753.242 Tm (Receipt No) Tj T* ET
 BT /F2 6 Tf 7.2 TL ET
-BT 1 0 0 1 141.23 763.242 Tm (Completion Time) Tj T* ET
+BT 1 0 0 1 141.235 753.242 Tm (Completion Time) Tj T* ET
 BT /F2 6 Tf 7.2 TL ET
-BT 1 0 0 1 245.089 763.242 Tm (Details) Tj T* ET
+BT 1 0 0 1 245.086 753.242 Tm (Details) Tj T* ET
 BT /F2 6 Tf 7.2 TL ET
-BT 1 0 0 1 309.565 763.242 Tm (Transaction Status) Tj T* ET
+BT 1 0 0 1 309.527 753.242 Tm (Transaction Status) Tj T* ET
 BT /F2 6 Tf 7.2 TL ET
-BT 1 0 0 1 382.586 763.242 Tm (Paid In) Tj T* ET
+BT 1 0 0 1 382.599 753.242 Tm (Paid In) Tj T* ET
 BT /F2 6 Tf 7.2 TL ET
-BT 1 0 0 1 429.2 763.242 Tm (Withdrawn) Tj T* ET
+BT 1 0 0 1 429.086 753.242 Tm (Withdrawn) Tj T* ET
 BT /F2 6 Tf 7.2 TL ET
-BT 1 0 0 1 486.931 763.242 Tm (Balance) Tj T* ET
+BT 1 0 0 1 486.969 753.242 Tm (Balance) Tj T* ET
 BT /F1 5.5 Tf 6.6 TL ET
 BT 1 0 0 1 20 17.6385 Tm (Page 1 of 1) Tj T* ET
 BT /F1 5.5 Tf 6.6 TL ET
-BT 1 0 0 1 20 7.6385 Tm (DNNNHB2I) Tj T* ET
+BT 1 0 0 1 200 17.6385 Tm (M-PESA Statement Verification Code) Tj T* ET
+BT /F1 5.5 Tf 6.6 TL ET
+BT 1 0 0 1 20 7.6385 Tm (NNHB2IY6) Tj T* ET
  
 endstream
 endobj
@@ -102,5 +108,5 @@ trailer
 /Size 9
 >>
 startxref
-2138
+2416
 %%EOF

@@ -10,7 +10,7 @@ from conftest import REPO
 from mpesa_core.analysis import analyze_transactions
 from mpesa_core.classification.classify import classify_transactions
 from mpesa_core.cleaning.canonicalize import canonicalize_rows
-from mpesa_core.errors import DomainRowError
+from mpesa_core.errors import AnalysisError, DomainRowError
 from synth.generate import FAKE_PASSWORD
 from synth.layout import wrap_details
 
@@ -84,7 +84,7 @@ def old_report(rows):
                 continue
     try:
         return analyze_transactions(classified)
-    except TypeError:
+    except AnalysisError:
         # A planted row with an unreadable date stops the old analytics too (A-3).
         return analyze_transactions(
             [row for row in classified if row["completion_time"][:2] == "20"]
@@ -290,7 +290,12 @@ def test_none_and_empty_string_are_equal_after_strip(tmp_path):
                 else:
                     row[field] = f"  {row[field]} "
 
-    completed = compare_fixture(tmp_path, "F-GOLDEN", change)
+    # The old export writes its report from the real rows, never from padded ones.
+    unpadded_report = old_report(baseline_from("F-GOLDEN"))
+    baseline = write_baseline(
+        tmp_path, baseline_from("F-GOLDEN", change), report_change=lambda _: unpadded_report
+    )
+    completed = run_compare(FIXTURES / "F-GOLDEN.pdf", baseline, "--share")
     assert completed.returncode == 0, completed.stdout
     assert all(counts_of(completed)[f"mismatch_{field}"] == "0" for field in SEVEN_FIELDS)
 
@@ -394,23 +399,25 @@ def is_multi_line(row):
 
 def test_mismatch_features_are_counted(tmp_path):
     rows = expected_rows("F-MULTIPAGE")
-    wrapped_inside_a_page = next(
-        position
-        for position, row in enumerate(rows)
-        if is_multi_line(row)
-        and rows[position - 1]["page"] == row["page"] == 1
-        and rows[position + 1]["page"] == row["page"]
-        and position > 0
-    )
-    single_line_last_on_a_later_page = next(
+    single_line_inside_page_one = next(
         position
         for position, row in enumerate(rows[:-1])
-        if not is_multi_line(row) and row["page"] > 1 and rows[position + 1]["page"] != row["page"]
+        if position > 0
+        and not is_multi_line(row)
+        and rows[position - 1]["page"] == row["page"] == rows[position + 1]["page"] == 1
+    )
+    wrapped_at_a_later_page_edge = next(
+        position
+        for position, row in enumerate(rows[:-1])
+        if position > 0
+        and is_multi_line(row)
+        and row["page"] > 1
+        and row["page"] in {rows[position - 1]["page"] + 1, rows[position + 1]["page"] - 1}
     )
 
     def change(baseline):
-        baseline[wrapped_inside_a_page]["details"] = "changed"
-        baseline[single_line_last_on_a_later_page]["paid_in"] = "1.00"
+        baseline[single_line_inside_page_one]["details"] = "changed"
+        baseline[wrapped_at_a_later_page_edge]["paid_in"] = "1.00"
 
     counts = counts_of(compare_fixture(tmp_path, "F-MULTIPAGE", change))
     assert counts["mismatch_rows"] == "2"
@@ -427,12 +434,31 @@ def test_mismatch_on_a_tied_timestamp_is_counted(tmp_path):
     assert counts["mismatch_rows_tied_timestamp"] == "1"
 
 
-def test_summary_reconciliation_is_reported_per_label(tmp_path):
+def test_summary_totals_are_reported_as_yes_or_no_per_side(tmp_path):
     counts = counts_of(compare_fixture(tmp_path, "F-SUMMARY-MISMATCH"))
-    assert counts["summary_new_total_paid_in"] == "false"
-    assert counts["summary_new_closing_balance"] == "false"
-    assert counts["summary_new_total_withdrawn"] == "true"
-    assert counts["summary_old_total_paid_in"] == "false"
+    assert counts["summary_total_paid_in_matches_new"] == "no"
+    assert counts["summary_total_paid_out_matches_new"] == "yes"
+    assert counts["summary_total_paid_in_matches_old"] == "no"
+    assert counts["summary_total_paid_out_matches_old"] == "yes"
+    assert counts["summary_type_rows_parsed"] == "7"
+    assert not any(label.startswith("summary_new_") for label in counts)
+
+
+def test_an_unknown_summary_total_reads_not_found():
+    from equivalence.compare import _summary_lines
+
+    unknown = {
+        "summary_total_paid_in_matches": None,
+        "summary_total_paid_out_matches": False,
+        "summary_type_rows_parsed": 0,
+    }
+    assert _summary_lines(unknown, unknown) == [
+        "summary_total_paid_in_matches_old: not_found",
+        "summary_total_paid_in_matches_new: not_found",
+        "summary_total_paid_out_matches_old: no",
+        "summary_total_paid_out_matches_new: no",
+        "summary_type_rows_parsed: 0",
+    ]
 
 
 def test_layout_counts_answer_the_open_questions(tmp_path):
@@ -586,10 +612,10 @@ def test_lines_outside_rows_are_broken_down_and_none_is_unexplained(tmp_path):
     counts = counts_of(compare_fixture(tmp_path, "F-GOLDEN"))
     assert counts["unattached_header_lines"] == "2"
     assert counts["unattached_footer_lines"] == "4"
-    assert counts["unattached_summary_lines"] == "7"
+    assert counts["unattached_summary_lines"] == "13"
     assert counts["unattached_other_lines"] == "0"
     assert counts["unattached_page_heading_lines"] == "0"
-    assert counts["unattached_lines"] == "13"
+    assert counts["unattached_lines"] == "19"
 
 
 CANONICAL_GATES = (
@@ -897,3 +923,196 @@ def test_every_report_line_is_a_label_a_path_or_a_count(tmp_path):
     completed = compare_with_report(tmp_path, "F-GOLDEN", change)
     for line in report_lines(completed):
         assert re.fullmatch(r"report_[a-z_]+: [a-z_.<>\[\]0-9]+", line), line
+
+
+def test_attestation_and_the_full_pipeline_run_are_reported(tmp_path):
+    counts = counts_of(compare_fixture(tmp_path, "F-GOLDEN"))
+    assert counts["attestation"] == "PASS"
+    assert counts["pipeline_run"] == "PASS"
+
+
+def test_balances_are_reported_as_yes_or_no_never_as_amounts(tmp_path):
+    completed = compare_fixture(tmp_path, "F-GOLDEN")
+    counts = counts_of(completed)
+    assert counts["balances_orientation"] == "newest_first"
+    assert counts["balances_opening_found"] == "yes"
+    assert counts["balances_closing_found"] == "yes"
+    assert counts["balances_closing_equals_old_report"] == "yes"
+    assert counts["balances_closing_equals_new_report"] == "yes"
+    assert counts["balances_identity_holds"] == "yes"
+    expected = json.loads((FIXTURES / "F-GOLDEN.expected.json").read_text(encoding="utf-8"))
+    for figure in ("opening_balance", "closing_balance"):
+        assert expected[figure] not in completed.stdout
+        assert f"{float(expected[figure]):,.2f}" not in completed.stdout
+
+
+def test_balances_disagreeing_with_the_old_report_read_no(tmp_path):
+    def shift_closing(report):
+        report["cash_flow"]["closing_balance"] += 1.0
+
+    baseline = write_baseline(tmp_path, baseline_from("F-GOLDEN"), report_change=shift_closing)
+    completed = run_compare(FIXTURES / "F-GOLDEN.pdf", baseline, "--share")
+    assert counts_of(completed)["balances_closing_equals_old_report"] == "no"
+
+
+def test_a_broken_chain_breaks_the_balance_identity(tmp_path):
+    counts = counts_of(compare_fixture(tmp_path, "F-CHAIN-BREAK"))
+    assert counts["balances_identity_holds"] == "no"
+    assert counts["balances_closing_found"] == "yes"
+
+
+def test_identity_and_residual_lines_on_a_clean_chain(tmp_path):
+    counts = counts_of(compare_fixture(tmp_path, "F-GOLDEN"))
+    assert counts["identity_gap_zero_within_half_cent"] == "yes"
+    assert counts["identity_gap_bucket"] == "lt_1"
+    assert counts["break_residuals_total"] == "0"
+    assert counts["break_residuals_paired_adjacent"] == "0"
+    assert counts["break_residuals_unpaired"] == "0"
+    assert counts["chain_breaks_raw"] == "0"
+    assert counts["chain_breaks_after_reorder"] == "0"
+    assert counts["chain_breaks_resolved_by_group_reorder"] == "0"
+    assert counts["chain_breaks_resolved_by_receipt_groups"] == "0"
+    assert counts["chain_breaks_resolved_by_time_groups"] == "0"
+    assert counts["reorder_groups_too_large"] == "0"
+    assert counts["remaining_breaks_on_page_boundary"] == "0"
+    assert counts["remaining_break_residuals_matching_nearby_amount"] == "0"
+    assert not any(label.startswith("remaining_breaks_after_") for label in counts)
+
+
+def test_the_removed_and_duplicate_diagnostic_lines_are_gone(tmp_path):
+    counts = counts_of(compare_fixture(tmp_path, "F-CHAIN-BREAK"))
+    assert "break_residuals_unpaired_sum_equals_gap" not in counts
+    assert "chain_breaks_remaining_after_group_reorder" not in counts
+
+
+def test_group_sizes_are_printed_as_a_histogram(tmp_path):
+    counts = counts_of(compare_fixture(tmp_path, "F-TIES"))
+    sizes = {
+        int(label.removeprefix("reorder_group_size_")): int(value)
+        for label, value in counts.items()
+        if label.startswith("reorder_group_size_")
+    }
+    assert sizes
+    assert all(size >= 2 and count > 0 for size, count in sizes.items())
+
+
+def test_planted_breaks_are_unpaired_and_add_up_to_the_gap(tmp_path):
+    completed = compare_fixture(tmp_path, "F-CHAIN-BREAK")
+    counts = counts_of(completed)
+    breaks = int(counts["break_residuals_total"])
+    assert breaks == 5
+    assert counts["break_residuals_paired_adjacent"] == "0"
+    assert counts["break_residuals_unpaired"] == "5"
+    assert counts["identity_gap_zero_within_half_cent"] == "no"
+    assert counts["identity_gap_bucket"] == "lt_10000"
+    assert counts["chain_breaks_raw"] == "5"
+    resolved = int(counts["chain_breaks_resolved_by_group_reorder"])
+    remaining = int(counts["chain_breaks_after_reorder"])
+    assert resolved + remaining == breaks
+    after_types = sum(
+        int(value) for label, value in counts.items() if label.startswith("remaining_breaks_after_")
+    )
+    assert after_types == remaining
+    assert int(counts["remaining_breaks_on_page_boundary"]) <= remaining
+    assert int(counts["remaining_break_residuals_matching_nearby_amount"]) <= remaining
+    for planted_shift in ("777.00", "777.0", "3885", "3,885"):
+        assert planted_shift not in completed.stdout
+
+
+@pytest.mark.parametrize(
+    ("gap", "bucket"),
+    [
+        (0.0, "lt_1"),
+        (-0.99, "lt_1"),
+        (-1.0, "lt_100"),
+        (99.5, "lt_100"),
+        (100.0, "lt_10000"),
+        (-9999.99, "lt_10000"),
+        (10000.0, "gte_10000"),
+        (None, "not_found"),
+    ],
+)
+def test_identity_gap_bucket_uses_the_size_without_its_sign(gap, bucket):
+    from equivalence.compare import _gap_bucket
+
+    assert _gap_bucket(gap) == bucket
+
+
+@pytest.mark.parametrize(
+    ("residuals", "paired", "unpaired"),
+    [
+        ([], 0, 0),
+        ([5.0, -5.0], 2, 0),
+        ([5.0, -5.0, 7.0], 2, 1),
+        ([5.0, 7.0, -7.0, -5.0], 2, 2),
+        ([5.0, 5.0], 0, 2),
+        ([5.0, -5.004], 2, 0),
+        ([5.0, -5.006], 0, 2),
+        ([3.0, -3.0, 3.0, -3.0], 4, 0),
+    ],
+)
+def test_neighbouring_breaks_with_opposite_residuals_pair_up(residuals, paired, unpaired):
+    from equivalence.compare import _pair_residuals
+
+    assert _pair_residuals(residuals) == (paired, unpaired)
+
+
+def run_labels(name, *options):
+    return subprocess.run(
+        [sys.executable, str(TOOL), "--pdf", str(FIXTURES / f"{name}.pdf"), "--labels", *options],
+        capture_output=True,
+        text=True,
+        input="\n",
+    )
+
+
+IDENTITY_WORDS = ("@", "Customer", "Mobile", "Email", "Name", "Example Person")
+
+
+def test_labels_prints_the_summary_block_with_digits_masked():
+    completed = run_labels("F-GOLDEN")
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    lines = completed.stdout.splitlines()
+    assert lines[0] == "SUMMARY"
+    assert len(lines) == 9
+    assert lines[1] == "SEND MONEY: " + lines[1].removeprefix("SEND MONEY: ")
+    assert lines[-1].startswith("TOTAL: ")
+    assert "DETAILED STATEMENT" not in completed.stdout
+    assert not any(character.isdigit() for character in completed.stdout)
+    assert "#" in completed.stdout
+
+
+def test_labels_never_prints_the_lines_above_the_summary():
+    completed = run_labels("F-GOLDEN")
+    assert completed.returncode == 0
+    for line in completed.stdout.splitlines():
+        for word in IDENTITY_WORDS:
+            assert word not in line
+
+
+def test_labels_prints_nothing_and_exits_2_without_the_markers():
+    completed = run_labels("F-NOTABLE")
+    assert completed.returncode == 2
+    assert completed.stdout == ""
+
+
+def test_labels_prints_nothing_else():
+    completed = run_labels("F-GOLDEN")
+    assert "RESULT" not in completed.stdout
+    assert "PASS" not in completed.stdout
+    assert completed.stderr == ""
+
+
+def test_labels_cannot_be_combined_with_share():
+    completed = run_labels("F-GOLDEN", "--share")
+    assert completed.returncode == 2
+    assert "SEND MONEY" not in completed.stdout + completed.stderr
+
+
+def test_a_report_without_labels_still_needs_a_baseline():
+    completed = subprocess.run(
+        [sys.executable, str(TOOL), "--pdf", str(FIXTURES / "F-GOLDEN.pdf"), "--share"],
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 2

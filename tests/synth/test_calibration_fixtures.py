@@ -7,7 +7,7 @@ import pdfplumber
 import pytest
 
 from conftest import REPO
-from synth.generate import CHAIN_BREAK_COUNT, COMMITTED_FIXTURES, WRONG_SUMMARY_LABELS
+from synth.generate import CHAIN_BREAK_COUNT, COMMITTED_FIXTURES, WRONG_SUMMARY_TOTALS
 from synth.layout import HEADER_LABELS, WRAP_PITCH, wrap_details
 from vendor import PDFJS_VERSION
 
@@ -23,13 +23,6 @@ CALIBRATION_FIXTURES = [
     "F-CHAIN-BREAK",
 ]
 FAKE_RECEIPT = re.compile(r"ZZ[A-Z0-9]{8}")
-SUMMARY_LABELS = {
-    "Total Paid In",
-    "Total Withdrawn",
-    "Transaction Count",
-    "Opening Balance",
-    "Closing Balance",
-}
 AMOUNT_FIELDS = ["paid_in", "withdrawn", "balance"]
 MINIMUM_PAGES = 3
 SAME_LINE_POINTS = 1.0
@@ -150,20 +143,20 @@ def test_continuation_lines_print_above_the_anchor():
         )
 
 
-def test_summary_mismatch_is_deliberately_wrong_for_named_labels_only():
-    reconciliation = expected("F-SUMMARY-MISMATCH")["summary_reconciliation"]
-    assert set(reconciliation) == SUMMARY_LABELS
-    assert {label for label, agrees in reconciliation.items() if not agrees} == set(
-        WRONG_SUMMARY_LABELS
-    )
-    assert WRONG_SUMMARY_LABELS
+def test_summary_mismatch_is_deliberately_wrong_on_the_named_total_only():
+    fixture = expected("F-SUMMARY-MISMATCH")
+    assert WRONG_SUMMARY_TOTALS == ("paid_in",)
+    assert fixture["summary_total_paid_in_matches"] is False
+    assert fixture["summary_total_paid_out_matches"] is True
+    assert fixture["summary_type_rows_parsed"] == 7
 
 
 @pytest.mark.parametrize("name", ["F-GOLDEN", "F-CHAIN-BREAK", "F-MULTIPAGE"])
-def test_ordinary_summaries_reconcile_on_every_label(name):
-    reconciliation = expected(name)["summary_reconciliation"]
-    assert set(reconciliation) == SUMMARY_LABELS
-    assert all(reconciliation.values())
+def test_ordinary_summaries_match_on_both_totals_and_print_every_type_row(name):
+    fixture = expected(name)
+    assert fixture["summary_total_paid_in_matches"] is True
+    assert fixture["summary_total_paid_out_matches"] is True
+    assert fixture["summary_type_rows_parsed"] == 7
 
 
 def test_chain_break_has_the_planted_number_of_breaks():

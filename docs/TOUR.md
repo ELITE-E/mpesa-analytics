@@ -1,0 +1,74 @@
+# A tour: one transaction from PDF to report
+
+This follows one invented transaction through every stage. Every value here is made up.
+
+The transaction: a payment to a shop called **Example Shop 3**, printed on page 1 of a statement as
+
+| Receipt No | Completion Time | Details | Transaction Status | Paid In | Withdrawn | Balance |
+|---|---|---|---|---|---|---|
+| (ten characters) | 2026-01-05 10:00:00 | Merchant Payment Online to 555123 Example Shop 3 | Completed | | 450.00 | 1,550.00 |
+
+The details are long, so they wrap onto a second printed line.
+
+The whole run is `pipeline.run` in `src/mpesa_core/pipeline.py`. **To watch everything, put a breakpoint on its first line** and step into each call below.
+
+## 1. PDF to statement pages: `extract_statement_pages`
+
+- **File:** `pdf_reader/pdfjs/adapter.js` (JavaScript, in the browser; `tools/pdf_readers/extract_pages_cli.mjs` runs it from a terminal).
+- **In:** the PDF's bytes and, if it has one, the password.
+- **Out:** `StatementPages`: for each page, a list of text items, each with its text and position (`x0`, `x1`, `top`, `bottom`). Our transaction becomes about eight items: the receipt, the time, two pieces of details (one per printed line), the status, the withdrawn amount and the balance.
+- The password is used here and goes no further. Nothing after this point sees bytes or a password.
+- **Breakpoint:** not Python; read `tests/fixtures/synthetic/F-GOLDEN.items.json` to see what this produces.
+
+## 2. Is this an M-PESA statement? `attest`
+
+- **File:** `src/mpesa_core/reconciliation/attest.py`.
+- **In:** the statement pages. Only page 1 is read, as lines of text top to bottom (`page_text`).
+- **Out:** the verification token, an eight-character code from page 1's footer. If page 1 lacks the M-PESA brand, a verification instruction or a token, `AttestationError` with a code such as `BRAND_MISSING`.
+- **Breakpoint:** `attest`, then look at `text`.
+
+## 3. Items to rows: `build_rows`
+
+- **File:** `src/mpesa_core/extraction/rows.py`, with column positions from `calibrate_columns` in `extraction/columns.py`.
+- **In:** the statement pages.
+- **What happens:** items at the same height become printed lines (`group_lines`). A line with a receipt and a time is an anchor row; it starts a row. Our second details line sits one wrap gap below, so it joins the row's details.
+- **Out:** a `RawRow` per transaction, everything still text: `details` is `"Merchant Payment Online to 555123 Example Shop 3"`, `paid_in` is None, `withdrawn` is `"450.00"`, `balance` is `"1,550.00"`.
+- **Breakpoint:** `_read_row`, conditional on the row's `line`.
+
+## 4. Text to typed values: `canonicalize_rows`
+
+- **File:** `src/mpesa_core/cleaning/canonicalize.py`, using `parse_currency` (`cleaning/amounts.py`) and `normalize_name` (`cleaning/normalize.py`).
+- **Out:** a `CanonicalRow`: `withdrawn` 450.0, `paid_out` 450.0, `balance` 1550.0, `paid_in` 0.0, details tidied (unchanged here: no hyphens or separators to remove).
+- **Breakpoint:** `_canonical_row`.
+
+## 5. What kind of transaction? `classify_transactions`
+
+- **File:** `src/mpesa_core/classification/classify.py`, with `extract_entity` in `classification/entity.py`.
+- **What happens:** the details start with "MERCHANT PAYMENT", so `event_type` is `MERCHANT_PAYMENT`; money went out, so `cash_flow_direction` is `OUTFLOW`; `economic_meaning` is `CONSUMPTION`; `total_cost` is 450.0 plus any fee sharing its receipt. The merchant grammar reads the entity: `Example Shop 3`.
+- **Out:** a `ClassifiedRow`, and a list of diagnostics for rows nothing could read (none for ours).
+- **Breakpoint:** `event_type_of` or `extract_merchant_payment_entity`.
+
+## 6. Transactions to the report: `analyze_transactions`
+
+- **File:** `src/mpesa_core/analysis/__init__.py`, then `analysis/report.py` `build_report`. This is the first and only place pandas loads.
+- **What happens:** `prepared_frame` (`analysis/frame.py`) puts the rows in one pandas frame. Our row is spending, so it counts in `spending.monthly_expenditure`, `spending.spending_by_entity` (under `Example Shop 3`), `spending.largest_purchases`, and `cash_flow.total_outflow`.
+- **Out:** the report, a dict of plain JSON values with six sections. A completion time pandas cannot read stops a date-based analysis with `AnalysisError` code `DATE_UNREADABLE`.
+- **Breakpoint:** `_spending_section`.
+
+## 7. Checks: `reconcile`, `measure_unclassified`, `measure_balances`
+
+- **File:** `src/mpesa_core/reconciliation/reconcile.py`.
+- `reconcile` reads the raw rows and page 1's summary: row and status counts, the balance chain in both print orientations (it keeps the one with fewer breaks), unreadable amounts, and whether the printed totals agree.
+- `measure_unclassified` counts rows no rule recognized; these go in `quality`, never the report.
+- `measure_balances` gives the balance before the oldest row and after the newest, by print order in that orientation (D-06). If our row were the newest, the closing balance would be 1550.0.
+- **Breakpoint:** `measure_balances`.
+
+## 8. The result: `pipeline.run`
+
+- **File:** `src/mpesa_core/pipeline.py`.
+- **Out:** a `PipelineResult` (`contracts.py`): `verification_token`, `processed_at` (only if the caller passed a time), `period` (from `measure_period`), `balances`, `transactions`, `report`, `quality`, `diagnostics`. Plain JSON values only, so it can be stored if the user opts in to "Remember on this device" (ADR 0012).
+
+## Where to look next
+
+- `docs/DEBUGGING.md`: running one stage, and which test covers it.
+- `docs/PORT_MAP.md`: where each old function went.

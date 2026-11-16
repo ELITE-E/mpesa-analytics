@@ -187,3 +187,47 @@ New tests corrected while still red: the malformed-dates test was narrowed to mo
 | 1 | Guard 1 (patterns) | Honours fake receipts and masked fake phones | Inside `fixtures/synthetic/` only. See ADR 0003 |
 | 2 | Guard 1 | Skips PDF cross-reference offsets | Inside `fixtures/synthetic/*.pdf` only, with three leading zeros and the `NNNNN n` form |
 | 3 | Guard 6 (imports) | Also checks the `synth` package | `synth` may not import `mpesa_core` |
+
+## Edits for CP7a
+
+| Test | Old assertion | New assertion | Reason |
+|---|---|---|---|
+| `test_cash_flow_and_spending.py`, `test_unreadable_date_in_a_date_based_analysis_raises_as_the_old_code_does` | `pytest.raises(TypeError)` | `pytest.raises(AnalysisError)` | Owner instruction: a pandas failure becomes a typed error with a code. The meaning, that the analysis stops (A-3), is unchanged |
+| `test_compare.py`, `old_report` helper | Caught `TypeError` | Catches `AnalysisError` | Same reason |
+| `test_ledger_agreement.py`, `test_closing_balance_with_a_tied_latest_time_is_one_of_the_tied_rows` | Report closing balance `in latest_balances(name)` | Replaced by `test_closing_balance_with_a_tied_latest_time_is_the_newest_row_in_print_order`: `balances` closing equals the ledger's, to the cent | Owner instruction: D-06 decided, print order |
+| `test_standards_docs.py`, `test_figure_changing_items_are_deferred` | D-06, A-1, A-2, A-3 | A-1, A-2, A-3; a new test checks D-06 is Done | D-06 is decided |
+| `test_errors.py`, `test_attestation_error_can_state_counts` and `test_attestation_error_rejects_string_counts` | `AttestationError(expected_count=..., found_count=...)` | `AttestationError(AttestationCode.TOKEN_MISSING, ...)`, same assertions | Owner instruction: attestation errors carry a code; the constructor now requires one |
+| `test_layout_profile.py`, `test_multi_line_share_matches_the_layout_model` | `share * row_count <= wrapped_lines` | `round(share * row_count) <= wrapped_lines` | Test bug exposed by the new fixtures: the profile prints the share to two places, so 25 of 60 rows reads 0.42, and 0.42 × 60 = 25.2 exceeds 25 |
+| `test_compare.py`, `test_none_and_empty_string_are_equal_after_strip` | The simulated old report was built from the padded rows | It is built from the unpadded rows; the padded rows still go to stage 1, and the assertion is unchanged | Exposed by the new fixtures: largest purchases are no longer empty, so padded receipts reached the simulated report. The real old export writes its report from real rows, never padded ones |
+
+New tests corrected while still red: the pipeline tests' money-in row first had neither amount (a test bug: it raised `DomainRowError`), and `transfer_row` took six arguments (PLR0913).
+
+## Fixture changes for CP7a
+
+Generator version 1.5.0. Every fixture regenerated and re-recorded from pdf.js. Details now read as each event type's grammar (with short single-line forms for the narrow cases), page 1's footer prints the M-PESA brand and verification instruction beside the page number, and its token mixes letters and digits. `expected.json` gained `verification_token`, `event_type_counts` and `built` (the event type and entity the generator wrote, per row, beside `rows`, which keep the `RawRow` fields only). F-DENSE went from 10 to 14 rows: the new draws gave it a single money-in row, which cannot calibrate (D-10); a new test pins two values per amount column on every fixture. ADR 0008's recorded golden profile was updated to the new output.
+
+## Edits for CP7a-3
+
+Owner instruction: replace the invented summary labels with the real summary block, and change `--labels` and the chain diagnostics. Every edit below follows from that.
+
+| Test | Old assertion | New assertion | Reason |
+|---|---|---|---|
+| `test_reconcile.py`, the ten `summary_reconciliation` tests | Each invented label (Transaction Count, Total Paid In, Total Withdrawn, Opening Balance, Closing Balance) agrees, disagrees or is not found | Removed; `test_summary.py` covers the TOTAL row and the type rows, and `test_balances.py` still covers balances on a tied time | The labels and `summary_reconciliation` are gone |
+| `test_generator.py`, summary tests | Each invented label's value equals the ledger's; `Transaction Count` equals the row count; `Total Paid In` on page 1 only | TOTAL equals the ledger's totals; the seven type rows print in order and add up to TOTAL; the block sits between its markers below the name, phone and email; the invented labels are absent; `TOTAL:` on page 1 only | Same |
+| `test_ledger.py`, summary tests | `summary_totals` and `summary_reconciliation` per invented label | `summary_total`, `summary_total_paid_in_matches`, `summary_total_paid_out_matches` and `summary_type_rows_parsed` | Same |
+| `test_calibration_fixtures.py`, summary tests | `WRONG_SUMMARY_LABELS` wrong, the rest agree | `WRONG_SUMMARY_TOTALS` (`paid_in`) wrong, paid out agrees, 7 type rows | Same |
+| `test_differential.py`, `test_quality_equals_the_ledger` | `summary_reconciliation` per label | The three summary fields | Same |
+| `test_compare.py`, `test_summary_reconciliation_is_reported_per_label` | `summary_new_total_paid_in: false` and so on | Replaced by `test_summary_totals_are_reported_as_yes_or_no_per_side` | Same; yes or no as the instruction asks |
+| `test_compare.py`, `test_lines_outside_rows_are_broken_down_and_none_is_unexplained` | 7 summary lines, 13 in all | 13 summary lines, 19 in all | Page 1 now prints the name, phone, email, the two markers, seven type rows and TOTAL |
+| `test_compare.py`, the three `--labels` tests | Every line above the first anchor, 7 lines, one starting `Total Paid In` | The block only: starts `SUMMARY`, 9 lines, ends with TOTAL, no `DETAILED STATEMENT`; none holds `@`, Customer, Mobile, Email or Name; exit 2 and no output without markers | Owner instruction |
+| `test_compare.py`, `test_labels_cannot_be_combined_with_share` | `Total Paid In` not in the output | `SEND MONEY` not in the output | The label it guards changed |
+| `test_compare.py`, `test_identity_and_residual_lines_on_a_clean_chain` and `test_planted_breaks_are_unpaired_and_add_up_to_the_gap` | `break_residuals_unpaired_sum_equals_gap` and `chain_breaks_remaining_after_group_reorder` | Removed; `chain_breaks_raw`, `chain_breaks_after_reorder`, per-rule and remaining-break lines added | Owner instruction removed the first; the second duplicated `chain_breaks_after_reorder` |
+| `test_pdfplumber_reader.py`, `test_positions_agree_with_pdfjs_for_the_same_text` | Twin found by nearest top only | Nearest top, then nearest x0 | Test weakness exposed by the new fixtures: a summary row prints `0.00` twice on one line, so top alone picked the wrong twin. Tolerance unchanged |
+| `test_compare.py`, `test_mismatch_features_are_counted` | Changed details on a wrapped row inside page 1 and paid in on a single-line row last on a later page | Details on a single-line row inside page 1, paid in on a wrapped row first or last on a later page; same four counts asserted | The new draw of F-MULTIPAGE has no single-line row at a later page's edge, so the row search found nothing. Each feature is still hit exactly once |
+| `0008-layout-profile-synthetic.md` (read by `test_decision_record_holds_the_current_golden_output`) | Generator 1.5.0 output | Generator 1.6.0 output | Positions moved by hundredths of a point with the new page 1 |
+
+New tests corrected while still red: a four-amount summary row in `test_summary.py` lost its fourth cell for want of a fourth x position, and `test_quality_counts_breaks_before_and_after_reordering` used rows that read best oldest first, where the quality records 1 break and reordering cannot help; it now adds older rows so newest first is recorded, and asserts 2 breaks before and 0 after.
+
+## Fixture changes for CP7a-3
+
+Generator version 1.6.0. Every fixture regenerated and re-recorded from pdf.js. Page 1 now prints an invented name, phone (fake range) and email, then the summary block: `SUMMARY`, seven type rows and TOTAL (invented sums from the generated rows by event type; fees and the rest in OTHERS), then `DETAILED STATEMENT`. A statement without rows (F-NOTABLE) prints no block. F-SUMMARY-MISMATCH prints TOTAL paid in wrong. `expected.json` replaced `summary_totals` and `summary_reconciliation` with `summary_total`, the two `*_matches` fields and `summary_type_rows_parsed`.

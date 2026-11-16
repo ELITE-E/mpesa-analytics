@@ -103,3 +103,18 @@ def test_a_period_limits_the_period_analyses():
     assert report["transfers"]["total_transfers"]["total_transfer_amount"] == 700.0
     assert report["investments"]["total_investment"]["investment_amount"] == 0
     assert report["fees"]["total_fees"]["period"] == {"start": "2026-01-07", "end": "2026-01-07"}
+
+
+def test_report_holds_plain_python_numbers_never_numpy_ones():
+    def leaves(value):
+        if isinstance(value, dict):
+            for element in value.values():
+                yield from leaves(element)
+        elif isinstance(value, list):
+            for element in value:
+                yield from leaves(element)
+        else:
+            yield value
+
+    report = analyze_transactions(F_RECORDS)
+    assert all(type(leaf).__module__ == "builtins" for leaf in leaves(report))

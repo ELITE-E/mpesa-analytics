@@ -6,6 +6,7 @@ docs/decisions/analysis-behaviour.md.
 
 from datetime import date, datetime
 
+import numpy as np
 import pandas as pd
 
 from mpesa_core.analysis.cash_flow import (
@@ -92,7 +93,8 @@ def public_value(value):
 
     Returns:
         Frames as lists of records, times as ``YYYY-MM-DD hh:mm:ss``, dates as ``YYYY-MM-DD``,
-        tuples as lists, and dict keys as text. A missing time becomes None (A-4).
+        tuples as lists, numpy numbers as Python numbers of equal value, and dict keys as text.
+        A missing time becomes None (A-4).
 
     Side Effects:
         None.
@@ -101,6 +103,8 @@ def public_value(value):
         return public_value(value.to_dict(orient="records"))
     if value is pd.NaT:
         return None
+    if isinstance(value, np.generic):
+        return value.item()
     if isinstance(value, datetime):
         return value.strftime(TIME_FORMAT)
     if isinstance(value, date):

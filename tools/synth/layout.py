@@ -25,9 +25,14 @@ FOOTER_PAGE_TOP = 826.0
 FOOTER_TOKEN_TOP = 836.0
 FOOTER_TOKEN_LENGTH = 8
 FOOTER_ALPHABET = string.ascii_uppercase + string.digits
+# Page 1 prints the brand and the verification instruction beside its page number, so the footer
+# keeps its line count, and its token always mixes letters and digits, so it can be attested.
+VERIFICATION_TEXT = "M-PESA Statement Verification Code"
+VERIFICATION_X0 = 200.0
 TABLE_X0 = 67.5
 SUMMARY_LABEL_X0 = TABLE_X0
-SUMMARY_VALUE_X0 = 180.0
+# Left edges of a summary line's texts after its label: a value, or paid in then paid out.
+SUMMARY_VALUE_X0S = (180.0, 240.0)
 BLOCK_PITCH = 10.0
 DIGITS_PER_ROUND = 3
 
@@ -126,7 +131,7 @@ def lay_out_statement(printed_rows, summary_lines, *, seed_text, split_datetime,
 
     Args:
         printed_rows: Rows in print order, with text for each of the seven columns.
-        summary_lines: Tuples of label and value for the block at the top of page 1.
+        summary_lines: Tuples of the texts on each line at the top of page 1, left to right.
         seed_text: Text that seeds the jitter and footer tokens.
         split_datetime: Whether to print the date and the time as two strings.
         variant: The ``LayoutVariant`` to apply; defaults to the ordinary layout.
@@ -194,17 +199,18 @@ class _Placer:
         self.line = 0
 
     def place_summary(self, summary_lines):
-        """Place the page 1 summary block, then the first header row.
+        """Place the page 1 lines above the table, then the first header row.
 
         Args:
-            summary_lines: Tuples of label and value.
+            summary_lines: Tuples of a label and up to two texts after it.
 
         Side Effects:
             Adds text to the first page and moves the position down.
         """
-        for label, value in summary_lines:
+        for label, *values in summary_lines:
             self._place_left(label, SUMMARY_LABEL_X0, DATA_FONT, DATA_SIZE)
-            self._place_left(value, SUMMARY_VALUE_X0, DATA_FONT, DATA_SIZE)
+            for value, x0 in zip(values, SUMMARY_VALUE_X0S[: len(values)], strict=True):
+                self._place_left(value, x0, DATA_FONT, DATA_SIZE)
             self.next_top += BLOCK_PITCH
             self.line += 1
         self.next_top += BLOCK_PITCH
@@ -253,14 +259,38 @@ class _Placer:
     def place_footers(self):
         """Add the page number and an 8-character token to every page.
 
+        Page 1 also prints the verification instruction on its page number's line, and its token
+        mixes letters and digits.
+
         Side Effects:
             Adds text to every page.
         """
         for number, page in enumerate(self.pages, start=1):
-            token = "".join(self._pick_footer_char() for _ in range(FOOTER_TOKEN_LENGTH))
+            token = self._footer_token(must_mix=number == 1)
             label = f"Page {number} of {len(self.pages)}"
             page.append(self._left_text(label, FOOTER_X0, FOOTER_PAGE_TOP))
+            if number == 1:
+                page.append(self._left_text(VERIFICATION_TEXT, VERIFICATION_X0, FOOTER_PAGE_TOP))
             page.append(self._left_text(token, FOOTER_X0, FOOTER_TOKEN_TOP))
+
+    def _footer_token(self, *, must_mix):
+        """Pick a footer token, drawing again until it mixes letters and digits when asked.
+
+        Args:
+            must_mix: Whether the token must hold at least one letter and one digit.
+
+        Returns:
+            The token.
+
+        Side Effects:
+            None.
+        """
+        while True:
+            token = "".join(self._pick_footer_char() for _ in range(FOOTER_TOKEN_LENGTH))
+            has_letter = any(char.isalpha() for char in token)
+            has_digit = any(char.isdigit() for char in token)
+            if not must_mix or (has_letter and has_digit):
+                return token
 
     def _start_page(self):
         """Begin a new page with its header row.

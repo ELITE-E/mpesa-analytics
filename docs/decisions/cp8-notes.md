@@ -18,3 +18,7 @@ The adapter's deadline in `pdf_reader/pdfjs/adapter.js` is a timer plus a check 
 ## Bundle budget
 
 `tools/measure_bundle.py` prints NOT ENFORCED and is not a CI gate until CP8. ADR 0006 says it fails CI over budget, so CP8 should turn that on or change the ADR.
+
+## PDF metadata for attestation
+
+`StatementPages` carries no PDF metadata, so `attest` reads page 1's printed text only (behaviour-changes B-1). The old code also looked for the brand in metadata. If the owner's `compare.py` run shows `attestation: FAIL (BRAND_MISSING)`, CP8 should add an optional metadata text to `StatementPages` from pdf.js `getMetadata()`: a contract change that needs an ADR.

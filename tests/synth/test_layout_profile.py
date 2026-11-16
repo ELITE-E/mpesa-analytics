@@ -163,7 +163,8 @@ def test_multi_line_share_matches_the_layout_model():
     assert wrapped_lines > 0
     share = float(profile_of(GOLDEN)["multi_line_row_share"])
     assert 0 < share < 1
-    assert share * expected["row_count"] <= wrapped_lines
+    # The profile prints the share to two places, so compare the row count it stands for.
+    assert round(share * expected["row_count"]) <= wrapped_lines
 
 
 def test_header_to_data_offset_is_within_the_generators_limit():
