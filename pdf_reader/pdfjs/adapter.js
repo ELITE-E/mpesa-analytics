@@ -1,12 +1,14 @@
 // PDF reader adapter: turns a statement PDF into positioned text, using pdf.js. No rendering.
 // Errors carry a code only, because pdf.js messages can quote the file (ADR 0004).
 
-/** Default largest input, in bytes. The real limit is open item OQ-07. */
-export const DEFAULT_BYTE_LIMIT = 10 * 1024 * 1024;
-/** Default most pages. The real limit is open item OQ-07. */
-export const DEFAULT_PAGE_LIMIT = 500;
-/** Default longest extraction, in milliseconds. The real limit is open item OQ-07. */
-export const DEFAULT_TIMEOUT_MS = 120_000;
+import { DESKTOP_LIMITS } from "../limits.js";
+
+/** Default largest input, in bytes: the desktop limit (OQ-07, measured at CP8a). */
+export const DEFAULT_BYTE_LIMIT = DESKTOP_LIMITS.byteLimit;
+/** Default most pages: the desktop limit. */
+export const DEFAULT_PAGE_LIMIT = DESKTOP_LIMITS.pageLimit;
+/** Default longest extraction, in milliseconds: the desktop limit. */
+export const DEFAULT_TIMEOUT_MS = DESKTOP_LIMITS.timeoutMs;
 
 const SCHEMA_VERSION = 1;
 const PDF_MAGIC = [0x25, 0x50, 0x44, 0x46, 0x2d];

@@ -77,6 +77,7 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | data quality | Counts of problems found while processing (row counts, status counts, chain breaks, unparsed amounts, unclassified rows) | `DataQuality`, `quality`, `measure_unclassified` | warnings, errors |
 | diagnostic | An item describing one row that could not be resolved. Held in memory only. Codes: `EVENT_CLASSIFICATION_UNRESOLVED`, `ECONOMIC_MEANING_UNRESOLVED`, `ENTITY_EXTRACTION_UNRESOLVED` | `Diagnostic` | issue, problem |
 | baseline | The old extractor's rows for one statement, kept outside both repos for the equivalence check | `export_baseline.py`, `compare.py` | snapshot, golden |
+| account digest | The SHA-256 digest of page 1's mobile number in one canonical form (`254` and nine digits). In memory only: nine digits are few enough to try them all, so the store must never persist it | `account_digest`, `account_number_unreadable` | account id, phone hash |
 | verification token | The value `attest` produces, tying a result to its statement: the first eight-character code mixing capitals and digits after page 1's verification instruction | `verification_token`, `attest` | hash, signature |
 | pipeline result | What `pipeline.run` returns for one statement: plain JSON values, never PDF bytes or a password | `PipelineResult`, `pipeline.run` | output, response |
 | recurring | Seen at least three times, so an isolated transaction is not treated as recurring. | `recurring` | repeat, regular, subscription |
@@ -87,6 +88,8 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 |---|---|---|---|
 | core | The pure Python package `mpesa_core`; no I/O, environment or network | `mpesa_core` | backend, server |
 | bridge | The JSON-string boundary between JavaScript and Python in Pyodide | `bridge` | glue, api |
+| statement engine | The module worker holding the pdf reader and the core under Pyodide, with its verified runtime; the main thread reaches it through `engine_client.js`. Its failures carry one of the reader's codes or `ENGINE_FAILED` | `create_statement_engine`, `reader.worker.js` | engine (alone, for the pdf reader) |
+| runtime | The self-hosted files the statement engine loads: Pyodide, pdf.js, the wheel and the analysis packages, under `runtime/<version>/` with a SHA-256 manifest | `tools/vendor.py runtime`, `load_runtime` | CDN, bundle |
 | "error" | Reserved for exceptions raised by code: `ExtractionError`, `AttestationError`, `DomainRowError`, `AnalysisError`, each with a code or a position only | `*Error` | using it for data-quality counts |
 | remember on this device | The opt-in that keeps data in local browser storage. | `remember_on_device` | save, sync, upload, import |
 

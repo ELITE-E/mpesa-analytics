@@ -158,6 +158,8 @@ class DataQuality(TypedDict):
     unclassified_share: float
     unclassified_paid_in: float
     unclassified_withdrawn: float
+    # True when page 1's mobile number cannot be read, so ``account_digest`` is None.
+    account_number_unreadable: bool
 
 
 class Balances(TypedDict):
@@ -177,12 +179,19 @@ class Period(TypedDict):
 class PipelineResult(TypedDict):
     """What the core returns for one statement: plain JSON values only.
 
-    Holds nothing that must never be stored: no PDF bytes and no password, which never reach the
-    core. ``processed_at`` is whatever time the caller passed in; the core reads no clock.
+    Holds no PDF bytes and no password, which never reach the core, and never the mobile number,
+    name or email printed on page 1. ``processed_at`` is whatever time the caller passed in; the
+    core reads no clock.
+
+    ``account_digest`` is the SHA-256 digest of page 1's mobile number in its canonical form
+    (``reconciliation/account.py``), or None when the number cannot be read, which
+    ``quality.account_number_unreadable`` flags. It is in memory only: nine digits are few enough
+    to try them all, so the digest identifies the number, and the store must never persist it.
     """
 
     schema_version: int
     verification_token: str
+    account_digest: str | None
     processed_at: str | None
     period: Period
     balances: Balances

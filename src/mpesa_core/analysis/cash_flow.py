@@ -55,8 +55,8 @@ def calculate_net_cash_flow(frame):
 def calculate_closing_balance(frame):
     """Find the balance of the last transaction by completion time.
 
-    The sort is pandas' default, so which of two rows at the latest time is taken is not promised
-    (D-06, deferred). A row with an unreadable time sorts last.
+    Of several rows at the latest time, the one with the highest receipt number is taken (CP8a-3);
+    the old code's default sort left this undefined. A row with an unreadable time sorts last.
 
     Args:
         frame: A prepared frame.
@@ -69,4 +69,5 @@ def calculate_closing_balance(frame):
     """
     if frame.empty:
         return 0.0
-    return float(frame.sort_values("completion_time").iloc[-1]["balance"])
+    ordered = frame.sort_values(by=["completion_time", "receipt_no"], kind="stable")
+    return float(ordered.iloc[-1]["balance"])

@@ -2,24 +2,15 @@
 // Runs the pdf.js adapter on a PDF and writes its statement pages outside the repo, for the owner's
 // equivalence check. Prints counts only. If the PDF needs a password, it asks with a hidden prompt.
 //   node tools/pdf_readers/extract_pages_cli.mjs <pdf> --out <file outside the repo>
-import {
-  closeSync,
-  fchmodSync,
-  openSync,
-  readFileSync,
-  readlinkSync,
-  realpathSync,
-  writeSync,
-} from "node:fs";
-import { basename, dirname, join, resolve, sep } from "node:path";
+import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
 import { ExtractionError, extract_statement_pages } from "../../pdf_reader/pdfjs/adapter.js";
-import { REPO, serialize_statement_pages, use_node_reader } from "./fixture_reader.js";
+import { serialize_statement_pages, use_node_reader } from "./fixture_reader.js";
+import { is_inside_repo, write_owner_only } from "./owner_output.js";
 import { ask_for_password } from "./password_prompt.js";
 
 const CANNOT_RUN = 2;
-const OWNER_ONLY = 0o600;
 const NO_LIMIT = Number.MAX_SAFE_INTEGER;
 // An equivalence check measures a whole statement, so the app's limits do not apply here.
 const CHECK_LIMITS = { byteLimit: NO_LIMIT, pageLimit: NO_LIMIT, timeoutMs: 2 ** 31 - 1 };
@@ -80,68 +71,6 @@ function parse_request() {
 }
 
 /**
- * Tell whether a path lands inside this repo, following links.
- *
- * Side effects: reads the filesystem.
- *
- * @param {string} outPath The output path.
- * @returns {boolean} True if the file would be written inside the repo.
- */
-function is_inside_repo(outPath) {
-  const repo = realpathSync(REPO);
-  const landing = landing_path(resolve(outPath));
-  return landing === repo || landing.startsWith(repo + sep);
-}
-
-/**
- * Work out where a path really writes, including through a link whose target does not exist yet.
- *
- * Side effects: reads the filesystem.
- *
- * @param {string} absolutePath An absolute path.
- * @returns {string} The path with every link resolved.
- */
-function landing_path(absolutePath) {
-  try {
-    return realpathSync(absolutePath);
-  } catch {
-    return resolve_dangling_link(absolutePath);
-  }
-}
-
-/**
- * Resolve a path that does not exist yet: its directory, or a link's own target.
- *
- * Side effects: reads the filesystem.
- *
- * @param {string} absolutePath An absolute path that cannot be resolved directly.
- * @returns {string} The path it would write to.
- */
-function resolve_dangling_link(absolutePath) {
-  const link = read_link_target(absolutePath);
-  if (link !== null) return landing_path(resolve(dirname(absolutePath), link));
-  const parent = dirname(absolutePath);
-  if (parent === absolutePath) return absolutePath;
-  return join(landing_path(parent), basename(absolutePath));
-}
-
-/**
- * Read where a link points.
- *
- * Side effects: reads the filesystem.
- *
- * @param {string} path The path.
- * @returns {string|null} The link's target, or null if the path is not a link.
- */
-function read_link_target(path) {
-  try {
-    return readlinkSync(path);
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Extract the statement, asking for a password only if the PDF needs one.
  *
  * Side effects: runs pdf.js, and may prompt and read a password.
@@ -157,24 +86,6 @@ async function extract_with_prompt(fileBytes) {
     if (error.code !== "PASSWORD_REQUIRED") throw error;
   }
   return extract_statement_pages(bytes, await ask_for_password(), CHECK_LIMITS);
-}
-
-/**
- * Write a file only its owner can read. Permissions tighten before any text is written.
- *
- * Side effects: creates or replaces the file.
- *
- * @param {string} outPath The output path.
- * @param {string} text The file's text.
- */
-function write_owner_only(outPath, text) {
-  const descriptor = openSync(outPath, "w", OWNER_ONLY);
-  try {
-    fchmodSync(descriptor, OWNER_ONLY);
-    writeSync(descriptor, text);
-  } finally {
-    closeSync(descriptor);
-  }
 }
 
 /**

@@ -15,6 +15,7 @@ from synth.fake_rows import (  # noqa: E402
     PAIR_SHARE,
     PARENT_FIRST,
     SINGLE_LINE_SHARE,
+    RowMix,
     build_fake_rows,
     plant_chain_breaks,
 )
@@ -100,6 +101,9 @@ class StatementOptions:
     chain_break_count: int = 0
     # Which TOTAL columns, ``paid_in`` or ``paid_out``, to print deliberately wrong.
     wrong_summary_totals: tuple[str, ...] = ()
+    # Every amount at the bottom of its range and most rows at one second, so value orderings
+    # meet many ties (the tie-order tests, CP8a-3).
+    tied_values: bool = False
     variant: LayoutVariant = field(default_factory=LayoutVariant)
 
 
@@ -159,7 +163,10 @@ COMMITTED_FIXTURES = {
     ),
 }
 # Generated on demand only: too large to commit.
-ON_DEMAND_FIXTURES = {"F-LARGE": (1005, StatementOptions(name="F-LARGE", row_count=5700))}
+ON_DEMAND_FIXTURES = {
+    "F-LARGE": (1005, StatementOptions(name="F-LARGE", row_count=5700)),
+    "F-TIED": (1012, StatementOptions(name="F-TIED", row_count=300, tied_values=True)),
+}
 
 
 def main():
@@ -253,8 +260,11 @@ def build_outputs(seed, options):
         f"{seed_text}:rows",
         options.row_count,
         pair_orders=options.pair_orders,
-        single_line_share=options.single_line_share,
-        pair_share=options.pair_share,
+        mix=RowMix(
+            single_line_share=options.single_line_share,
+            pair_share=options.pair_share,
+            tied_values=options.tied_values,
+        ),
     )
     if options.chain_break_count:
         fake_rows = plant_chain_breaks(fake_rows, options.chain_break_count)

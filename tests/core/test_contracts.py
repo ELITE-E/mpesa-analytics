@@ -187,3 +187,17 @@ def test_import_plan_holds_one_action_per_row_and_the_counts():
     assert action["collides_with"] == list[contracts.PlanReference]
     assert set(fields_of("ImportPlanCounts")) == {"new", "matched", "collided"}
     assert fields_of("PlanReference") == {"source": str, "index": int}
+
+
+def test_pipeline_result_carries_an_optional_account_digest():
+    assert fields_of("PipelineResult")["account_digest"] == str | None
+
+
+def test_pipeline_result_docs_say_the_store_must_never_persist_the_digest():
+    doc = " ".join(contracts.PipelineResult.__doc__.split())
+    assert "account_digest" in doc
+    assert "must never persist" in doc
+
+
+def test_data_quality_flags_an_unreadable_account_number():
+    assert fields_of("DataQuality")["account_number_unreadable"] is bool

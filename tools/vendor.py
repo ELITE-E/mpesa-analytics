@@ -5,12 +5,17 @@ Commands:
     fetch [pyodide|pdfjs|gitleaks|node ...]: Download and verify against PINS.
     verify: Re-hash what is already on disk.
     table: Print sha256 and size for docs.
+    runtime --wheel PATH: Copy what the browser loads into web/public/runtime/<version>/, with a
+        SHA-256 manifest. Fetched files only, never a CDN at runtime; also gitignored.
+    verify-runtime: Re-hash the built runtime against its manifest, and the manifest against its
+        version.
 """
 
 import argparse
 import base64
 import hashlib
 import io
+import json
 import shutil
 import sys
 import tarfile
@@ -19,6 +24,11 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 VENDOR = REPO / "web" / "public" / "vendor"
+RUNTIME_ROOT = REPO / "web" / "public" / "runtime"
+RUNTIME_POINTER = "current.json"
+RUNTIME_MANIFEST = "manifest.json"
+RUNTIME_VERSION_LENGTH = 16
+PURE_WHEEL_SUFFIX = "-py3-none-any.whl"
 BIN = REPO / ".cache" / "bin"
 DOWNLOAD_TIMEOUT_SECONDS = 120
 
@@ -84,6 +94,13 @@ GROUPS = {
         "pyodide/pytest-9.0.2-py3-none-any.whl",
         "pyodide/setuptools-82.0.1-py3-none-any.whl",
     ],
+}
+
+# What the browser loads, by published path under runtime/<version>/, from its vendored path.
+# Pyodide, the browser build of pdf.js, and only the packages the core loads: numpy and pandas,
+# with their dependencies, for the analysis extra. The core wheel is added at build time.
+RUNTIME_SOURCES = {
+    rel: rel for group in ("pyodide-core", "numpy", "pandas", "pdfjs") for rel in GROUPS[group]
 }
 
 PINS = dict(
@@ -204,11 +221,21 @@ def main():
         ``fetch`` downloads and writes files; ``verify`` and ``table`` read them.
     """
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["fetch", "verify", "table"])
+    parser.add_argument(
+        "command", choices=["fetch", "verify", "table", "runtime", "verify-runtime"]
+    )
     parser.add_argument("targets", nargs="*", choices=[[], *FETCHERS], default=[])
+    parser.add_argument("--wheel", type=Path)
     args = parser.parse_args()
     if args.command == "verify":
         return verify()
+    if args.command == "runtime":
+        if args.wheel is None:
+            parser.error("runtime needs --wheel")
+        print(f"runtime {build_runtime(args.wheel)}")
+        return verify_runtime(RUNTIME_ROOT)
+    if args.command == "verify-runtime":
+        return verify_runtime(RUNTIME_ROOT)
     if args.command == "table":
         return print_table()
     for target in args.targets or FETCHERS:
@@ -235,6 +262,120 @@ def verify():
             print(f"BAD {rel}")
             bad += 1
     print(f"verified {len(PINS) - bad}/{len(PINS)}")
+    return 1 if bad else 0
+
+
+def build_runtime(wheel_path, *, runtime_root=RUNTIME_ROOT, vendor=VENDOR):
+    """Copy what the browser loads into a directory named by its manifest's digest.
+
+    Each vendored file is checked against its pin before it is copied, so the build verifies
+    the runtime and the browser verifies it again at load. Any older version is removed.
+
+    Args:
+        wheel_path: The built ``py3-none-any`` wheel of ``mpesa_core``.
+        runtime_root: Where the version directories and the pointer go.
+        vendor: Where ``fetch`` put the vendored files.
+
+    Returns:
+        The runtime version: the first characters of the manifest's SHA-256.
+
+    Side Effects:
+        Reads the vendored files and the wheel, replaces ``runtime_root``'s contents and writes
+        one line per file to stdout; exits if a file differs from its pin or the wheel is not
+        pure Python.
+    """
+    if not wheel_path.name.endswith(PURE_WHEEL_SUFFIX):
+        sys.exit(f"not a pure Python wheel: {wheel_path.name}")
+    files = {}
+    for published, rel in RUNTIME_SOURCES.items():
+        content = (vendor / rel).read_bytes()
+        if sha256(content) != PINS[rel]:
+            sys.exit(f"sha256 mismatch: {rel}")
+        files[published] = content
+    wheel = f"core/{wheel_path.name}"
+    files[wheel] = wheel_path.read_bytes()
+    manifest = runtime_manifest(files, wheel)
+    version = runtime_version(manifest)
+    if runtime_root.exists():
+        shutil.rmtree(runtime_root)
+    for published, content in files.items():
+        target = runtime_root / version / published
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+    (runtime_root / version / RUNTIME_MANIFEST).write_bytes(manifest)
+    (runtime_root / RUNTIME_POINTER).write_text(json.dumps({"version": version}) + "\n")
+    return version
+
+
+def runtime_manifest(files, wheel):
+    """Describe a runtime: the pinned versions, the wheel and every file's digest and size.
+
+    Args:
+        files: Published path to bytes.
+        wheel: Published path of the core wheel.
+
+    Returns:
+        The manifest as canonical JSON bytes (sorted keys, no spaces), so equal runtimes give
+        equal bytes and an equal version.
+
+    Side Effects:
+        None.
+    """
+    manifest = {
+        "schema_version": 1,
+        "pyodide_version": PYODIDE_VERSION,
+        "pdfjs_version": PDFJS_VERSION,
+        "wheel": wheel,
+        "files": {
+            path: {"sha256": sha256(content), "size": len(content)}
+            for path, content in sorted(files.items())
+        },
+    }
+    return json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def runtime_version(manifest):
+    """Name a runtime by its manifest, so the name itself checks the manifest.
+
+    Args:
+        manifest: The manifest's bytes.
+
+    Returns:
+        The first ``RUNTIME_VERSION_LENGTH`` hex characters of the manifest's SHA-256.
+
+    Side Effects:
+        None.
+    """
+    return sha256(manifest)[:RUNTIME_VERSION_LENGTH]
+
+
+def verify_runtime(runtime_root):
+    """Re-hash the built runtime: the manifest against its version, each file against the manifest.
+
+    Args:
+        runtime_root: The directory ``build_runtime`` wrote.
+
+    Returns:
+        Process exit code: 1 if anything is missing or differs, otherwise 0.
+
+    Side Effects:
+        Reads the runtime and writes to stdout.
+    """
+    version = json.loads((runtime_root / RUNTIME_POINTER).read_text())["version"]
+    manifest_bytes = (runtime_root / version / RUNTIME_MANIFEST).read_bytes()
+    if runtime_version(manifest_bytes) != version:
+        print("BAD manifest")
+        return 1
+    entries = json.loads(manifest_bytes)["files"]
+    bad = [
+        path
+        for path, entry in sorted(entries.items())
+        if not (runtime_root / version / path).is_file()
+        or sha256((runtime_root / version / path).read_bytes()) != entry["sha256"]
+    ]
+    for path in bad:
+        print(f"BAD {path}")
+    print(f"runtime verified {len(entries) - len(bad)}/{len(entries)}")
     return 1 if bad else 0
 
 

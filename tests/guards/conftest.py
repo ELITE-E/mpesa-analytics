@@ -1,6 +1,7 @@
 """Shared helpers for guard tests. Violations are planted in tmp_path only."""
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -61,3 +62,24 @@ def clean_tree(tmp_path):
     plant(tmp_path, "src/mpesa_core/__init__.py", "")
     plant(tmp_path, "tests/fixtures/synthetic/notes.txt", "synthetic\n")
     return tmp_path
+
+
+@pytest.fixture(scope="session")
+def built_wheel(tmp_path_factory):
+    """Build the core wheel from the current source, once per session, into a temporary folder.
+
+    The runtime tests use this rather than dist/, so they never depend on CI's step order or on a
+    wheel left over from an older source.
+    """
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.fail("uv is needed to build the wheel for the runtime tests")
+    out_dir = tmp_path_factory.mktemp("wheel")
+    subprocess.run(
+        [uv, "build", "--wheel", "--out-dir", str(out_dir)],
+        cwd=REPO,
+        check=True,
+        capture_output=True,
+    )
+    (wheel,) = out_dir.glob("mpesa_core-*-py3-none-any.whl")
+    return wheel

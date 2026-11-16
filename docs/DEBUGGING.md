@@ -26,6 +26,21 @@ To find which stage a mismatch starts in, read the gates top to bottom: rows and
 
 The summary lines read page 1's summary block: from a line reading only `SUMMARY` up to one reading only `DETAILED STATEMENT`, seven type rows and a TOTAL row, each `LABEL: paid_in paid_out`. A row that is missing or unreadable is counted, never guessed. To see the block's wording on your own screen, digits masked: `compare.py --pdf <statement.pdf> --labels`. It prints nothing above the block, and nothing at all (exit 2) if a marker is missing.
 
+### The same check through the browser engine
+
+To check the browser engine on a real statement, run it in Chrome and compare what it wrote. The output folder must not exist yet and must be outside the repo; it is created readable by you only (700, files 600):
+
+```
+node tools/equivalence/browser_run.mjs --pdf <statement.pdf> --out <new scratch folder>
+.venv/bin/python tools/equivalence/compare.py --browser-result <new scratch folder> --pdf <statement.pdf> --baseline <scratch folder>/baseline.json --share
+```
+
+`browser_run` prints counts only: pages, items, transactions, the byte size, whether the desktop limits would have accepted it, timings, and `other_requests` (must be 0). `compare.py --browser-result` prints the same lines and gates as `--pdf`, plus `browser_result_equals_cpython`: CPython's result on the browser's statement pages equals the browser's. The folder never holds the account digest, only whether one was read, so the digest is excluded from that gate by design. When the gate fails, the `browser_vs_cpython_*` lines count where: differing paths per top-level key of the result (and how many are numbers under half a cent apart), differing rows per field (and whether Unicode NFC plus whitespace normalisation clears them). With `--pdf`, the `browser_vs_node_*` lines compare the browser's statement pages with the Node reader's (asks for the password again). Delete the folder afterwards.
+
+`--skip-baseline` runs only the browser-against-CPython part, without `baseline.json`. Its `browser_vs_cpython_report_path:` lines name each differing report path with keys from the data as `<key>`, the leaf's type, whether its list holds the same values in another order, and a size bucket for numbers. Against the old report, differences proven to be tie order only (`report_tie_order_only <class>`) do not fail `report_paths_equal` (behaviour-changes T-1 to T-3).
+
+To see whether a PDF carries a digital signature: `node tools/probes/pdf_signature_probe.mjs <statement.pdf>` prints `signature_field: yes|no` and `byterange_token: yes|no`, nothing else.
+
 ### Why a row was inserted, linked or preserved
 
 Run `plan_statement_import(incoming_rows, stored)` in a Python shell on F-RECORDS (`tests/core/synthetic_records.py`) or on a fixture's transactions, then `resolve_identity(row, stored)` for the row in question: `candidate_indices` lists every stored transaction sharing its candidate key, and comparing `fingerprint(row)` with each candidate's shows which material field differs. Rules: `docs/decisions/identity-behaviour.md` and `docs/decisions/import-plan-behaviour.md`.
@@ -96,8 +111,16 @@ To make a statement of your own: `.venv/bin/python tools/synth/generate.py --nam
 | Core against the ledger | all | `pytest tests/synth/test_ledger_agreement.py` |
 | Errors | `errors.py` | `pytest tests/core/test_errors.py` |
 | Guards and docs | `tools/guards/` | `pytest tests/guards/` |
+| Account digest | `reconciliation/account.py` | `pytest tests/core/test_account.py` |
+| Browser bridge and engine client | `pdf_reader/bridge.js`, `pdf_reader/engine_client.js` | `node --test tests/pdf_readers/engine_bridge.test.js tests/pdf_readers/engine_client.test.js` |
+| Runtime build | `tools/vendor.py runtime` | `pytest tests/guards/test_vendor_runtime.py` |
+| Bundle budget | `tools/measure_bundle.py` | `pytest tests/guards/test_bundle_budget.py` |
+| Per-stage timing | `tools/measure_stage_timing.mjs`, `web/harness/stage_timing.*` | `node --test tests/browser/stage_timing.test.js` |
+| Statement engine in Chrome | `pdf_reader/`, `web/harness/` | `node --test --test-concurrency=1 tests/browser/*.test.js` (needs the runtime built and Chrome; about 10 minutes) |
 
 The core tests also run under Pyodide: build the wheel (`uv build --wheel`), then `node tools/run_pyodide_tests.mjs`.
+
+The browser tests need the runtime: `uv build --wheel --out-dir dist`, then `uv run python tools/vendor.py runtime --wheel dist/mpesa_core-0.0.0-py3-none-any.whl`. Rebuild it after any core change, or Chrome runs the old wheel. To look at the engine by hand, `node web/harness/serve.js` serves the harness with the architecture CSP; open DevTools on the worker for its requests.
 
 ## Errors you may see
 
@@ -109,4 +132,5 @@ Every core error carries a code and, at most, a position; never a statement valu
 | `AttestationError` | `NO_PAGES`, `BRAND_MISSING`, `ANCHOR_MISSING`, `TOKEN_MISSING` | `attest` |
 | `DomainRowError` | row index only | `classify_transactions` (a row with both or neither amount) |
 | `AnalysisError` | `DATE_UNREADABLE` (with the row), `ANALYSIS_FAILED` | `analyze_transactions` |
+| Engine failure (JavaScript) | `NOT_A_PDF`, `PASSWORD_*`, `CORRUPT_PDF`, `TOO_*`, `TIMEOUT`, `LAYOUT_UNRECOGNIZED` (core codes kept in `core_code`), `ENGINE_FAILED`, each with a `stage` (`reader`, `core`, `runtime`, `engine`) | `pdf_reader/bridge.js`, `engine_client.js` |
 | `ImportPlanError` | `INCOMING_ROW_INVALID`, `EXISTING_ROW_INVALID` (with the row), `REQUEST_INVALID`, `ROW_ACTION_COUNT`, `PRESERVE_NOT_COLLISION`, `PLAN_MISMATCH` | `plan_statement_import`, `validate_import_plan`, the bridge |

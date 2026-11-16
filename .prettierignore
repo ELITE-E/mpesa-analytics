@@ -5,6 +5,7 @@
 *.toml
 package-lock.json
 web/public/vendor/
+web/public/runtime/
 .cache/
 .venv/
 # Byte-pinned by the fixture provenance guard; reformatting would break regeneration.

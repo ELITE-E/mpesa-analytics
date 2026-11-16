@@ -500,3 +500,21 @@ def test_decision_index_lists_the_identity_and_import_plan_records():
     index = (DECISIONS / "README.md").read_text(encoding="utf-8")
     assert "identity-behaviour.md" in index
     assert "import-plan-behaviour.md" in index
+
+
+def test_cp8_notes_record_the_measured_desktop_limits():
+    notes = (DECISIONS / "cp8-notes.md").read_text(encoding="utf-8")
+    section = notes.split("## Desktop limits (CP8a)", 1)[1].split("\n## ", 1)[0]
+    for needle in ("F-LARGE", "5,700", "peak_rss_bytes", "10 MiB", "300 pages", "600 s", "phone"):
+        assert needle in section
+
+
+def test_readme_says_phone_unverified():
+    assert "phone unverified" in (REPO / "README.md").read_text(encoding="utf-8").lower()
+
+
+def test_decision_index_lists_the_csp_record():
+    record = next(DECISIONS.glob("0013-*.md")).read_text(encoding="utf-8")
+    assert "'unsafe-eval'" in record
+    assert "OQ-08" in record
+    assert "0013" in (DECISIONS / "README.md").read_text(encoding="utf-8")

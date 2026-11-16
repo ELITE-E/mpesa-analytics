@@ -10,6 +10,8 @@ import {
 import { fake_pdfjs, fixture_bytes, pdf_header_bytes, use_real_pdfjs } from "./helpers.js";
 
 const MIB = 1024 * 1024;
+// F-MANY-PAGES's page count, drawn when the default limit was 500.
+const MANY_PAGES = 501;
 
 before(use_real_pdfjs);
 
@@ -78,9 +80,10 @@ test("the page limit is configurable in both directions", async () => {
     { code: "TOO_MANY_PAGES" },
   );
   const statementPages = await extract_statement_pages(fixture_bytes("F-MANY-PAGES"), undefined, {
-    pageLimit: DEFAULT_PAGE_LIMIT + 1,
+    pageLimit: MANY_PAGES,
   });
-  assert.equal(statementPages.pages.length, DEFAULT_PAGE_LIMIT + 1);
+  assert.equal(statementPages.pages.length, MANY_PAGES);
+  assert.ok(MANY_PAGES > DEFAULT_PAGE_LIMIT);
 });
 
 test("a slow extraction times out", async () => {

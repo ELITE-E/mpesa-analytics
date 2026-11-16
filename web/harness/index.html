@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Engine harness</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="harness.css" />
+    <script type="module" src="harness.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Engine harness (CP8a)</h1>
+      <p>Runs a statement through the browser engine. Shows counts and codes only.</p>
+      <form id="statement-form">
+        <label
+          >Statement PDF <input id="statement-file" type="file" accept="application/pdf"
+        /></label>
+        <label>Password <input id="statement-password" type="password" autocomplete="off" /></label>
+        <button type="submit">Run</button>
+      </form>
+      <pre id="outcome">Loading the engine…</pre>
+    </main>
+  </body>
+</html>

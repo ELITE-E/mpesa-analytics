@@ -48,7 +48,8 @@ def calculate_monthly_expenditure(frame):
 def get_top_spending_recipients(frame, top_n=5):
     """Rank identified entities by the spending they received.
 
-    The sort is pandas' default, so equal totals can swap ranks.
+    Equal totals rank by recipient name, A to Z (CP8a-3). The old code's default sort left their
+    order undefined, and it differed between x86 and the browser.
 
     Args:
         frame: A prepared frame.
@@ -65,7 +66,9 @@ def get_top_spending_recipients(frame, top_n=5):
     spending = exclude_unidentified_entities(select_qualifying_spending(frame))
     totals = spending.groupby("entity")["total_cost"].sum().reset_index()
     totals.columns = ["recipient", "amount_received"]
-    ranked = totals.sort_values(by="amount_received", ascending=False).reset_index(drop=True)
+    ranked = totals.sort_values(
+        by=["amount_received", "recipient"], ascending=[False, True], kind="stable"
+    ).reset_index(drop=True)
     ranked["ranking"] = ranked["amount_received"].rank(method="first", ascending=False).astype(int)
     return ranked.head(top_n).reset_index(drop=True)
 
@@ -73,7 +76,8 @@ def get_top_spending_recipients(frame, top_n=5):
 def calculate_largest_purchases(frame, top_n=10):
     """Rank individual purchases with an identified entity by total cost.
 
-    The sort is pandas' default, so equal costs can swap places, also at the cut.
+    Equal costs rank by receipt number, lowest first, also at the cut (CP8a-3). The old code's
+    default sort left their order undefined, and it differed between x86 and the browser.
 
     Args:
         frame: A prepared frame.
@@ -88,7 +92,9 @@ def calculate_largest_purchases(frame, top_n=10):
     if frame.empty:
         return pd.DataFrame(columns=[*LARGEST_PURCHASE_FIELDS.values(), "ranking"])
     purchases = exclude_unidentified_entities(select_qualifying_spending(frame))
-    ranked = purchases.sort_values(by="total_cost", ascending=False).reset_index(drop=True)
+    ranked = purchases.sort_values(
+        by=["total_cost", "receipt_no"], ascending=[False, True], kind="stable"
+    ).reset_index(drop=True)
     largest = ranked.head(top_n)[list(LARGEST_PURCHASE_FIELDS)].copy()
     largest.columns = list(LARGEST_PURCHASE_FIELDS.values())
     largest["ranking"] = range(1, len(largest) + 1)

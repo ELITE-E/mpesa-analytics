@@ -6,6 +6,7 @@ import tseslint from "typescript-eslint";
 const SOURCE_FILES = [
   "pdf_reader/**/*.{js,mjs,ts}",
   "tests/pdf_readers/**/*.{js,mjs,ts}",
+  "tests/browser/**/*.{js,mjs,ts}",
   "web/**/*.{js,mjs,ts}",
   "tools/**/*.{js,mjs,ts}",
 ];
@@ -26,7 +27,15 @@ const BANNED_NAMES = [
 ];
 
 export default [
-  { ignores: ["web/public/vendor/**", "node_modules/**", ".cache/**", ".venv/**"] },
+  {
+    ignores: [
+      "web/public/vendor/**",
+      "web/public/runtime/**",
+      "node_modules/**",
+      ".cache/**",
+      ".venv/**",
+    ],
+  },
   {
     files: SOURCE_FILES,
     languageOptions: { parser: tseslint.parser, ecmaVersion: "latest", sourceType: "module" },
@@ -63,7 +72,11 @@ export default [
   },
   {
     // PDF reader and bridge code handles statement data, so it must never reach the console.
-    files: ["pdf_reader/**/*.{js,mjs,ts}", "tests/pdf_readers/**/*.{js,mjs,ts}"],
+    files: [
+      "pdf_reader/**/*.{js,mjs,ts}",
+      "tests/pdf_readers/**/*.{js,mjs,ts}",
+      "tests/browser/**/*.{js,mjs,ts}",
+    ],
     rules: { "no-console": "error" },
   },
 ];
