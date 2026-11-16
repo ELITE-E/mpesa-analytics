@@ -127,16 +127,31 @@ class DataQuality(TypedDict):
     """Counts of problems found while processing a statement. Never any row text (ADR 0004).
 
     ``chain_breaks`` counts the orientation named by ``chain_orientation``, the one with fewer.
-    In ``summary_reconciliation`` a label maps to whether it agrees, or None if it was not found.
+    The summary fields read page 1's summary block (``reconciliation/summary.py``); a total that
+    was not found is None, never guessed.
     """
 
     row_count: int
     status_counts: dict[str, int]
     chain_breaks: int
+    # The same count, named beside the count left after reordering groups.
+    chain_breaks_raw: int
+    # Breaks that some order inside a same-receipt or tied-time group would remove.
+    chain_breaks_resolvable_by_reorder: int
+    # Breaks that remain after every group is put in its best order.
+    chain_breaks_after_reorder: int
+    # Whether closing equals opening plus paid in minus withdrawn, to half a cent; None if a
+    # balance is unknown.
+    identity_holds: bool | None
     chain_orientation: str
     chain_break_counts: dict[str, ChainBreakCounts]
     unparsed_amounts: int
-    summary_reconciliation: dict[str, bool | None]
+    # Whether the summary's TOTAL paid in and paid out equal the rows', to half a cent; None if
+    # the TOTAL row is missing or cannot be read.
+    summary_total_paid_in_matches: bool | None
+    summary_total_paid_out_matches: bool | None
+    # How many of the summary's seven transaction type rows could be read.
+    summary_type_rows_parsed: int
     receipt_length_histogram: dict[int, int]
     # From ``measure_unclassified``, over the classified rows. Not part of the report.
     unclassified_rows: int
@@ -145,10 +160,33 @@ class DataQuality(TypedDict):
     unclassified_withdrawn: float
 
 
+class Balances(TypedDict):
+    """The balance before the oldest row and after the newest, in print order (D-06)."""
+
+    opening_balance: float | None
+    closing_balance: float | None
+
+
+class Period(TypedDict):
+    """The earliest and latest readable completion times, as printed; None without any."""
+
+    start: str | None
+    end: str | None
+
+
 class PipelineResult(TypedDict):
-    """What the core returns for one statement."""
+    """What the core returns for one statement: plain JSON values only.
+
+    Holds nothing that must never be stored: no PDF bytes and no password, which never reach the
+    core. ``processed_at`` is whatever time the caller passed in; the core reads no clock.
+    """
 
     schema_version: int
+    verification_token: str
+    processed_at: str | None
+    period: Period
+    balances: Balances
     transactions: list[ClassifiedRow]
+    report: dict[str, object]
     quality: DataQuality
     diagnostics: list[Diagnostic]

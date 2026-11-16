@@ -40,3 +40,21 @@ def pandas_loaded_by_importing(names):
         for name in [name for name in sys.modules if is_watched(name)]:
             del sys.modules[name]
         sys.modules.update(saved)
+
+
+def pandas_loaded_by_running(action):
+    """Run ``action(import_module)`` in a fresh module table; report whether pandas got loaded.
+
+    The action imports what it needs through the function it is given, so it sees the fresh
+    modules, including the fresh error classes, rather than the ones this test file imported.
+    """
+    saved = {name: module for name, module in sys.modules.items() if is_watched(name)}
+    for name in saved:
+        del sys.modules[name]
+    try:
+        action(importlib.import_module)
+        return "pandas" in sys.modules
+    finally:
+        for name in [name for name in sys.modules if is_watched(name)]:
+            del sys.modules[name]
+        sys.modules.update(saved)

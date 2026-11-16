@@ -11,20 +11,20 @@ Realism comes from the synthetic generator, which is checked against a real stat
 
 The profiler takes a PDF path and prints fixed labels and numbers, never text from the PDF and never its path. It stops with an error type only if the PDF cannot be read. If the PDF needs a password, it asks with a hidden prompt on a terminal, or reads one line from piped stdin. It never accepts a password from the command line or the environment.
 
-Output for `fixtures/synthetic/F-GOLDEN.pdf`:
+Output for `fixtures/synthetic/F-GOLDEN.pdf`, from generator 1.6.0 (CP7a-3: the real summary block and an invented name, phone and email on page 1):
 
 ```
 page_count: 2
 page_size: 595 x 848
 line_pitch_median: 10
 line_pitch_spread: 4
-header_to_data_x0_offset_by_column: -10.37, -9.72, -37.58, -17.55, 10.49, 23.4, 11.17
-header_to_data_x0_offset_max: 37.58
-column_x0_clusters: [71.51, 131.48, 207.49, 310.51, 449.66, 452.75, 498.04, 501.1]
-column_x1_clusters: [106.07, 182.54, 337.09, 466.5, 522.51]
+header_to_data_x0_offset_by_column: -10.41, -9.66, -37.65, 1, 10.58, 23.44, 14.08
+header_to_data_x0_offset_max: 37.65
+column_x0_clusters: [71.49, 131.5, 207.5, 310.49, 449.67, 452.7, 501.1]
+column_x1_clusters: [106.01, 182.56, 292.24, 337.08, 466.47, 522.51]
 receipt_length_histogram: {10: 60}
 anchor_row_count: 60
-multi_line_row_share: 0.35
+multi_line_row_share: 0.42
 ```
 
 Run it with:

@@ -9,6 +9,7 @@ from mpesa_core.analysis import analyze_transactions
 from mpesa_core.classification.classify import classify_transactions
 from mpesa_core.cleaning.canonicalize import canonicalize_rows
 from mpesa_core.extraction.rows import build_rows
+from mpesa_core.reconciliation.reconcile import measure_balances, reconcile
 from synth.generate import COMMITTED_FIXTURES
 
 FIXTURES = REPO / "tests" / "fixtures" / "synthetic"
@@ -24,6 +25,12 @@ def core_cash_flow(name):
     pages = json.loads((FIXTURES / f"{name}.items.json").read_text(encoding="utf-8"))
     transactions, _ = classify_transactions(canonicalize_rows(build_rows(pages)))
     return analyze_transactions(transactions)["cash_flow"]
+
+
+def core_balances(name):
+    pages = json.loads((FIXTURES / f"{name}.items.json").read_text(encoding="utf-8"))
+    rows = build_rows(pages)
+    return measure_balances(rows, reconcile(pages, rows)["chain_orientation"])
 
 
 def latest_balances(name):
@@ -59,9 +66,16 @@ def test_core_closing_balance_equals_the_ledger(name):
 
 
 @pytest.mark.parametrize("name", TIED_AT_THE_LATEST_TIME)
-def test_closing_balance_with_a_tied_latest_time_is_one_of_the_tied_rows(name):
-    # D-06, deferred: the ledger takes the first row printed; the core keeps pandas' order.
-    assert core_cash_flow(name)["closing_balance"] in latest_balances(name)
+def test_closing_balance_with_a_tied_latest_time_is_the_newest_row_in_print_order(name):
+    # D-06: the newest row in print order, in the orientation reconcile reads, never pandas' order.
+    closing = float(ledger(name)["closing_balance"])
+    assert core_balances(name)["closing_balance"] == pytest.approx(closing, abs=CENT)
+
+
+@pytest.mark.parametrize("name", WITH_MONEY)
+@pytest.mark.parametrize("figure", ["opening_balance", "closing_balance"])
+def test_core_balances_equal_the_ledger(name, figure):
+    assert core_balances(name)[figure] == pytest.approx(float(ledger(name)[figure]), abs=CENT)
 
 
 def test_both_kinds_of_fixture_exist():

@@ -58,7 +58,10 @@ def test_positions_agree_with_pdfjs_for_the_same_text():
     for text_item in plumbed:
         twin = min(
             (entry for entry in recorded_items if entry["text"] == text_item["text"]),
-            key=lambda entry: abs(entry["top"] - text_item["top"]),
+            key=lambda entry: (
+                abs(entry["top"] - text_item["top"]),
+                abs(entry["x0"] - text_item["x0"]),
+            ),
         )
         for axis in ("x0", "x1", "top"):
             assert abs(twin[axis] - text_item[axis]) <= LARGEST_POSITION_DIFFERENCE, axis

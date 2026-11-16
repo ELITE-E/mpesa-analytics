@@ -1,4 +1,5 @@
 {
+ "built": [],
  "chain_break_kinds": {
   "other": 0,
   "page_boundary": 0,
@@ -7,7 +8,8 @@
  },
  "chain_breaks": 0,
  "closing_balance": null,
- "generator_version": "1.4.0",
+ "event_type_counts": {},
+ "generator_version": "1.6.0",
  "name": "F-NOTABLE",
  "net_cash_flow": "0.00",
  "opening_balance": null,
@@ -15,11 +17,14 @@
  "rows": [],
  "same_second_pairs": [],
  "status_counts": {},
- "summary_reconciliation": {},
- "summary_totals": {},
+ "summary_total": {},
+ "summary_total_paid_in_matches": null,
+ "summary_total_paid_out_matches": null,
+ "summary_type_rows_parsed": 0,
  "total_fees": "0.00",
  "total_inflow": "0.00",
  "total_outflow": "0.00",
  "total_paid_in": "0.00",
- "total_withdrawn": "0.00"
+ "total_withdrawn": "0.00",
+ "verification_token": "NNHB2IY6"
 }

@@ -48,7 +48,7 @@ The owner's calibration rules are the spec: group by `top` within 1.0 pt, calibr
 - **A statement with fewer than two values in any amount column raises `LAYOUT_UNRECOGNIZED`.** The old extractor read these, so this is a behaviour change. It is logged as D-10 for the owner to decide.
 - **F-TIES had no paid-in values, so it could not calibrate.** Its generator now makes one pair in three money in; its existing tests are unchanged. The other committed PDFs kept their bytes.
 - A page whose columns all moved by more than the tolerance raises if two or more of its rows move an amount column the same way, and is counted otherwise.
-- The summary labels (`Total Paid In` and so on) are the generator's. **None has been checked against a real statement.** If the real wording differs they read `not_found`, which is not a gate.
+- The summary labels (`Total Paid In` and so on) were the generator's, and read `not_found` on the real statement. **Superseded in CP7a-3:** the generator and `reconciliation/summary.py` now use the real block the owner described (seven type rows and TOTAL, between `SUMMARY` and `DETAILED STATEMENT`). Still not a gate.
 - The header words and the 6 pt gap come from the plan, and the profiler's assumptions in ADR 0008 apply. The real statement's counts test them.
 - `DataQuality` grew. `chain_breaks` keeps its meaning and counts the recorded orientation.
 

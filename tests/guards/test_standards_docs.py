@@ -233,7 +233,7 @@ def test_analysis_fixes_are_marked_done(change):
     assert "| Done" in row
 
 
-@pytest.mark.parametrize("change", ["D-06", "A-1", "A-2", "A-3"])
+@pytest.mark.parametrize("change", ["A-1", "A-2", "A-3"])
 def test_figure_changing_items_are_deferred(change):
     log = (DECISIONS / "behaviour-changes.md").read_text(encoding="utf-8")
     row = next(line for line in log.splitlines() if line.startswith(f"| {change} |"))
@@ -264,3 +264,155 @@ def test_glossary_names_the_analysis_terms(name):
 
 def test_test_edit_log_records_the_cp6_edits():
     assert "## Edits for CP6" in (DECISIONS / "test-edits.md").read_text(encoding="utf-8")
+
+
+def equivalence_run(heading):
+    record = (DECISIONS / "equivalence-results.md").read_text(encoding="utf-8")
+    return record.split(f"## {heading}", 1)[1].split("\n## ", 1)[0]
+
+
+def test_equivalence_results_record_the_cp6_run_in_counts():
+    run = equivalence_run("Run 3: CP6")
+    assert "All 19 gates passed" in run
+    assert "| Report paths equal | 3,977 |" in run
+    assert "| Report paths different | 0 |" in run
+
+
+@pytest.mark.parametrize("open_item", ["blank status", "canonical names"])
+def test_open_cp4_items_carry_a_recommended_default(open_item):
+    log = (DECISIONS / "behaviour-changes.md").read_text(encoding="utf-8")
+    row = next(line for line in log.splitlines() if line.startswith(f"| {open_item} |"))
+    assert "Recommended default:" in row
+
+
+def test_d06_is_done_and_names_the_balances_field():
+    log = (DECISIONS / "behaviour-changes.md").read_text(encoding="utf-8")
+    row = next(line for line in log.splitlines() if line.startswith("| D-06 |"))
+    assert "| Done" in row
+    assert "`balances`" in row
+    assert "print order" in row
+
+
+DOCS = REPO / "docs"
+OLD_MODULES = [
+    "src/clean.py",
+    "src/engine.py",
+    "src/engine_types.py",
+    "src/entity.py",
+    "src/event_types.py",
+    "src/normalize.py",
+    "src/pipeline.py",
+    "src/security.py",
+    "src/utils.py",
+    "src/extract.py",
+    "src/analytics/__init__.py",
+    "src/analytics/cash_flow.py",
+    "src/analytics/fees.py",
+    "src/analytics/investments.py",
+    "src/analytics/orchestration.py",
+    "src/analytics/preparation.py",
+    "src/analytics/recurrence.py",
+    "src/analytics/result.py",
+    "src/analytics/spending.py",
+    "src/analytics/transfers.py",
+    "src/persistence/identity.py",
+    "src/persistence/collisions.py",
+    "src/persistence/database.py",
+    "src/persistence/models.py",
+]
+
+
+def test_v1_scope_adr_keeps_remember_on_this_device_opt_in_with_merging():
+    record = next(DECISIONS.glob("0012-*.md")).read_text(encoding="utf-8")
+    for needle in ("Remember on this device", "opt-in", "merging", "CP7b", "CP9", "JSON"):
+        assert needle in record
+    assert "| 0012 |" in (DECISIONS / "README.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("module", OLD_MODULES)
+def test_port_map_names_every_old_module(module):
+    assert f"`{module}`" in (DOCS / "PORT_MAP.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("marker", ["D-06", "D-01", "A-3", "New in the rewrite"])
+def test_port_map_marks_changed_and_new_behaviour(marker):
+    assert marker in (DOCS / "PORT_MAP.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "stage",
+    [
+        "extract_statement_pages",
+        "attest",
+        "build_rows",
+        "canonicalize_rows",
+        "classify_transactions",
+        "analyze_transactions",
+        "reconcile",
+        "measure_balances",
+        "pipeline.run",
+        "breakpoint",
+    ],
+)
+def test_tour_follows_one_transaction_through_every_stage(stage):
+    assert stage in (DOCS / "TOUR.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "needle",
+    ["compare.py", "--share", "export_baseline.py", "test_pipeline.py", "test_attest.py", "pytest"],
+)
+def test_debugging_guide_covers_mismatches_single_stages_and_tests(needle):
+    assert needle in (DOCS / "DEBUGGING.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("name", ["TOUR.md", "DEBUGGING.md", "PORT_MAP.md"])
+def test_maintainer_docs_use_invented_values_only(name):
+    text = (DOCS / name).read_text(encoding="utf-8")
+    assert "Example" in text or name == "PORT_MAP.md"
+    assert "*****" not in text
+
+
+def test_test_edit_log_records_the_cp7a_edits():
+    assert "## Edits for CP7a" in (DECISIONS / "test-edits.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "name", ["attest", "measure_balances", "Balances", "Period", "AnalysisError"]
+)
+def test_glossary_names_the_cp7a_terms(name):
+    assert name in (DOCS / "glossary.md").read_text(encoding="utf-8")
+
+
+def test_equivalence_results_say_what_the_identity_compares_and_its_tolerance():
+    record = (DECISIONS / "equivalence-results.md").read_text(encoding="utf-8")
+    section = record.split("## Balance identity", 1)[1].split("\n## ", 1)[0]
+    for needle in ("balances_identity_holds", "half a cent", "0.005", "A-08", "not float `==`"):
+        assert needle in section
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "identity_gap_bucket",
+        "break_residuals_paired_adjacent",
+        "chain_breaks_resolved_by_group_reorder",
+        "--labels",
+    ],
+)
+def test_equivalence_results_explain_the_chain_diagnostics(line):
+    assert line in (DECISIONS / "equivalence-results.md").read_text(encoding="utf-8")
+
+
+def test_adr_0006_is_accepted_with_pandas_lazy_and_optional_in_analysis_only():
+    record = next(DECISIONS.glob("0006-*.md")).read_text(encoding="utf-8")
+    status = record.splitlines()[2]
+    assert status.startswith("Status: Accepted")
+    for needle in ("`analysis/`", "lazily", "optional extra", "plain-Python rewrite", "v1.1"):
+        assert needle in status
+    row = next(
+        line
+        for line in (DECISIONS / "README.md").read_text(encoding="utf-8").splitlines()
+        if line.startswith("| 0006 |")
+    )
+    assert "| Accepted" in row

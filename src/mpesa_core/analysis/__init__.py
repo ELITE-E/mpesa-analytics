@@ -18,9 +18,23 @@ def analyze_transactions(rows, period=None):
         The report: a dict of plain JSON values with the sections ``cash_flow``, ``spending``,
         ``bills``, ``investments``, ``transfers`` and ``fees``. The input is not changed.
 
+    Raises:
+        AnalysisError: If pandas fails part way. ``DATE_UNREADABLE``, with the first such row,
+            when a completion time cannot be read (A-3: the old code also stops there);
+            otherwise ``ANALYSIS_FAILED``. The pandas error, which may quote a value, is kept
+            as the cause only, so the message holds no statement value (ADR 0004).
+
     Side Effects:
         Imports pandas on first use.
     """
+    from mpesa_core.analysis.frame import first_unreadable_date
     from mpesa_core.analysis.report import build_report
+    from mpesa_core.errors import AnalysisCode, AnalysisError
 
-    return build_report(rows, period)
+    try:
+        return build_report(rows, period)
+    except (TypeError, ValueError) as error:
+        row_index = first_unreadable_date(rows)
+        if row_index is None:
+            raise AnalysisError(AnalysisCode.ANALYSIS_FAILED) from error
+        raise AnalysisError(AnalysisCode.DATE_UNREADABLE, row_index=row_index) from error

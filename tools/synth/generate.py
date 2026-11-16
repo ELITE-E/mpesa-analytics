@@ -34,7 +34,7 @@ from synth.layout import (  # noqa: E402
 from synth.ledger import compute_expected  # noqa: E402
 from synth.render import PDFJS_TOP_SHIFT, build_dense_lines, render_pdf  # noqa: E402
 
-VERSION = "1.4.0"
+VERSION = "1.6.0"
 SCHEMA_VERSION = 1
 ENGINE_NAME = "synthetic"
 STATUS_COMPLETED = "Completed"
@@ -44,10 +44,36 @@ FAKE_PASSWORD = "synthetic-only"
 DEFAULT_SEED = 1
 DEFAULT_ROW_COUNT = 60
 CHAIN_BREAK_COUNT = 5
-WRONG_SUMMARY_LABELS = ("Total Paid In", "Closing Balance")
+WRONG_SUMMARY_TOTALS = ("paid_in",)
 WRONG_SUMMARY_SHIFT_CENTS = 10_000
 CALIBRATION_JITTER_POINTS = 0.4
 MANIFEST_NAME = "MANIFEST.toml"
+# Invented, as a real statement prints them above the summary. The phone is in the fake range.
+IDENTITY_LINES = (
+    ("Customer Name:", "Example Person 00"),
+    ("Mobile Number:", "07000000" + "00"),
+    ("Email Address:", "example.person@example.invalid"),
+)
+SUMMARY_MARKER = "SUMMARY"
+DETAIL_MARKER = "DETAILED STATEMENT"
+OTHERS_LABEL = "OTHERS"
+SUMMARY_TYPE_LABELS = (
+    "SEND MONEY",
+    "RECEIVED MONEY",
+    "AGENT DEPOSIT",
+    "AGENT WITHDRAWAL",
+    "LIPA NA M-PESA (PAYBILL)",
+    "LIPA NA M-PESA (BUY GOODS)",
+    OTHERS_LABEL,
+)
+# Invented: which summary row each generated event type adds to. Fees and the rest go in OTHERS.
+SUMMARY_TYPE_OF = {
+    "TRANSFER_OUT": "SEND MONEY",
+    "TRANSFER_IN": "RECEIVED MONEY",
+    "DEPOSIT": "AGENT DEPOSIT",
+    "BILL_PAYMENT": "LIPA NA M-PESA (PAYBILL)",
+    "MERCHANT_PAYMENT": "LIPA NA M-PESA (BUY GOODS)",
+}
 COMMITTED_DIR = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "synthetic"
 RECORDED_MARKER = "\n[[recorded]]"
 MANIFEST_HEADER = (
@@ -72,7 +98,8 @@ class StatementOptions:
     single_line_share: float = SINGLE_LINE_SHARE
     pair_share: float = PAIR_SHARE
     chain_break_count: int = 0
-    wrong_summary_labels: tuple[str, ...] = ()
+    # Which TOTAL columns, ``paid_in`` or ``paid_out``, to print deliberately wrong.
+    wrong_summary_totals: tuple[str, ...] = ()
     variant: LayoutVariant = field(default_factory=LayoutVariant)
 
 
@@ -87,7 +114,7 @@ COMMITTED_FIXTURES = {
     ),
     "F-TIES": (1003, StatementOptions(name="F-TIES", row_count=12, pair_orders=TIES_PAIR_ORDERS)),
     "F-SPLIT": (1004, StatementOptions(name="F-SPLIT", row_count=20, split_datetime=True)),
-    "F-DENSE": (1006, StatementOptions(name="F-DENSE", row_count=10, dense_line_count=50_000)),
+    "F-DENSE": (1006, StatementOptions(name="F-DENSE", row_count=14, dense_line_count=50_000)),
     "F-MANY-PAGES": (
         1007,
         StatementOptions(
@@ -121,7 +148,7 @@ COMMITTED_FIXTURES = {
     "F-SUMMARY-MISMATCH": (
         1014,
         StatementOptions(
-            name="F-SUMMARY-MISMATCH", row_count=30, wrong_summary_labels=WRONG_SUMMARY_LABELS
+            name="F-SUMMARY-MISMATCH", row_count=30, wrong_summary_totals=WRONG_SUMMARY_TOTALS
         ),
     ),
     "F-CHAIN-BREAK": (
@@ -231,7 +258,7 @@ def build_outputs(seed, options):
     )
     if options.chain_break_count:
         fake_rows = plant_chain_breaks(fake_rows, options.chain_break_count)
-    summary_lines = _summary_lines(fake_rows, options.wrong_summary_labels)
+    summary_lines = _summary_lines(fake_rows, options.wrong_summary_totals)
     pages, placed = lay_out_statement(
         [_printed_columns(row) for row in fake_rows],
         summary_lines,
@@ -243,7 +270,9 @@ def build_outputs(seed, options):
     return {
         ".pdf": render_pdf(pages, password=options.password, dense_lines=drawing),
         ".model.json": _to_json(_statement_pages(pages)),
-        ".expected.json": _to_json(_expected(placed, summary_lines, options)),
+        ".expected.json": _to_json(
+            _expected(placed, summary_lines, options, _page_one_token(pages))
+        ),
     }
 
 
@@ -320,12 +349,15 @@ def _printed_columns(fake_row):
         fake_row: Row from ``build_fake_rows``.
 
     Returns:
-        Map of column label to text; an empty amount is None.
+        Map of column label to text, where an empty amount is None, plus the ``event_type`` and
+        ``entity`` the details were written to show, which the layout passes through.
 
     Side Effects:
         None.
     """
     return {
+        "event_type": fake_row["event_type"],
+        "entity": fake_row["entity"],
         RECEIPT.label: fake_row["receipt_no"],
         TIME.label: fake_row["time"].strftime("%Y-%m-%d %H:%M:%S"),
         DETAILS.label: fake_row["details"],
@@ -336,35 +368,45 @@ def _printed_columns(fake_row):
     }
 
 
-def _summary_lines(fake_rows, wrong_labels=()):
-    """Compute the page 1 summary from the generated rows, separately from the ledger.
+def _summary_lines(fake_rows, wrong_totals=()):
+    """Compute the page 1 lines from the generated rows, separately from the ledger.
+
+    An invented name, phone and email come first, as on a real statement, then the summary block:
+    a ``SUMMARY`` line, seven transaction type rows and a TOTAL row, each a label then paid in
+    and paid out, then a ``DETAILED STATEMENT`` line. TOTAL is the sum of the type rows.
 
     Args:
         fake_rows: Rows in print order.
-        wrong_labels: Labels to print deliberately wrong.
+        wrong_totals: TOTAL columns, ``paid_in`` or ``paid_out``, to print deliberately wrong.
 
     Returns:
-        Tuples of label and printed value. A statement with no rows prints no totals.
+        Tuples of the texts on each line, left to right. A statement with no rows prints no
+        summary block.
 
     Side Effects:
         None.
     """
-    identity = (("Customer Name", "Example Person 00"), ("Mobile Number", "07000000" + "00"))
     if not fake_rows:
-        return (*identity, ("Notice", "No transactions in this period"))
-    oldest = fake_rows[-1]
-    opening = oldest["balance_cents"] - oldest["paid_in_cents"] + oldest["withdrawn_cents"]
-    totals = (
-        ("Total Paid In", sum(row["paid_in_cents"] for row in fake_rows)),
-        ("Total Withdrawn", sum(row["withdrawn_cents"] for row in fake_rows)),
-        ("Opening Balance", opening),
-        ("Closing Balance", fake_rows[0]["balance_cents"]),
+        return (*IDENTITY_LINES, ("Notice", "No transactions in this period"))
+    sums = {label: [0, 0] for label in SUMMARY_TYPE_LABELS}
+    for row in fake_rows:
+        label = SUMMARY_TYPE_OF.get(row["event_type"], OTHERS_LABEL)
+        sums[label][0] += row["paid_in_cents"]
+        sums[label][1] += row["withdrawn_cents"]
+    total = [sum(paid_in for paid_in, _ in sums.values()), sum(out for _, out in sums.values())]
+    for index, column in enumerate(("paid_in", "paid_out")):
+        total[index] += WRONG_SUMMARY_SHIFT_CENTS if column in wrong_totals else 0
+    type_rows = tuple(
+        (f"{label}:", _amount_text(paid_in), _amount_text(paid_out))
+        for label, (paid_in, paid_out) in sums.items()
     )
-    printed_totals = tuple(
-        (label, _amount_text(cents + (WRONG_SUMMARY_SHIFT_CENTS if label in wrong_labels else 0)))
-        for label, cents in totals
+    return (
+        *IDENTITY_LINES,
+        (SUMMARY_MARKER,),
+        *type_rows,
+        ("TOTAL:", _amount_text(total[0]), _amount_text(total[1])),
+        (DETAIL_MARKER,),
     )
-    return (*identity, ("Transaction Count", str(len(fake_rows))), *printed_totals)
 
 
 def _statement_pages(pages):
@@ -416,16 +458,18 @@ def _model_item(drawn):
     }
 
 
-def _expected(placed_rows, summary_lines, options):
+def _expected(placed_rows, summary_lines, options, verification_token):
     """Run the independent ledger over the rows as printed.
 
     Args:
-        placed_rows: Rows from the layout, with text per column and a position.
-        summary_lines: Tuples of label and value as printed on page 1.
+        placed_rows: Rows from the layout, with text per column, a position, and the event type
+            and entity the generator wrote.
+        summary_lines: Tuples of the texts on each page 1 line above the table.
         options: The options that generated them.
+        verification_token: The token printed in page 1's footer.
 
     Returns:
-        The ledger's result, labelled with the fixture name and generator version.
+        The ledger's result, labelled with the fixture name, generator version and token.
 
     Side Effects:
         None.
@@ -441,14 +485,32 @@ def _expected(placed_rows, summary_lines, options):
             "balance": row[BALANCE.label],
             "page": row["page"],
             "line": row["line"],
+            "event_type": row["event_type"],
+            "entity": row["entity"],
         }
         for row in placed_rows
     ]
     return {
         "name": options.name,
         "generator_version": VERSION,
+        "verification_token": verification_token,
         **compute_expected(rows, summary_lines),
     }
+
+
+def _page_one_token(pages):
+    """Read back the token the layout printed lowest on page 1.
+
+    Args:
+        pages: Pages, each a list of ``DrawnText``.
+
+    Returns:
+        The token's text.
+
+    Side Effects:
+        None.
+    """
+    return max(pages[0], key=lambda drawn: drawn.top).text
 
 
 def _optional_amount(cents):

@@ -22,8 +22,20 @@ PAIR_SHARE = 0.3
 # In a pairs-only statement, one pair in this many is money in, so every amount column prints.
 PAID_IN_PAIR_EVERY = 3
 BREAK_SHIFT_CENTS = 77_700
-SINGLE_ROW_BUILDERS = ("merchant", "airtime", "received")
+# Single transactions: money in or out, the amount range in cents, and the event type printed.
+SINGLE_ROW_KINDS = {
+    "merchant": ("out", 5_000, 80_000),
+    "airtime": ("out", 500, 5_000),
+    "received": ("in", 20_000, 900_000),
+    "bundle": ("out", 2_000, 20_000),
+    "investment": ("out", 10_000, 100_000),
+    "deposit": ("in", 50_000, 500_000),
+    "reversal": ("in", 5_000, 50_000),
+    "unclassified": ("out", 1_000, 50_000),
+}
+SINGLE_ROW_BUILDERS = tuple(SINGLE_ROW_KINDS)
 PAIR_BUILDERS = ("transfer", "pay_bill")
+UNCLASSIFIED = "UNCLASSIFIED"
 
 
 def build_fake_rows(
@@ -46,7 +58,9 @@ def build_fake_rows(
 
     Returns:
         Row maps with ``time``, ``receipt_no``, ``details``, ``paid_in_cents``,
-        ``withdrawn_cents`` and ``balance_cents``, in print order.
+        ``withdrawn_cents``, ``balance_cents``, and the ``event_type`` and ``entity`` the details
+        were written to show (``entity`` is None when no entity grammar can read them), in print
+        order.
 
     Side Effects:
         None.
@@ -152,43 +166,159 @@ class _RowBuilder:
             Advances the running balance.
         """
         kind = self._pick(SINGLE_ROW_BUILDERS)
-        receipt = self._new_receipt()
-        if kind == "received" or self.balance_cents < LOW_BALANCE_CENTS:
-            details = self._received_details()
-            return self._row(receipt, details, paid_in_cents=self._amount_cents(20_000, 900_000))
-        if kind == "merchant":
-            details = self._merchant_details()
-            return self._row(receipt, details, withdrawn_cents=self._amount_cents(5_000, 80_000))
-        withdrawn_cents = self._amount_cents(500, 5_000)
-        return self._row(receipt, "Airtime Purchase", withdrawn_cents=withdrawn_cents)
+        if SINGLE_ROW_KINDS[kind][0] == "out" and self.balance_cents < LOW_BALANCE_CENTS:
+            kind = "received"
+        money, low, high = SINGLE_ROW_KINDS[kind]
+        is_short = self.rng.random() < self.single_line_share
+        details, event_type, entity = getattr(self, f"_{kind}_details")(is_short=is_short)
+        amount = {
+            f"{'paid_in' if money == 'in' else 'withdrawn'}_cents": self._amount_cents(low, high)
+        }
+        row = self._row(self._new_receipt(), details, **amount)
+        return {**row, "event_type": event_type, "entity": entity}
 
-    def _received_details(self):
-        """Choose what a money-in row says, short enough for one line most of the time.
+    def _merchant_details(self, *, is_short):
+        """Write a merchant payment; the short form names a till no entity grammar reads.
+
+        Args:
+            is_short: Whether the details must fit one printed line.
 
         Returns:
-            The details text.
+            Tuple of details, event type and entity.
 
         Side Effects:
             None.
         """
-        person = self._digits(2)
-        if self.rng.random() < self.single_line_share:
-            return f"Funds received - Example Person {person}"
-        return f"Funds received from 07000000{person} - Example Person {person}"
+        if is_short:
+            return f"Merchant Payment Example Till {self._digits(3)}", "MERCHANT_PAYMENT", None
+        entity = f"Example Shop {self._digits(1)}"
+        return (
+            f"Merchant Payment Online to 555{self._digits(3)} {entity}",
+            "MERCHANT_PAYMENT",
+            entity,
+        )
 
-    def _merchant_details(self):
-        """Choose what a merchant row says, short enough for one line most of the time.
+    def _airtime_details(self, *, is_short):
+        """Write an airtime purchase, which names no entity.
+
+        Args:
+            is_short: Whether the details must fit one printed line.
 
         Returns:
-            The details text.
+            Tuple of details, event type and entity.
 
         Side Effects:
             None.
         """
-        till = self._digits(3)
-        if self.rng.random() < self.single_line_share:
-            return f"Merchant Payment Example Till {till}"
-        return f"Merchant Payment to Example Till {till} - Synthetic Online Purchase Order"
+        if is_short:
+            return "Airtime Purchase", "AIRTIME_PURCHASE", None
+        details = f"Airtime Purchase for Example Person {self._digits(1)} Synthetic Number"
+        return details, "AIRTIME_PURCHASE", None
+
+    def _received_details(self, *, is_short):
+        """Write money received; the short form has no phone, so no classifier rule reads it.
+
+        Args:
+            is_short: Whether the details must fit one printed line.
+
+        Returns:
+            Tuple of details, event type and entity.
+
+        Side Effects:
+            None.
+        """
+        if is_short:
+            return f"Funds received Example Person {self._digits(2)}", UNCLASSIFIED, None
+        entity = f"Example Person {self._digits(1)}"
+        phone = f"{MASKED_PHONE_PREFIX}0{self._digits(2)}"
+        return f"Funds received from {phone} {entity}", "TRANSFER_IN", entity
+
+    def _bundle_details(self, *, is_short):
+        """Write a data bundle purchase.
+
+        Args:
+            is_short: Whether the details must fit one printed line.
+
+        Returns:
+            Tuple of details, event type and entity.
+
+        Side Effects:
+            None.
+        """
+        if is_short:
+            return "Customer Bundle Purchase", "BUNDLE_PURCHASE", None
+        entity = f"Example Bundle {self._digits(1)}"
+        details = f"Customer Bundle Purchase to 555{self._digits(3)} {entity} by Example Network"
+        return details, "BUNDLE_PURCHASE", entity
+
+    def _investment_details(self, *, is_short):
+        """Write a unit trust investment.
+
+        Args:
+            is_short: Whether the details must fit one printed line.
+
+        Returns:
+            Tuple of details, event type and entity.
+
+        Side Effects:
+            None.
+        """
+        if is_short:
+            return "Unit Trust Invest", "INVESTMENT", None
+        entity = f"Example Fund {self._digits(1)}"
+        details = f"Unit Trust Invest To 555{self._digits(3)} {entity} by Example Platform"
+        return details, "INVESTMENT", entity
+
+    def _deposit_details(self, *, is_short):
+        """Write a cash deposit, which no entity grammar reads.
+
+        Args:
+            is_short: Whether the details must fit one printed line.
+
+        Returns:
+            Tuple of details, event type and entity.
+
+        Side Effects:
+            None.
+        """
+        if is_short:
+            return "Deposit of Funds at Agent", "DEPOSIT", None
+        details = f"Deposit of Funds at Agent 555{self._digits(3)} Example Agent {self._digits(1)}"
+        return details, "DEPOSIT", None
+
+    def _reversal_details(self, *, is_short):
+        """Write a reversal, money coming back, which no entity grammar reads.
+
+        Args:
+            is_short: Whether the details must fit one printed line.
+
+        Returns:
+            Tuple of details, event type and entity.
+
+        Side Effects:
+            None.
+        """
+        if is_short:
+            return "Example Payment Reversal", "REVERSAL", None
+        details = f"Reversal of Example Payment to Example Shop {self._digits(1)} Synthetic Order"
+        return details, "REVERSAL", None
+
+    def _unclassified_details(self, *, is_short):
+        """Write money out that no classifier rule recognizes.
+
+        Args:
+            is_short: Whether the details must fit one printed line.
+
+        Returns:
+            Tuple of details, event type and entity.
+
+        Side Effects:
+            None.
+        """
+        if is_short:
+            return "Example Unknown Service", UNCLASSIFIED, None
+        details = f"Example Savings Account Transfer to Example Bank {self._digits(1)}"
+        return details, UNCLASSIFIED, None
 
     def _build_pair(self, order):
         """Build a parent and its fee, sharing a receipt and a second.
@@ -204,16 +334,37 @@ class _RowBuilder:
             Advances the running balance.
         """
         receipt = self._new_receipt()
-        parent_details, fee_details, fee_cents = self._pair_details()
+        (parent_details, event_type, entity), fee_details, fee_cents = self._pair_details()
         amount_cents = self._amount_cents(10_000, 150_000)
-        if order == FEE_FIRST:
-            parent = self._row(receipt, parent_details, withdrawn_cents=amount_cents)
-            return [parent, self._row(receipt, fee_details, withdrawn_cents=fee_cents)]
-        fee = self._row(receipt, fee_details, withdrawn_cents=fee_cents)
-        return [fee, self._row(receipt, parent_details, withdrawn_cents=amount_cents)]
+
+        def parent():
+            """Apply the parent row, tagged with what its details show.
+
+            Returns:
+                The row.
+
+            Side Effects:
+                Advances the running balance.
+            """
+            row = self._row(receipt, parent_details, withdrawn_cents=amount_cents)
+            return {**row, "event_type": event_type, "entity": entity}
+
+        def fee():
+            """Apply the fee row, tagged with what its details show.
+
+            Returns:
+                The row.
+
+            Side Effects:
+                Advances the running balance.
+            """
+            row = self._row(receipt, fee_details, withdrawn_cents=fee_cents)
+            return {**row, "event_type": "FEE", "entity": None}
+
+        return [parent(), fee()] if order == FEE_FIRST else [fee(), parent()]
 
     def _build_paid_in_pair(self, order):
-        """Build money in and its fee, sharing a receipt and a second.
+        """Build money in and its fee, sharing a receipt and a second. Neither has a rule.
 
         Args:
             order: Print order, ``fee_first`` or ``parent_first``. See ``_build_pair``.
@@ -227,32 +378,58 @@ class _RowBuilder:
         receipt = self._new_receipt()
         details = f"Business Payment from Example Till {self._digits(3)}"
         paid_in_cents = self._amount_cents(100_000, 400_000)
-        fee_details = "Funds Receipt Charge"
-        if order == FEE_FIRST:
-            parent = self._row(receipt, details, paid_in_cents=paid_in_cents)
-            return [parent, self._row(receipt, fee_details, withdrawn_cents=TRANSFER_FEE_CENTS)]
-        fee = self._row(receipt, fee_details, withdrawn_cents=TRANSFER_FEE_CENTS)
-        return [fee, self._row(receipt, details, paid_in_cents=paid_in_cents)]
+
+        def parent():
+            """Apply the parent row, tagged with what its details show.
+
+            Returns:
+                The row.
+
+            Side Effects:
+                Advances the running balance.
+            """
+            row = self._row(receipt, details, paid_in_cents=paid_in_cents)
+            return {**row, "event_type": UNCLASSIFIED, "entity": None}
+
+        def fee():
+            """Apply the fee row, tagged with what its details show.
+
+            Returns:
+                The row.
+
+            Side Effects:
+                Advances the running balance.
+            """
+            row = self._row(receipt, "Funds Receipt Charge", withdrawn_cents=TRANSFER_FEE_CENTS)
+            return {**row, "event_type": UNCLASSIFIED, "entity": None}
+
+        return [parent(), fee()] if order == FEE_FIRST else [fee(), parent()]
 
     def _pair_details(self):
         """Choose what a parent and fee pair says.
 
         Returns:
-            Tuple of parent details, fee details and the fee in cents.
+            Tuple of the parent's details, event type and entity; the fee details; and the fee in
+            cents.
 
         Side Effects:
             None.
         """
         if self._pick(PAIR_BUILDERS) == "transfer":
-            tail = self._digits(2)
+            entity = f"Example Person {self._digits(1)}"
+            phone = f"{MASKED_PHONE_PREFIX}0{self._digits(2)}"
             return (
-                f"Customer Transfer to {MASKED_PHONE_PREFIX}0{tail} - Example Person {tail}",
+                (f"Customer Transfer to {phone} {entity}", "TRANSFER_OUT", entity),
                 "Customer Transfer of Funds Charge",
                 TRANSFER_FEE_CENTS,
             )
-        till = self._digits(3)
+        entity = f"Example Power {self._digits(1)}"
         return (
-            f"Pay Bill Online to Example Till {till} - Acc. Synthetic Account Number",
+            (
+                f"Pay Bill Online to 888{self._digits(3)} {entity} Acc. Synthetic Account",
+                "BILL_PAYMENT",
+                entity,
+            ),
             "Pay Bill Charge",
             PAY_BILL_FEE_CENTS,
         )

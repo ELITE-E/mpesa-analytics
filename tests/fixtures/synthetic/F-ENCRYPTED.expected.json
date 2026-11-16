@@ -1,4 +1,86 @@
 {
+ "built": [
+  {
+   "entity": null,
+   "event_type": "UNCLASSIFIED"
+  },
+  {
+   "entity": null,
+   "event_type": "AIRTIME_PURCHASE"
+  },
+  {
+   "entity": null,
+   "event_type": "UNCLASSIFIED"
+  },
+  {
+   "entity": null,
+   "event_type": "MERCHANT_PAYMENT"
+  },
+  {
+   "entity": null,
+   "event_type": "REVERSAL"
+  },
+  {
+   "entity": null,
+   "event_type": "FEE"
+  },
+  {
+   "entity": "Example Person 2",
+   "event_type": "TRANSFER_OUT"
+  },
+  {
+   "entity": null,
+   "event_type": "BUNDLE_PURCHASE"
+  },
+  {
+   "entity": null,
+   "event_type": "REVERSAL"
+  },
+  {
+   "entity": null,
+   "event_type": "FEE"
+  },
+  {
+   "entity": "Example Power 6",
+   "event_type": "BILL_PAYMENT"
+  },
+  {
+   "entity": null,
+   "event_type": "DEPOSIT"
+  },
+  {
+   "entity": null,
+   "event_type": "BUNDLE_PURCHASE"
+  },
+  {
+   "entity": null,
+   "event_type": "UNCLASSIFIED"
+  },
+  {
+   "entity": null,
+   "event_type": "DEPOSIT"
+  },
+  {
+   "entity": null,
+   "event_type": "FEE"
+  },
+  {
+   "entity": "Example Person 9",
+   "event_type": "TRANSFER_OUT"
+  },
+  {
+   "entity": null,
+   "event_type": "AIRTIME_PURCHASE"
+  },
+  {
+   "entity": null,
+   "event_type": "BUNDLE_PURCHASE"
+  },
+  {
+   "entity": null,
+   "event_type": "UNCLASSIFIED"
+  }
+ ],
  "chain_break_kinds": {
   "other": 0,
   "page_boundary": 0,
@@ -6,238 +88,246 @@
   "tied_timestamp": 0
  },
  "chain_breaks": 0,
- "closing_balance": "13558.00",
- "generator_version": "1.4.0",
+ "closing_balance": "14242.00",
+ "event_type_counts": {
+  "AIRTIME_PURCHASE": 2,
+  "BILL_PAYMENT": 1,
+  "BUNDLE_PURCHASE": 3,
+  "DEPOSIT": 2,
+  "FEE": 3,
+  "MERCHANT_PAYMENT": 1,
+  "REVERSAL": 2,
+  "TRANSFER_OUT": 2,
+  "UNCLASSIFIED": 4
+ },
+ "generator_version": "1.6.0",
  "name": "F-ENCRYPTED",
- "net_cash_flow": "8558.00",
+ "net_cash_flow": "9242.00",
  "opening_balance": "5000.00",
  "row_count": 20,
  "rows": [
   {
-   "balance": "13,558.00",
-   "completion_time": "2026-01-06 15:49:00",
-   "details": "Customer Transfer of Funds Charge",
-   "line": 8,
-   "page": 1,
-   "paid_in": null,
-   "receipt_no": "ZZ8VGW5A25",
-   "status": "Completed",
-   "withdrawn": "13.00"
-  },
-  {
-   "balance": "13,571.00",
-   "completion_time": "2026-01-06 15:49:00",
-   "details": "Customer Transfer to 2547*****066 - Example Person 66",
-   "line": 9,
-   "page": 1,
-   "paid_in": null,
-   "receipt_no": "ZZ8VGW5A25",
-   "status": "Completed",
-   "withdrawn": "1,376.00"
-  },
-  {
-   "balance": "14,947.00",
-   "completion_time": "2026-01-06 05:30:00",
-   "details": "Airtime Purchase",
-   "line": 11,
-   "page": 1,
-   "paid_in": null,
-   "receipt_no": "ZZ5SK2SWR0",
-   "status": "Completed",
-   "withdrawn": "17.00"
-  },
-  {
-   "balance": "14,964.00",
-   "completion_time": "2026-01-05 17:08:00",
-   "details": "Funds received - Example Person 87",
-   "line": 12,
-   "page": 1,
-   "paid_in": "3,357.00",
-   "receipt_no": "ZZSAIP76W7",
-   "status": "Completed",
-   "withdrawn": null
-  },
-  {
-   "balance": "11,607.00",
-   "completion_time": "2026-01-05 03:11:00",
-   "details": "Customer Transfer of Funds Charge",
-   "line": 13,
-   "page": 1,
-   "paid_in": null,
-   "receipt_no": "ZZGT7TNXX2",
-   "status": "Completed",
-   "withdrawn": "13.00"
-  },
-  {
-   "balance": "11,620.00",
-   "completion_time": "2026-01-05 03:11:00",
-   "details": "Customer Transfer to 2547*****015 - Example Person 15",
+   "balance": "14,242.00",
+   "completion_time": "2026-01-06 03:01:00",
+   "details": "Example Savings Account Transfer to Example Bank 0",
    "line": 14,
    "page": 1,
    "paid_in": null,
-   "receipt_no": "ZZGT7TNXX2",
+   "receipt_no": "ZZ27EB96J0",
    "status": "Completed",
-   "withdrawn": "424.00"
+   "withdrawn": "74.00"
   },
   {
-   "balance": "12,044.00",
-   "completion_time": "2026-01-04 18:01:00",
-   "details": "Pay Bill Charge",
+   "balance": "14,316.00",
+   "completion_time": "2026-01-06 02:24:00",
+   "details": "Airtime Purchase",
    "line": 16,
    "page": 1,
    "paid_in": null,
-   "receipt_no": "ZZX8B75AP9",
+   "receipt_no": "ZZ0QB2XBD2",
    "status": "Completed",
-   "withdrawn": "25.00"
+   "withdrawn": "36.00"
   },
   {
-   "balance": "12,069.00",
-   "completion_time": "2026-01-04 18:01:00",
-   "details": "Pay Bill Online to Example Till 945 - Acc. Synthetic Account Number",
+   "balance": "14,352.00",
+   "completion_time": "2026-01-05 12:03:00",
+   "details": "Example Unknown Service",
    "line": 17,
    "page": 1,
    "paid_in": null,
-   "receipt_no": "ZZX8B75AP9",
+   "receipt_no": "ZZFNHDD8K2",
    "status": "Completed",
-   "withdrawn": "177.00"
+   "withdrawn": "50.00"
   },
   {
-   "balance": "12,246.00",
-   "completion_time": "2026-01-04 04:14:00",
-   "details": "Funds received from 0700000055 - Example Person 55",
+   "balance": "14,402.00",
+   "completion_time": "2026-01-05 02:37:00",
+   "details": "Merchant Payment Example Till 609",
+   "line": 18,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZGW5A2SR6",
+   "status": "Completed",
+   "withdrawn": "498.00"
+  },
+  {
+   "balance": "14,900.00",
+   "completion_time": "2026-01-04 17:26:00",
+   "details": "Reversal of Example Payment to Example Shop 2 Synthetic Order",
    "line": 19,
    "page": 1,
-   "paid_in": "8,170.00",
-   "receipt_no": "ZZ3QXWKPW4",
+   "paid_in": "211.00",
+   "receipt_no": "ZZ3UO5SK25",
    "status": "Completed",
    "withdrawn": null
   },
   {
-   "balance": "4,076.00",
-   "completion_time": "2026-01-03 21:20:00",
+   "balance": "14,689.00",
+   "completion_time": "2026-01-04 08:12:00",
    "details": "Customer Transfer of Funds Charge",
    "line": 21,
    "page": 1,
    "paid_in": null,
-   "receipt_no": "ZZKU6INCX1",
+   "receipt_no": "ZZAEUI7985",
    "status": "Completed",
    "withdrawn": "13.00"
   },
   {
-   "balance": "4,089.00",
-   "completion_time": "2026-01-03 21:20:00",
-   "details": "Customer Transfer to 2547*****014 - Example Person 14",
+   "balance": "14,702.00",
+   "completion_time": "2026-01-04 08:12:00",
+   "details": "Customer Transfer to 2547*****049 Example Person 2",
    "line": 22,
    "page": 1,
    "paid_in": null,
-   "receipt_no": "ZZKU6INCX1",
+   "receipt_no": "ZZAEUI7985",
    "status": "Completed",
-   "withdrawn": "1,206.00"
+   "withdrawn": "1,362.00"
   },
   {
-   "balance": "5,295.00",
-   "completion_time": "2026-01-03 07:12:00",
-   "details": "Funds received - Example Person 74",
+   "balance": "16,064.00",
+   "completion_time": "2026-01-03 22:32:00",
+   "details": "Customer Bundle Purchase",
    "line": 24,
    "page": 1,
-   "paid_in": "2,352.00",
-   "receipt_no": "ZZNS1PR1Y9",
+   "paid_in": null,
+   "receipt_no": "ZZVAGT7TN6",
+   "status": "Completed",
+   "withdrawn": "29.00"
+  },
+  {
+   "balance": "16,093.00",
+   "completion_time": "2026-01-03 13:19:00",
+   "details": "Reversal of Example Payment to Example Shop 9 Synthetic Order",
+   "line": 25,
+   "page": 1,
+   "paid_in": "111.00",
+   "receipt_no": "ZZX8B75AP9",
    "status": "Completed",
    "withdrawn": null
   },
   {
-   "balance": "2,943.00",
-   "completion_time": "2026-01-03 01:40:00",
-   "details": "Customer Transfer of Funds Charge",
-   "line": 25,
-   "page": 1,
-   "paid_in": null,
-   "receipt_no": "ZZTUU8AIG8",
-   "status": "Completed",
-   "withdrawn": "13.00"
-  },
-  {
-   "balance": "2,956.00",
-   "completion_time": "2026-01-03 01:40:00",
-   "details": "Customer Transfer to 2547*****004 - Example Person 04",
-   "line": 26,
-   "page": 1,
-   "paid_in": null,
-   "receipt_no": "ZZTUU8AIG8",
-   "status": "Completed",
-   "withdrawn": "293.00"
-  },
-  {
-   "balance": "3,249.00",
-   "completion_time": "2026-01-02 12:29:00",
+   "balance": "15,982.00",
+   "completion_time": "2026-01-03 04:39:00",
    "details": "Pay Bill Charge",
-   "line": 28,
+   "line": 27,
    "page": 1,
    "paid_in": null,
-   "receipt_no": "ZZ50H2LXX1",
+   "receipt_no": "ZZDQ2Q9334",
    "status": "Completed",
    "withdrawn": "25.00"
   },
   {
-   "balance": "3,274.00",
-   "completion_time": "2026-01-02 12:29:00",
-   "details": "Pay Bill Online to Example Till 895 - Acc. Synthetic Account Number",
-   "line": 29,
+   "balance": "16,007.00",
+   "completion_time": "2026-01-03 04:39:00",
+   "details": "Pay Bill Online to 888246 Example Power 6 Acc. Synthetic Account",
+   "line": 28,
    "page": 1,
    "paid_in": null,
-   "receipt_no": "ZZ50H2LXX1",
+   "receipt_no": "ZZDQ2Q9334",
    "status": "Completed",
-   "withdrawn": "364.00"
+   "withdrawn": "698.00"
   },
   {
-   "balance": "3,638.00",
-   "completion_time": "2026-01-02 06:53:00",
-   "details": "Merchant Payment to Example Till 901 - Synthetic Online Purchase Order",
-   "line": 31,
+   "balance": "16,705.00",
+   "completion_time": "2026-01-03 01:47:00",
+   "details": "Deposit of Funds at Agent 555741 Example Agent 2",
+   "line": 30,
+   "page": 1,
+   "paid_in": "4,739.00",
+   "receipt_no": "ZZCKU6INC6",
+   "status": "Completed",
+   "withdrawn": null
+  },
+  {
+   "balance": "11,966.00",
+   "completion_time": "2026-01-02 18:38:00",
+   "details": "Customer Bundle Purchase",
+   "line": 32,
    "page": 1,
    "paid_in": null,
-   "receipt_no": "ZZN7HVEA60",
+   "receipt_no": "ZZENPHNS14",
    "status": "Completed",
-   "withdrawn": "587.00"
+   "withdrawn": "93.00"
   },
   {
-   "balance": "4,225.00",
-   "completion_time": "2026-01-02 02:19:00",
-   "details": "Merchant Payment Example Till 535",
+   "balance": "12,059.00",
+   "completion_time": "2026-01-02 15:56:00",
+   "details": "Example Unknown Service",
    "line": 33,
    "page": 1,
    "paid_in": null,
-   "receipt_no": "ZZ8VY3ZBV9",
+   "receipt_no": "ZZ5DTUU8A2",
    "status": "Completed",
-   "withdrawn": "256.00"
+   "withdrawn": "102.00"
   },
   {
-   "balance": "4,481.00",
-   "completion_time": "2026-01-01 23:47:00",
-   "details": "Airtime Purchase",
+   "balance": "12,161.00",
+   "completion_time": "2026-01-02 07:27:00",
+   "details": "Deposit of Funds at Agent",
    "line": 34,
    "page": 1,
-   "paid_in": null,
-   "receipt_no": "ZZ1IXXTX01",
+   "paid_in": "658.00",
+   "receipt_no": "ZZ50H2LXX1",
    "status": "Completed",
-   "withdrawn": "8.00"
+   "withdrawn": null
   },
   {
-   "balance": "4,489.00",
-   "completion_time": "2026-01-01 14:44:00",
-   "details": "Merchant Payment Example Till 103",
+   "balance": "11,503.00",
+   "completion_time": "2026-01-02 05:49:00",
+   "details": "Customer Transfer of Funds Charge",
    "line": 35,
    "page": 1,
    "paid_in": null,
-   "receipt_no": "ZZRJ31NRZ8",
+   "receipt_no": "ZZKZBN7HV1",
    "status": "Completed",
-   "withdrawn": "511.00"
+   "withdrawn": "13.00"
+  },
+  {
+   "balance": "11,516.00",
+   "completion_time": "2026-01-02 05:49:00",
+   "details": "Customer Transfer to 2547*****009 Example Person 9",
+   "line": 36,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZKZBN7HV1",
+   "status": "Completed",
+   "withdrawn": "169.00"
+  },
+  {
+   "balance": "11,685.00",
+   "completion_time": "2026-01-02 02:31:00",
+   "details": "Airtime Purchase for Example Person 5 Synthetic Number",
+   "line": 38,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZ3ZBV8UM5",
+   "status": "Completed",
+   "withdrawn": "35.00"
+  },
+  {
+   "balance": "11,720.00",
+   "completion_time": "2026-01-01 23:59:00",
+   "details": "Customer Bundle Purchase",
+   "line": 40,
+   "page": 1,
+   "paid_in": null,
+   "receipt_no": "ZZIXXTX0F0",
+   "status": "Completed",
+   "withdrawn": "156.00"
+  },
+  {
+   "balance": "11,876.00",
+   "completion_time": "2026-01-01 14:44:00",
+   "details": "Funds received Example Person 28",
+   "line": 41,
+   "page": 1,
+   "paid_in": "6,876.00",
+   "receipt_no": "ZZNRZ3GBO1",
+   "status": "Completed",
+   "withdrawn": null
   }
  ],
  "same_second_pairs": [
-  "fee_first",
-  "fee_first",
-  "fee_first",
   "fee_first",
   "fee_first",
   "fee_first"
@@ -245,23 +335,17 @@
  "status_counts": {
   "Completed": 20
  },
- "summary_reconciliation": {
-  "Closing Balance": true,
-  "Opening Balance": true,
-  "Total Paid In": true,
-  "Total Withdrawn": true,
-  "Transaction Count": true
+ "summary_total": {
+  "paid_in": "12,595.00",
+  "paid_out": "3,353.00"
  },
- "summary_totals": {
-  "Closing Balance": "13,558.00",
-  "Opening Balance": "5,000.00",
-  "Total Paid In": "13,879.00",
-  "Total Withdrawn": "5,321.00",
-  "Transaction Count": "20"
- },
- "total_fees": "102.00",
- "total_inflow": "13879.00",
- "total_outflow": "5321.00",
- "total_paid_in": "13879.00",
- "total_withdrawn": "5321.00"
+ "summary_total_paid_in_matches": true,
+ "summary_total_paid_out_matches": true,
+ "summary_type_rows_parsed": 7,
+ "total_fees": "51.00",
+ "total_inflow": "12595.00",
+ "total_outflow": "3353.00",
+ "total_paid_in": "12595.00",
+ "total_withdrawn": "3353.00",
+ "verification_token": "ZYC3S5Y9"
 }

@@ -81,45 +81,59 @@ def test_unparsable_amount_raises_without_repeating_the_value():
 
 
 SUMMARY = (
-    ("Customer Name", "Example Person 00"),
-    ("Transaction Count", "3"),
-    ("Total Paid In", "1,000.00"),
-    ("Total Withdrawn", "125.00"),
-    ("Opening Balance", "0.00"),
-    ("Closing Balance", "875.00"),
+    ("Customer Name:", "Example Person 00"),
+    ("SUMMARY",),
+    ("SEND MONEY:", "0.00", "120.00"),
+    ("RECEIVED MONEY:", "1,000.00", "0.00"),
+    ("AGENT DEPOSIT:", "0.00", "0.00"),
+    ("AGENT WITHDRAWAL:", "0.00", "0.00"),
+    ("LIPA NA M-PESA (PAYBILL):", "0.00", "0.00"),
+    ("LIPA NA M-PESA (BUY GOODS):", "0.00", "0.00"),
+    ("OTHERS:", "0.00", "5.00"),
+    ("TOTAL:", "1,000.00", "125.00"),
+    ("DETAILED STATEMENT",),
 )
 
 
-def test_summary_totals_keep_only_the_labels_the_ledger_checks():
-    totals = compute_expected(PRINT_ORDER, SUMMARY)["summary_totals"]
-    assert "Customer Name" not in totals
-    assert totals["Total Paid In"] == "1,000.00"
+def with_total(paid_in, paid_out):
+    return tuple(("TOTAL:", paid_in, paid_out) if line[0] == "TOTAL:" else line for line in SUMMARY)
 
 
-def test_summary_that_agrees_with_the_rows_reconciles_on_every_label():
-    reconciliation = compute_expected(PRINT_ORDER, SUMMARY)["summary_reconciliation"]
-    assert len(reconciliation) == 5
-    assert all(reconciliation.values())
+def test_summary_total_keeps_only_the_total_row():
+    expected = compute_expected(PRINT_ORDER, SUMMARY)
+    assert expected["summary_total"] == {"paid_in": "1,000.00", "paid_out": "125.00"}
+    assert "summary_totals" not in expected
+    assert "summary_reconciliation" not in expected
+
+
+def test_summary_that_agrees_with_the_rows_matches_on_both_totals():
+    expected = compute_expected(PRINT_ORDER, SUMMARY)
+    assert expected["summary_total_paid_in_matches"] is True
+    assert expected["summary_total_paid_out_matches"] is True
+    assert expected["summary_type_rows_parsed"] == 7
 
 
 @pytest.mark.parametrize(
-    ("label", "wrong"),
-    [
-        ("Transaction Count", "4"),
-        ("Total Paid In", "1,000.01"),
-        ("Total Withdrawn", "1.00"),
-        ("Opening Balance", "9.00"),
-        ("Closing Balance", "880.00"),
-    ],
+    ("paid_in", "paid_out", "matches"),
+    [("1,000.01", "125.00", (False, True)), ("1,000.00", "1.00", (True, False))],
 )
-def test_summary_that_disagrees_is_false_for_that_label_only(label, wrong):
-    summary = tuple((name, wrong if name == label else value) for name, value in SUMMARY)
-    reconciliation = compute_expected(PRINT_ORDER, summary)["summary_reconciliation"]
-    assert [name for name, agrees in reconciliation.items() if not agrees] == [label]
+def test_summary_that_disagrees_is_false_for_that_total_only(paid_in, paid_out, matches):
+    expected = compute_expected(PRINT_ORDER, with_total(paid_in, paid_out))
+    found = (expected["summary_total_paid_in_matches"], expected["summary_total_paid_out_matches"])
+    assert found == matches
 
 
-def test_no_summary_gives_no_reconciliation():
-    assert compute_expected(PRINT_ORDER)["summary_reconciliation"] == {}
+def test_a_missing_type_row_is_not_counted():
+    summary = tuple(line for line in SUMMARY if line[0] != "OTHERS:")
+    assert compute_expected(PRINT_ORDER, summary)["summary_type_rows_parsed"] == 6
+
+
+def test_no_summary_gives_no_total_and_no_type_rows():
+    expected = compute_expected(PRINT_ORDER)
+    assert expected["summary_total"] == {}
+    assert expected["summary_total_paid_in_matches"] is None
+    assert expected["summary_total_paid_out_matches"] is None
+    assert expected["summary_type_rows_parsed"] == 0
 
 
 def broken_pair(upper_changes, lower_changes):
@@ -166,3 +180,39 @@ def test_cash_flow_totals_are_zero_for_an_empty_statement():
         "0.00",
         "0.00",
     )
+
+
+def test_closing_balance_is_the_newest_row_in_print_order_when_printed_oldest_first():
+    oldest_first = list(reversed(PRINT_ORDER))
+    assert compute_expected(oldest_first)["closing_balance"] == "875.00"
+
+
+def test_opening_balance_is_the_oldest_row_in_print_order_when_printed_oldest_first():
+    oldest_first = list(reversed(PRINT_ORDER))
+    assert compute_expected(oldest_first)["opening_balance"] == "0.00"
+
+
+def test_opening_balance_on_a_tied_oldest_time_follows_print_order():
+    tied_oldest = [
+        row("880.00", withdrawn="120.00", time="2026-01-03 09:00:00"),
+        row("1,000.00", paid_in="1,000.00", time="2026-01-01 08:00:00"),
+        row("0.00", withdrawn="5.00", time="2026-01-01 08:00:00"),
+    ]
+    assert compute_expected(tied_oldest)["opening_balance"] == "5.00"
+
+
+def test_event_types_the_generator_built_are_counted():
+    tagged = [
+        {**PRINT_ORDER[0], "event_type": "FEE"},
+        {**PRINT_ORDER[1], "event_type": "BILL_PAYMENT"},
+        {**PRINT_ORDER[2], "event_type": "TRANSFER_IN"},
+    ]
+    assert compute_expected(tagged)["event_type_counts"] == {
+        "FEE": 1,
+        "BILL_PAYMENT": 1,
+        "TRANSFER_IN": 1,
+    }
+
+
+def test_untagged_rows_count_no_event_types():
+    assert compute_expected(PRINT_ORDER)["event_type_counts"] == {}

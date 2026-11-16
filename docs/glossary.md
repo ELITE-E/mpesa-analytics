@@ -40,7 +40,9 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | withdrawn | The printed outflow amount | `withdrawn` | debit |
 | paid out | The derived outflow amount used by analytics | `paid_out` | outflow (in code names) |
 | balance | The printed running balance after the transaction | `balance` | amount_left |
-| closing balance | The balance of the latest transaction in the period | `closing_balance` | final balance |
+| closing balance | The balance after the newest row in print order (D-06) | `closing_balance` | final balance |
+| opening balance | The balance before the oldest row in print order: its balance minus paid in plus withdrawn | `opening_balance` | starting balance |
+| balances | The opening and closing balance of a statement, in the result, not the report | `Balances`, `measure_balances` | totals |
 | balance chain | The sequence in which each balance equals the previous balance plus paid in minus paid out | `balance_chain` | running total |
 | chain break | A place where a balance does not follow from the previous row | `chain_break` | mismatch, gap |
 | print orientation | Whether a statement prints newest or oldest first. Never assumed; the chain is read both ways | `chain_orientation`, `NEWEST_FIRST`, `OLDEST_FIRST` | sort order, direction |
@@ -61,15 +63,17 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 
 | Term | Meaning | Code name | Avoid |
 |---|---|---|---|
-| period | The date range being analysed | `period` | range, window |
+| period | The date range being analysed; in the result, the earliest and latest readable completion times | `period`, `Period`, `measure_period` | range, window |
 | report | The analysis result, with the old `AnalyticsResult.to_json_safe()` keys exactly | `report`, `analyze_transactions` | analytics (as a noun), summary |
 | prepared frame | The one pandas frame the analyses read, built from classified rows with every class as plain text (D-01) | `prepared_frame` | dataframe, df (in prose) |
-| statement summary | The totals printed on page 1 of the statement | `statement_summary` | header totals |
+| statement summary | The summary block on page 1, from the `SUMMARY` line up to the `DETAILED STATEMENT` line: seven transaction type rows and a TOTAL row, each paid in then paid out | `summary_block_lines`, `read_summary_block` | header totals |
+| reorder group | A run of neighbouring rows, each sharing a receipt number or a completion time with the next, whose order the chain diagnostics may change | `reorder_within_groups`, `GROUP_RULES` | cluster, block |
 | reconciliation | Comparing parsed rows with the statement summary and the balance chain | `reconcile` | validation, verification |
 | data quality | Counts of problems found while processing (row counts, status counts, chain breaks, unparsed amounts, unclassified rows) | `DataQuality`, `quality`, `measure_unclassified` | warnings, errors |
 | diagnostic | An item describing one row that could not be resolved. Held in memory only. Codes: `EVENT_CLASSIFICATION_UNRESOLVED`, `ECONOMIC_MEANING_UNRESOLVED`, `ENTITY_EXTRACTION_UNRESOLVED` | `Diagnostic` | issue, problem |
 | baseline | The old extractor's rows for one statement, kept outside both repos for the equivalence check | `export_baseline.py`, `compare.py` | snapshot, golden |
-| verification token | The value `attest` produces, tying a result to its statement | `verification_token` | hash, signature |
+| verification token | The value `attest` produces, tying a result to its statement: the first eight-character code mixing capitals and digits after page 1's verification instruction | `verification_token`, `attest` | hash, signature |
+| pipeline result | What `pipeline.run` returns for one statement: plain JSON values, never PDF bytes or a password | `PipelineResult`, `pipeline.run` | output, response |
 | recurring | Seen at least three times, so an isolated transaction is not treated as recurring. | `recurring` | repeat, regular, subscription |
 
 ## Architecture words
@@ -78,7 +82,7 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 |---|---|---|---|
 | core | The pure Python package `mpesa_core`; no I/O, environment or network | `mpesa_core` | backend, server |
 | bridge | The JSON-string boundary between JavaScript and Python in Pyodide | `bridge` | glue, api |
-| "error" | Reserved for exceptions raised by code | `*Error` | using it for data-quality counts |
+| "error" | Reserved for exceptions raised by code: `ExtractionError`, `AttestationError`, `DomainRowError`, `AnalysisError`, each with a code or a position only | `*Error` | using it for data-quality counts |
 | remember on this device | The opt-in that keeps data in local browser storage. | `remember_on_device` | save, sync, upload, import |
 
 ## Verbs for functions

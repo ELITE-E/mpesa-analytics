@@ -38,3 +38,5 @@
 
 The file walk prunes tooling directories such as `.venv` and the vendored runtime. Each pruned
 location must also be gitignored, and anything git tracks is checked even under a pruned path.
+
+For maintainers: `docs/TOUR.md` follows one invented transaction through every stage, `docs/DEBUGGING.md` shows how to run one stage and which test covers it, and `docs/PORT_MAP.md` maps each old mpesa-parser function to its new home.

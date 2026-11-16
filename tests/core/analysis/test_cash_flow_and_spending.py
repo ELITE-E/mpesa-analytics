@@ -16,6 +16,7 @@ from mpesa_core.analysis.spending import (
     calculate_spending_by_entity,
     get_top_spending_recipients,
 )
+from mpesa_core.errors import AnalysisCode, AnalysisError
 
 
 def frame():
@@ -71,12 +72,12 @@ def test_rows_with_unreadable_dates_still_count_in_cash_flow_and_the_report():
 
 def test_unreadable_date_in_a_date_based_analysis_raises_as_the_old_code_does():
     # A-3, deferred: under the pinned pandas a missing date cannot be compared, so it raises
-    # instead of being dropped. Kept until the owner decides with data.
+    # instead of being dropped. Kept until the owner decides with data; typed since CP7a.
     rows = [
         row(0, "TRANSFER_OUT", 10.0, when="2026-01-05 10:00:00", entity="Example Person 12"),
         row(1, "TRANSFER_OUT", 10.0, when="garbage", entity="Example Person 12"),
     ]
-    with pytest.raises(TypeError):
+    with pytest.raises(AnalysisError):
         analyze_transactions(rows)
 
 
@@ -120,3 +121,41 @@ def test_calculate_largest_purchases_ranks_qualifying_transactions():
     assert [entry["amount"] for entry in largest] == [1200.0, 450.0]
     assert [entry["recipient"] for entry in largest] == ["Example Power", "Example Cafe"]
     assert [entry["ranking"] for entry in largest] == [1, 2]
+
+
+def test_unreadable_date_raises_an_analysis_error_naming_its_code_and_row():
+    rows = [
+        row(0, "TRANSFER_OUT", 10.0, when="2026-01-05 10:00:00", entity="Example Person 12"),
+        row(1, "TRANSFER_OUT", 10.0, when="garbage", entity="Example Person 12"),
+    ]
+    with pytest.raises(AnalysisError) as caught:
+        analyze_transactions(rows)
+    assert caught.value.code is AnalysisCode.DATE_UNREADABLE
+    assert caught.value.row_index == 1
+    assert "DATE_UNREADABLE" in str(caught.value)
+    assert "row 1" in str(caught.value)
+
+
+def test_analysis_error_message_holds_no_statement_values():
+    planted_time = "ZZ" + "AB12CD34 Example Person 07"
+    rows = [
+        row(0, "TRANSFER_OUT", 1234.5, when="2026-01-05 10:00:00", entity="Example Person 07"),
+        row(1, "TRANSFER_OUT", 1234.5, when=planted_time, entity="Example Person 07"),
+    ]
+    with pytest.raises(AnalysisError) as caught:
+        analyze_transactions(rows)
+    for planted in (planted_time, "Example Person 07", "1234.5", "ZZ" + "AB12CD34"):
+        assert planted not in str(caught.value)
+        assert planted not in repr(caught.value)
+        assert all(planted not in str(argument) for argument in caught.value.args)
+
+
+def test_the_pandas_failure_is_kept_as_the_cause_not_the_raised_error():
+    rows = [
+        row(0, "TRANSFER_OUT", 10.0, when="2026-01-05 10:00:00", entity="Example Person 12"),
+        row(1, "TRANSFER_OUT", 10.0, when="garbage", entity="Example Person 12"),
+    ]
+    with pytest.raises(AnalysisError) as caught:
+        analyze_transactions(rows)
+    assert type(caught.value) is AnalysisError
+    assert caught.value.__cause__ is not None

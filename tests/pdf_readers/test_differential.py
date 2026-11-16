@@ -68,8 +68,12 @@ def test_quality_equals_the_ledger(pages_of, name):
     assert quality["chain_breaks"] == ledger["chain_breaks"]
     assert quality["chain_break_counts"][NEWEST_FIRST] == ledger["chain_break_kinds"]
     assert quality["unparsed_amounts"] == 0
-    for label, agrees in ledger["summary_reconciliation"].items():
-        assert quality["summary_reconciliation"][label] is agrees, label
+    for field in (
+        "summary_total_paid_in_matches",
+        "summary_total_paid_out_matches",
+        "summary_type_rows_parsed",
+    ):
+        assert quality[field] == ledger[field], field
 
 
 @pytest.mark.parametrize("name", WITH_ROWS)

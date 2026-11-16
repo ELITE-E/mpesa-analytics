@@ -11,12 +11,13 @@ Architecture decision records (ADRs) and logs. An ADR records one decision, why,
 | 0003 | Fake phone ranges for fixtures | Proposed, allocation not confirmed |
 | 0004 | Error messages carry no statement values | Proposed |
 | 0005 | Module moves from mpesa-parser | Proposed |
-| 0006 | Runtime dependencies of `mpesa_core` | Accepted for v1 (CP6): pandas in `analysis` only |
+| 0006 | Runtime dependencies of `mpesa_core` | Accepted (CP7a-2): pandas in `analysis/` only, lazy, optional extra; plain-Python rewrite is v1.1 |
 | 0007 | Replace PagesDocument with StatementPages | Proposed |
 | 0008 | Layout profile of the synthetic golden statement | Accepted (CP1) |
 | 0009 | Column calibration and row assembly | Accepted (CP3); OQ-03 and OQ-10 await the real counts |
 | 0010 | Restructure for readability | Proposed |
 | 0011 | Timing of the pandas-free core | Measured (CP5) |
+| 0012 | v1 scope: "Remember on this device" stays, opt-in, with saving and merging | Accepted (CP7a), owner instruction |
 
 ## Logs
 

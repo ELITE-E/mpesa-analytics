@@ -1,6 +1,9 @@
 import pytest
 
 from mpesa_core.errors import (
+    AnalysisCode,
+    AnalysisError,
+    AttestationCode,
     AttestationError,
     CoreError,
     DomainRowError,
@@ -48,7 +51,7 @@ def test_domain_row_error_states_its_row_index():
 
 
 def test_attestation_error_can_state_counts():
-    error = AttestationError(expected_count=6, found_count=4)
+    error = AttestationError(AttestationCode.TOKEN_MISSING, expected_count=6, found_count=4)
     assert "expected 6" in str(error)
     assert "found 4" in str(error)
 
@@ -88,10 +91,10 @@ def test_domain_row_error_rejects_a_string_row_index(planted):
 @pytest.mark.parametrize("planted", PLANTED_VALUES)
 def test_attestation_error_rejects_string_counts(planted):
     with pytest.raises(TypeError) as caught:
-        AttestationError(expected_count=planted)
+        AttestationError(AttestationCode.TOKEN_MISSING, expected_count=planted)
     assert planted not in str(caught.value)
     with pytest.raises(TypeError) as caught:
-        AttestationError(found_count=planted)
+        AttestationError(AttestationCode.TOKEN_MISSING, found_count=planted)
     assert planted not in str(caught.value)
 
 
@@ -135,3 +138,54 @@ def test_a_planted_value_in_the_cause_stays_out_of_the_message(planted):
     assert planted not in str(caught.value)
     assert planted not in repr(caught.value)
     assert all(planted not in str(argument) for argument in caught.value.args)
+
+
+def test_analysis_error_keeps_its_code_and_row_for_the_bridge():
+    error = AnalysisError(AnalysisCode.DATE_UNREADABLE, row_index=3)
+    assert error.code is AnalysisCode.DATE_UNREADABLE
+    assert error.row_index == 3
+    assert str(error) == "DATE_UNREADABLE at row 3"
+
+
+def test_analysis_error_without_a_row_states_its_code_only():
+    assert str(AnalysisError(AnalysisCode.ANALYSIS_FAILED)) == "ANALYSIS_FAILED"
+
+
+def test_every_analysis_code_exists():
+    assert {code.name for code in AnalysisCode} == {"DATE_UNREADABLE", "ANALYSIS_FAILED"}
+
+
+def test_analysis_error_is_a_core_error():
+    assert issubclass(AnalysisError, CoreError)
+
+
+@pytest.mark.parametrize("planted", PLANTED_VALUES)
+def test_analysis_error_rejects_free_text(planted):
+    with pytest.raises(TypeError) as caught:
+        AnalysisError(planted)
+    assert planted not in str(caught.value)
+    with pytest.raises(TypeError) as caught:
+        AnalysisError(AnalysisCode.ANALYSIS_FAILED, row_index=planted)
+    assert planted not in str(caught.value)
+
+
+def test_attestation_error_keeps_its_code_for_the_bridge():
+    error = AttestationError(AttestationCode.BRAND_MISSING)
+    assert error.code is AttestationCode.BRAND_MISSING
+    assert str(error) == "attestation failed BRAND_MISSING"
+
+
+def test_every_attestation_code_exists():
+    assert {code.name for code in AttestationCode} == {
+        "NO_PAGES",
+        "BRAND_MISSING",
+        "ANCHOR_MISSING",
+        "TOKEN_MISSING",
+    }
+
+
+def test_attestation_error_needs_a_code():
+    with pytest.raises(TypeError):
+        AttestationError()
+    with pytest.raises(TypeError):
+        AttestationError("BRAND_MISSING")

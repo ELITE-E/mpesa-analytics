@@ -1,6 +1,6 @@
 # 0006. Runtime dependencies of `mpesa_core`
 
-Status: Accepted for v1 (CP6, 2026-11-12). The plain-Python rewrite of analysis is a v1.1 task.
+Status: Accepted (CP7a-2, 2026-11-13). Accepted for v1: pandas only inside `analysis/`, imported lazily on first use, declared as an optional extra (`mpesa-core[analysis]`); the plain-Python rewrite of analysis is v1.1.
 Date: 2026-11-02
 
 ## Context

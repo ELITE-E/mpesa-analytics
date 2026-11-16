@@ -9,7 +9,13 @@ Output is fixed labels, counts and PASS or FAIL, never statement text or a path.
 to paste. Without it the tool also lists each mismatch's page and line, for looking on your own
 screen. If the PDF needs a password, the CLI asks with a hidden prompt.
 
+``--labels`` instead prints page 1's summary block, from the ``SUMMARY`` line up to the
+``DETAILED STATEMENT`` line, every digit replaced by ``#``, one per line and nothing else. Nothing
+above the block is printed, as that is where the name, number and email are. If either marker is
+missing it prints nothing and exits 2. It refuses ``--share``: read it on your own screen first.
+
     python tools/equivalence/compare.py --pdf PATH --baseline FILE --share
+    python tools/equivalence/compare.py --pdf PATH --labels
 """
 
 import argparse
@@ -27,13 +33,29 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from mpesa_core import pipeline
 from mpesa_core.analysis import analyze_transactions
 from mpesa_core.classification.classify import classify_transactions
 from mpesa_core.classification.taxonomy import CashFlowDirection, EconomicMeaning, FinancialEvent
 from mpesa_core.cleaning.canonicalize import canonicalize_rows
-from mpesa_core.errors import DomainRowError, ExtractionError
+from mpesa_core.errors import AnalysisError, CoreError, DomainRowError, ExtractionError
 from mpesa_core.extraction.rows import assemble_rows
-from mpesa_core.reconciliation.reconcile import find_chain_breaks, reconcile
+from mpesa_core.reconciliation.attest import attest
+from mpesa_core.reconciliation.reconcile import (
+    NEWEST_FIRST,
+    SAME_RECEIPT,
+    SAME_TIME,
+    chain_break_residuals,
+    count_breaks_resolvable_by_reorder,
+    count_residuals_matching_nearby_amounts,
+    find_chain_breaks,
+    measure_balances,
+    measure_identity_gap,
+    reconcile,
+    reorder_group_sizes,
+    reorder_within_groups,
+)
+from mpesa_core.reconciliation.summary import summary_block_lines
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "tools" / "guards"))
@@ -146,7 +168,7 @@ HMAC_KEY_BYTES = 32
 SHOWABLE_STATUS = re.compile(r"[A-Za-z ]{3,20}")
 SHOWABLE_STATUS_MINIMUM = 20
 OTHER_STATUS = "OTHER"
-SUMMARY_WORDS = {True: "true", False: "false", None: "not_found"}
+SUMMARY_WORDS = {True: "yes", False: "no", None: "not_found"}
 
 
 @dataclass(frozen=True)
@@ -199,9 +221,16 @@ def main():
     """
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--pdf", type=Path, required=True)
-    parser.add_argument("--baseline", type=Path, required=True)
+    parser.add_argument("--baseline", type=Path)
     parser.add_argument("--share", action="store_true")
+    parser.add_argument("--labels", action="store_true")
     args = parser.parse_args()
+    if args.labels and args.share:
+        parser.error("--labels cannot be combined with --share")
+    if args.labels:
+        return _print_summary_labels(args.pdf)
+    if args.baseline is None:
+        parser.error("--baseline is required")
     try:
         old = OldSide(
             _read_baseline(args.baseline),
@@ -222,9 +251,9 @@ def main():
     except DomainRowError as error:
         print(f"compare: ERROR (CLASSIFICATION_STOPPED at row {error.row_index})")
         return CANNOT_RUN
-    except TypeError:
+    except AnalysisError as error:
         # Under the pinned pandas a date-based analysis cannot compare a missing date (A-3).
-        print("compare: ERROR (ANALYSIS_STOPPED)")
+        print(f"compare: ERROR (ANALYSIS_STOPPED {error.code.value})")
         return CANNOT_RUN
     lines, gates = build_report(old, assembly, (new_classified, new_report), statement_pages)
     lines += [] if args.share else _mismatch_positions(old.rows, assembly)
@@ -278,13 +307,16 @@ def build_report(old, assembly, new_results, statement_pages):
         ],
         *_feature_lines(aligned, assembly),
         *chain_lines,
-        *_summary_lines("old", old_quality),
-        *_summary_lines("new", new_quality),
+        *_summary_lines(old_quality, new_quality),
         *_layout_lines(assembly, new_quality),
         *canonical_lines,
         *classified_lines,
         *_chain_breaks_by_event_type(aligned.new_rows, new_classified, new_quality),
         *report_lines,
+        *_pipeline_lines(statement_pages),
+        *_balance_lines(aligned.new_rows, new_quality, (old.report, new_report)),
+        *_chain_diagnostic_lines(aligned.new_rows, new_quality),
+        *_remaining_break_lines(aligned.new_rows, new_classified, new_quality),
         *[f"{'PASS' if verdict else 'FAIL'} {label}" for verdict, label in gates],
         f"RESULT: {'PASS' if all(verdict for verdict, _ in gates) else 'FAIL'}",
     ]
@@ -764,23 +796,26 @@ def _broken_links(rows, keys, orientation):
     return {(keys[link], keys[link + 1]) for link in find_chain_breaks(rows, orientation)}
 
 
-def _summary_lines(side, quality):
-    """Report each statement summary label's reconciliation.
+def _summary_lines(old_quality, new_quality):
+    """Report whether the summary block's TOTAL agrees with each side's rows, and its type rows.
 
     Args:
-        side: ``old`` or ``new``.
-        quality: That side's ``DataQuality``.
+        old_quality: ``DataQuality`` of the old rows.
+        new_quality: ``DataQuality`` of the new rows.
 
     Returns:
-        Report lines.
+        Report lines: yes, no or not_found per total and side, then how many of the seven type
+        rows were read, which depends on the page only.
 
     Side Effects:
         None.
     """
-    return [
-        f"summary_{side}_{label.lower().replace(' ', '_')}: {SUMMARY_WORDS[agrees]}"
-        for label, agrees in quality["summary_reconciliation"].items()
+    lines = [
+        f"{field}_{side}: {SUMMARY_WORDS[quality[field]]}"
+        for field in ("summary_total_paid_in_matches", "summary_total_paid_out_matches")
+        for side, quality in (("old", old_quality), ("new", new_quality))
     ]
+    return [*lines, f"summary_type_rows_parsed: {new_quality['summary_type_rows_parsed']}"]
 
 
 def _layout_lines(assembly, new_quality):
@@ -1013,6 +1048,270 @@ def _report_comparison(old_report, new_report):
         *[f"report_path_different: {path}" for path in different],
     ]
     return lines, (not different, "report_paths_equal")
+
+
+def _print_summary_labels(pdf_path):
+    """Print page 1's summary block with every digit masked, and nothing else.
+
+    Args:
+        pdf_path: The statement PDF.
+
+    Returns:
+        Process exit code: 0, or 2 if the statement could not be read or either marker of the
+        block is missing, in which case nothing is printed.
+
+    Side Effects:
+        Runs the extract CLI (which may prompt), and prints to stdout only.
+    """
+    try:
+        statement_pages = _extract_statement_pages(pdf_path)
+    except CompareError as error:
+        print(f"compare: ERROR ({error.code})")
+        return CANNOT_RUN
+    texts = summary_block_lines(statement_pages)
+    if texts is None:
+        return CANNOT_RUN
+    for text in texts:
+        print(re.sub(r"\d", "#", text))
+    return 0
+
+
+def _chain_diagnostic_lines(new_rows, new_quality):
+    """Describe the balance identity and the chain breaks in counts and yes or no only.
+
+    Args:
+        new_rows: The new rows in print order.
+        new_quality: Their ``DataQuality``, for the print orientation.
+
+    Returns:
+        Lines for whether the identity gap is zero to half a cent and its size bucket; the
+        breaks' residuals: how many, how many pair with a neighbouring break of opposite sign and
+        how many do not; the breaks before and after reordering groups; how many breaks each
+        group rule resolves; and a histogram of group sizes.
+
+    Side Effects:
+        None.
+    """
+    orientation = new_quality["chain_orientation"]
+    gap = measure_identity_gap(new_rows, orientation)
+    residuals = [residual for _, residual in chain_break_residuals(new_rows, orientation)]
+    paired, unpaired = _pair_residuals(residuals)
+    reorder = count_breaks_resolvable_by_reorder(new_rows, orientation)
+    by_rule = {
+        name: count_breaks_resolvable_by_reorder(new_rows, orientation, rule)["resolved"]
+        for name, rule in (("receipt", SAME_RECEIPT), ("time", SAME_TIME))
+    }
+    sizes = reorder_group_sizes(new_rows)
+    return [
+        f"identity_gap_zero_within_half_cent: {_yes(gap is not None and abs(gap) <= HALF_CENT)}",
+        f"identity_gap_bucket: {_gap_bucket(gap)}",
+        f"break_residuals_total: {len(residuals)}",
+        f"break_residuals_paired_adjacent: {paired}",
+        f"break_residuals_unpaired: {unpaired}",
+        f"chain_breaks_raw: {new_quality['chain_breaks_raw']}",
+        f"chain_breaks_after_reorder: {new_quality['chain_breaks_after_reorder']}",
+        f"chain_breaks_resolved_by_group_reorder: {reorder['resolved']}",
+        *[f"chain_breaks_resolved_by_{name}_groups: {count}" for name, count in by_rule.items()],
+        *[f"reorder_group_size_{size}: {sizes[size]}" for size in sorted(sizes)],
+        f"reorder_groups_too_large: {reorder['groups_too_large']}",
+    ]
+
+
+def _remaining_break_lines(new_rows, new_classified, new_quality):
+    """Describe the breaks left once every group is in its best order. Counts only.
+
+    Args:
+        new_rows: The new rows in print order.
+        new_classified: The same rows, classified, in the same order.
+        new_quality: ``DataQuality`` of the new rows, which names the orientation.
+
+    Returns:
+        Lines counting the remaining breaks by the event type of the newer row of the break (the
+        one whose balance does not follow), those on a page boundary, and those whose residual
+        equals a paid in or withdrawn amount within ``NEARBY_ROWS`` rows; no event type lines if
+        the two lists do not line up.
+
+    Side Effects:
+        None.
+    """
+    orientation = new_quality["chain_orientation"]
+    reordered = reorder_within_groups(new_rows, orientation)["rows"]
+    breaks = find_chain_breaks(reordered, orientation)
+    newer_offset = 0 if orientation == NEWEST_FIRST else 1
+    lines = []
+    if len(new_rows) == len(new_classified):
+        position_of = {id(row): position for position, row in enumerate(new_rows)}
+        event_types = Counter(
+            str(new_classified[position_of[id(reordered[link + newer_offset])]]["event_type"])
+            for link in breaks
+        )
+        lines += [
+            f"remaining_breaks_after_{name}: {count}" for name, count in sorted(event_types.items())
+        ]
+    on_boundary = sum(reordered[link]["page"] != reordered[link + 1]["page"] for link in breaks)
+    matching = count_residuals_matching_nearby_amounts(reordered, orientation)
+    return [
+        *lines,
+        f"remaining_breaks_on_page_boundary: {on_boundary}",
+        f"remaining_break_residuals_matching_nearby_amount: {matching}",
+    ]
+
+
+def _gap_bucket(gap):
+    """Name the size band of the identity gap, without its sign.
+
+    Args:
+        gap: The gap, or None if a balance is unknown.
+
+    Returns:
+        ``lt_1``, ``lt_100``, ``lt_10000`` or ``gte_10000``; ``not_found`` without a gap.
+
+    Side Effects:
+        None.
+    """
+    if gap is None:
+        return "not_found"
+    for limit, name in ((1, "lt_1"), (100, "lt_100"), (10_000, "lt_10000")):
+        if abs(gap) < limit:
+            return name
+    return "gte_10000"
+
+
+def _pair_residuals(residuals):
+    """Count the breaks that cancel a neighbour: a residual followed by its opposite.
+
+    Breaks are taken in print order; a break pairs with the next break if their residuals sum
+    to zero within half a cent, and a paired break is not used again.
+
+    Args:
+        residuals: The breaks' residuals, in print order.
+
+    Returns:
+        Tuple of the number of breaks in pairs and the number left unpaired.
+
+    Side Effects:
+        None.
+    """
+    unpaired = 0
+    position = 0
+    while position < len(residuals):
+        has_next = position + 1 < len(residuals)
+        if has_next and abs(residuals[position] + residuals[position + 1]) <= HALF_CENT:
+            position += 2
+            continue
+        unpaired += 1
+        position += 1
+    return len(residuals) - unpaired, unpaired
+
+
+def _pipeline_lines(statement_pages):
+    """Say whether attestation and the whole pipeline run succeed. Codes only, never a token.
+
+    Args:
+        statement_pages: The statement pages the new rows came from.
+
+    Returns:
+        Lines for ``attestation`` and ``pipeline_run``: ``PASS``, or ``FAIL`` with the error's code.
+        Informational, not gates.
+
+    Side Effects:
+        None.
+    """
+    return [
+        f"attestation: {_outcome(attest, statement_pages)}",
+        f"pipeline_run: {_outcome(pipeline.run, statement_pages)}",
+    ]
+
+
+def _outcome(stage, statement_pages):
+    """Run one stage and describe how it ended.
+
+    Args:
+        stage: A function of the statement pages.
+        statement_pages: The statement pages.
+
+    Returns:
+        ``PASS``, or ``FAIL`` and the code of the core error it raised; a row error has no code,
+        so it shows as ``DOMAIN_ROW``.
+
+    Side Effects:
+        None.
+    """
+    try:
+        stage(statement_pages)
+    except CoreError as error:
+        code = getattr(error, "code", None)
+        return f"FAIL ({'DOMAIN_ROW' if code is None else code.value})"
+    return "PASS"
+
+
+def _balance_lines(new_rows, new_quality, reports):
+    """Describe the new balances (D-06) as yes or no, never as amounts.
+
+    Args:
+        new_rows: The new rows in print order.
+        new_quality: Their ``DataQuality``, for the print orientation.
+        reports: Tuple of the old and the new report, for their closing balance.
+
+    Returns:
+        Lines for the orientation, whether each balance was found, whether the closing balance
+        equals each report's, and whether opening plus paid in minus withdrawn gives closing to
+        half a cent. Informational, not gates.
+
+    Side Effects:
+        None.
+    """
+    orientation = new_quality["chain_orientation"]
+    balances = measure_balances(new_rows, orientation)
+    opening, closing = balances["opening_balance"], balances["closing_balance"]
+    canonical = canonicalize_rows(new_rows)
+    moved = sum(row["paid_in"] for row in canonical) - sum(
+        abs(row["withdrawn"]) for row in canonical
+    )
+    holds = None not in (opening, closing) and abs(opening + moved - closing) <= HALF_CENT
+    old_closing, new_closing = (
+        report.get("cash_flow", {}).get("closing_balance") for report in reports
+    )
+    return [
+        f"balances_orientation: {orientation}",
+        f"balances_opening_found: {_yes(opening is not None)}",
+        f"balances_closing_found: {_yes(closing is not None)}",
+        f"balances_closing_equals_old_report: {_yes(_close(old_closing, closing))}",
+        f"balances_closing_equals_new_report: {_yes(_close(new_closing, closing))}",
+        f"balances_identity_holds: {_yes(holds)}",
+    ]
+
+
+def _close(report_closing, closing):
+    """Compare a report's closing balance with the new one, to half a cent.
+
+    Args:
+        report_closing: The report's figure, or None if it has none.
+        closing: The new closing balance, or None.
+
+    Returns:
+        True if both are numbers within half a cent.
+
+    Side Effects:
+        None.
+    """
+    numbers = all(isinstance(value, int | float) for value in (report_closing, closing))
+    return numbers and abs(report_closing - closing) <= HALF_CENT
+
+
+def _yes(answer):
+    """Spell a truth value for the output.
+
+    Args:
+        answer: A truth value.
+
+    Returns:
+        ``yes`` or ``no``.
+
+    Side Effects:
+        None.
+    """
+    return "yes" if answer else "no"
 
 
 def _report_leaves(value, path=""):

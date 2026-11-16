@@ -7,12 +7,6 @@ from mpesa_core.reconciliation.reconcile import (
     reconcile,
 )
 
-COUNT_LABEL = "Transaction Count"
-PAID_IN_LABEL = "Total Paid In"
-WITHDRAWN_LABEL = "Total Withdrawn"
-OPENING_LABEL = "Opening Balance"
-CLOSING_LABEL = "Closing Balance"
-ALL_LABELS = {COUNT_LABEL, PAID_IN_LABEL, WITHDRAWN_LABEL, OPENING_LABEL, CLOSING_LABEL}
 NO_BREAKS = {"same_receipt": 0, "tied_timestamp": 0, "page_boundary": 0, "other": 0}
 
 
@@ -37,118 +31,6 @@ def newest_first_rows():
         row("880.00", withdrawn="120.00", time="2026-01-02 09:00:00", position=2),
         row("1,000.00", paid_in="1,000.00", time="2026-01-01 08:00:00", position=3),
     ]
-
-
-def summary_lines(printed, values):
-    items = []
-    for position, (label, value) in enumerate(values.items()):
-        top = 40.0 + 10.0 * position
-        items.append(printed.left_item(label, 70.0, top))
-        items.append(printed.left_item(value, 180.0, top))
-    return items
-
-
-def statement_with_summary(printed, values):
-    return printed.statement_of(printed.page_of(summary_lines(printed, values)))
-
-
-AGREEING_SUMMARY = {
-    COUNT_LABEL: "3",
-    PAID_IN_LABEL: "1,000.00",
-    WITHDRAWN_LABEL: "125.00",
-    OPENING_LABEL: "0.00",
-    CLOSING_LABEL: "875.00",
-}
-
-
-def test_summary_that_agrees_reconciles_true_on_every_label(printed):
-    quality = reconcile(statement_with_summary(printed, AGREEING_SUMMARY), newest_first_rows())
-    assert quality["summary_reconciliation"] == dict.fromkeys(ALL_LABELS, True)
-
-
-@pytest.mark.parametrize(
-    ("label", "wrong"),
-    [
-        (COUNT_LABEL, "4"),
-        (PAID_IN_LABEL, "1,000.01"),
-        (WITHDRAWN_LABEL, "125.50"),
-        (OPENING_LABEL, "1.00"),
-        (CLOSING_LABEL, "880.00"),
-    ],
-)
-def test_summary_that_disagrees_reconciles_false_for_that_label_only(printed, label, wrong):
-    values = {**AGREEING_SUMMARY, label: wrong}
-    reconciliation = reconcile(statement_with_summary(printed, values), newest_first_rows())[
-        "summary_reconciliation"
-    ]
-    assert reconciliation == {name: name != label for name in ALL_LABELS}
-
-
-def test_summary_label_not_printed_is_not_found(printed):
-    values = {key: value for key, value in AGREEING_SUMMARY.items() if key != PAID_IN_LABEL}
-    reconciliation = reconcile(statement_with_summary(printed, values), newest_first_rows())[
-        "summary_reconciliation"
-    ]
-    assert reconciliation[PAID_IN_LABEL] is None
-    assert reconciliation[CLOSING_LABEL] is True
-
-
-def test_summary_with_no_labels_is_not_found_everywhere(printed):
-    reconciliation = reconcile(printed.statement_of(), newest_first_rows())[
-        "summary_reconciliation"
-    ]
-    assert reconciliation == dict.fromkeys(ALL_LABELS)
-
-
-def test_summary_value_that_is_not_a_number_is_not_found(printed):
-    values = {**AGREEING_SUMMARY, PAID_IN_LABEL: "not printed"}
-    reconciliation = reconcile(statement_with_summary(printed, values), newest_first_rows())[
-        "summary_reconciliation"
-    ]
-    assert reconciliation[PAID_IN_LABEL] is None
-
-
-def test_summary_label_is_read_with_a_colon_and_in_any_case(printed):
-    values = {"TOTAL PAID IN:": "1,000.00"}
-    reconciliation = reconcile(statement_with_summary(printed, values), newest_first_rows())[
-        "summary_reconciliation"
-    ]
-    assert reconciliation[PAID_IN_LABEL] is True
-
-
-def test_summary_is_read_only_before_the_first_anchor_on_page_one(printed):
-    after_rows = printed.calibrating_rows() + summary_lines(printed, {})
-    after_rows.append(printed.left_item(PAID_IN_LABEL, 70.0, 300.0))
-    after_rows.append(printed.left_item("1,000.00", 180.0, 300.0))
-    later_page = printed.page_of(summary_lines(printed, AGREEING_SUMMARY), number=2)
-    statement = printed.statement_of(printed.page_of(after_rows), later_page)
-    assert reconcile(statement, newest_first_rows())["summary_reconciliation"] == dict.fromkeys(
-        ALL_LABELS
-    )
-
-
-def test_summary_uses_printed_withdrawn_as_a_size_when_it_is_negative(printed):
-    rows = [
-        row("875.00", withdrawn="-5.00", time="2026-01-03 09:00:00", position=1),
-        row("880.00", withdrawn="-120.00", time="2026-01-02 09:00:00", position=2),
-        row("1,000.00", paid_in="1,000.00", time="2026-01-01 08:00:00", position=3),
-    ]
-    quality = reconcile(statement_with_summary(printed, AGREEING_SUMMARY), rows)
-    assert quality["summary_reconciliation"] == dict.fromkeys(ALL_LABELS, True)
-    assert quality["chain_breaks"] == 0
-
-
-def test_closing_balance_with_a_tied_latest_time_follows_print_order(printed):
-    rows = [
-        row("875.00", withdrawn="5.00", time="2026-01-03 09:00:00", position=1),
-        row("880.00", withdrawn="120.00", time="2026-01-03 09:00:00", position=2),
-    ]
-    values = {CLOSING_LABEL: "875.00", OPENING_LABEL: "1,000.00"}
-    reconciliation = reconcile(statement_with_summary(printed, values), rows)[
-        "summary_reconciliation"
-    ]
-    assert reconciliation[CLOSING_LABEL] is True
-    assert reconciliation[OPENING_LABEL] is True
 
 
 def test_balance_chain_breaks_counted(printed):

@@ -198,37 +198,83 @@ def test_some_rows_wrap_and_some_do_not(statement_pages):
     assert len(gaps) >= 2
 
 
-def summary_value(statement_pages, label):
+SUMMARY_TYPE_LABELS = (
+    "SEND MONEY:",
+    "RECEIVED MONEY:",
+    "AGENT DEPOSIT:",
+    "AGENT WITHDRAWAL:",
+    "LIPA NA M-PESA (PAYBILL):",
+    "LIPA NA M-PESA (BUY GOODS):",
+    "OTHERS:",
+)
+INVENTED_LABELS = ("Transaction Count", "Opening Balance", "Closing Balance", "Total Paid In")
+
+
+def summary_values(statement_pages, label):
     items = items_on(statement_pages, 0)
     label_item = next(text_item for text_item in items if text_item["text"] == label)
-    return next(
-        text_item["text"]
+    beside = [
+        text_item
         for text_item in items
         if text_item["top"] == label_item["top"] and text_item["x0"] > label_item["x1"]
+    ]
+    return [text_item["text"] for text_item in sorted(beside, key=lambda entry: entry["x0"])]
+
+
+def cents(text):
+    return round(float(text.replace(",", "")) * 100)
+
+
+def top_of(statement_pages, text):
+    return next(
+        text_item["top"] for text_item in items_on(statement_pages, 0) if text_item["text"] == text
     )
 
 
-@pytest.mark.parametrize(
-    ("label", "key"),
-    [
-        ("Total Paid In", "total_paid_in"),
-        ("Total Withdrawn", "total_withdrawn"),
-        ("Opening Balance", "opening_balance"),
-        ("Closing Balance", "closing_balance"),
-    ],
-)
-def test_page_one_summary_agrees_with_the_independent_ledger(statement_pages, expected, label, key):
-    printed = summary_value(statement_pages, label).replace(",", "")
-    assert printed == expected[key]
+def test_page_one_total_agrees_with_the_independent_ledger(statement_pages, expected):
+    paid_in, paid_out = summary_values(statement_pages, "TOTAL:")
+    assert paid_in.replace(",", "") == expected["total_paid_in"]
+    assert paid_out.replace(",", "") == expected["total_withdrawn"]
 
 
-def test_summary_row_count_agrees_with_the_ledger(statement_pages, expected):
-    assert summary_value(statement_pages, "Transaction Count") == str(expected["row_count"])
+def test_the_seven_type_rows_print_in_order_and_add_up_to_the_total(statement_pages):
+    rows = [summary_values(statement_pages, label) for label in SUMMARY_TYPE_LABELS]
+    assert all(len(values) == 2 for values in rows)
+    total_in, total_out = summary_values(statement_pages, "TOTAL:")
+    assert sum(cents(paid_in) for paid_in, _ in rows) == cents(total_in)
+    assert sum(cents(paid_out) for _, paid_out in rows) == cents(total_out)
+    tops = [top_of(statement_pages, label) for label in SUMMARY_TYPE_LABELS]
+    assert tops == sorted(tops)
+    assert top_of(statement_pages, "TOTAL:") > tops[-1]
+
+
+def test_the_block_sits_between_its_markers_below_the_customer_lines(statement_pages):
+    summary, detail = (
+        top_of(statement_pages, "SUMMARY"),
+        top_of(statement_pages, "DETAILED STATEMENT"),
+    )
+    assert top_of(statement_pages, "Email Address:") < summary
+    assert summary < top_of(statement_pages, "SEND MONEY:")
+    assert top_of(statement_pages, "TOTAL:") < detail
+    assert detail < min(text_item["top"] for text_item in header_items(statement_pages, 0))
+
+
+def test_page_one_prints_an_invented_name_phone_and_email(statement_pages):
+    texts = [text_item["text"] for text_item in items_on(statement_pages, 0)]
+    assert {"Customer Name:", "Mobile Number:", "Email Address:"} <= set(texts)
+    assert "Example Person 00" in texts
+    assert "07000000" + "00" in texts
+    assert "example.person@example.invalid" in texts
+
+
+def test_the_invented_summary_labels_are_gone(statement_pages):
+    texts = {text_item["text"] for text_item in items_on(statement_pages, 0)}
+    assert not texts & set(INVENTED_LABELS)
 
 
 def test_summary_block_is_on_page_one_only(statement_pages):
     for page_index in range(1, len(statement_pages["pages"])):
-        assert "Total Paid In" not in [
+        assert "TOTAL:" not in [
             text_item["text"] for text_item in items_on(statement_pages, page_index)
         ]
 

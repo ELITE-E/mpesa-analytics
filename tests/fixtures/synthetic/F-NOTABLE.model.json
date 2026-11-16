@@ -6,10 +6,10 @@
    "items": [
     {
      "bottom": 44.361,
-     "text": "Customer Name",
+     "text": "Customer Name:",
      "top": 38.861,
      "x0": 67.556,
-     "x1": 107.59
+     "x1": 109.12
     },
     {
      "bottom": 44.361,
@@ -20,10 +20,10 @@
     },
     {
      "bottom": 54.361,
-     "text": "Mobile Number",
+     "text": "Mobile Number:",
      "top": 48.861,
      "x0": 67.428,
-     "x1": 104.713
+     "x1": 106.242
     },
     {
      "bottom": 54.361,
@@ -34,66 +34,80 @@
     },
     {
      "bottom": 64.361,
-     "text": "Notice",
+     "text": "Email Address:",
      "top": 58.861,
      "x0": 67.55,
-     "x1": 83.137
+     "x1": 104.532
     },
     {
      "bottom": 64.361,
-     "text": "No transactions in this period",
+     "text": "example.person@example.invalid",
      "top": 58.861,
      "x0": 180.085,
-     "x1": 251.002
+     "x1": 262.695
     },
     {
-     "bottom": 84.758,
+     "bottom": 74.362,
+     "text": "Notice",
+     "top": 68.862,
+     "x0": 67.433,
+     "x1": 83.02
+    },
+    {
+     "bottom": 74.362,
+     "text": "No transactions in this period",
+     "top": 68.862,
+     "x0": 180.066,
+     "x1": 250.983
+    },
+    {
+     "bottom": 94.758,
      "text": "Receipt No",
-     "top": 78.758,
-     "x0": 81.764,
-     "x1": 113.102
+     "top": 88.758,
+     "x0": 81.757,
+     "x1": 113.095
     },
     {
-     "bottom": 84.758,
+     "bottom": 94.758,
      "text": "Completion Time",
-     "top": 78.758,
-     "x0": 141.23,
-     "x1": 189.902
+     "top": 88.758,
+     "x0": 141.235,
+     "x1": 189.907
     },
     {
-     "bottom": 84.758,
+     "bottom": 94.758,
      "text": "Details",
-     "top": 78.758,
-     "x0": 245.089,
-     "x1": 264.763
+     "top": 88.758,
+     "x0": 245.086,
+     "x1": 264.76
     },
     {
-     "bottom": 84.758,
+     "bottom": 94.758,
      "text": "Transaction Status",
-     "top": 78.758,
-     "x0": 309.565,
-     "x1": 363.577
+     "top": 88.758,
+     "x0": 309.527,
+     "x1": 363.539
     },
     {
-     "bottom": 84.758,
+     "bottom": 94.758,
      "text": "Paid In",
-     "top": 78.758,
-     "x0": 382.586,
-     "x1": 402.26
+     "top": 88.758,
+     "x0": 382.599,
+     "x1": 402.273
     },
     {
-     "bottom": 84.758,
+     "bottom": 94.758,
      "text": "Withdrawn",
-     "top": 78.758,
-     "x0": 429.2,
-     "x1": 459.866
+     "top": 88.758,
+     "x0": 429.086,
+     "x1": 459.752
     },
     {
-     "bottom": 84.758,
+     "bottom": 94.758,
      "text": "Balance",
-     "top": 78.758,
-     "x0": 486.931,
-     "x1": 509.941
+     "top": 88.758,
+     "x0": 486.969,
+     "x1": 509.979
     },
     {
      "bottom": 830.361,
@@ -103,11 +117,18 @@
      "x1": 48.133
     },
     {
+     "bottom": 830.361,
+     "text": "M-PESA Statement Verification Code",
+     "top": 824.861,
+     "x0": 200.0,
+     "x1": 291.091
+    },
+    {
      "bottom": 840.361,
-     "text": "DNNNHB2I",
+     "text": "NNHB2IY6",
      "top": 834.861,
      "x0": 20.0,
-     "x1": 48.111
+     "x1": 46.895
     }
    ],
    "page_number": 1,

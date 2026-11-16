@@ -125,3 +125,44 @@ def test_contracts_are_only_types_at_runtime():
         line=0,
     )
     assert type(row) is dict
+
+
+def test_balances_hold_an_optional_opening_and_closing_balance():
+    hints = fields_of("Balances")
+    assert hints == {"opening_balance": float | None, "closing_balance": float | None}
+
+
+def test_period_holds_an_optional_start_and_end_as_text():
+    assert fields_of("Period") == {"start": OPTIONAL_TEXT, "end": OPTIONAL_TEXT}
+
+
+def test_pipeline_result_carries_the_report_token_period_and_balances():
+    hints = fields_of("PipelineResult")
+    assert hints["report"] == dict[str, object]
+    assert hints["verification_token"] is str
+    assert hints["period"] is contracts.Period
+    assert hints["balances"] is contracts.Balances
+    assert hints["processed_at"] == OPTIONAL_TEXT
+
+
+def test_pipeline_result_has_no_field_for_pdf_bytes_or_a_password():
+    hints = fields_of("PipelineResult")
+    assert bytes not in hints.values()
+    assert not {name for name in hints if "password" in name or "pdf" in name}
+
+
+def test_data_quality_says_how_many_breaks_reordering_resolves_and_whether_the_identity_holds():
+    hints = fields_of("DataQuality")
+    assert hints["chain_breaks"] is int
+    assert hints["chain_breaks_resolvable_by_reorder"] is int
+    assert hints["identity_holds"] == bool | None
+
+
+def test_data_quality_carries_the_summary_totals_and_the_breaks_before_and_after_reordering():
+    hints = fields_of("DataQuality")
+    assert hints["summary_total_paid_in_matches"] == bool | None
+    assert hints["summary_total_paid_out_matches"] == bool | None
+    assert hints["summary_type_rows_parsed"] is int
+    assert hints["chain_breaks_raw"] is int
+    assert hints["chain_breaks_after_reorder"] is int
+    assert "summary_reconciliation" not in hints

@@ -7,14 +7,19 @@ Times are compared as text, which is safe because they are printed in ISO order.
 from decimal import Decimal, InvalidOperation
 
 FEE_SUFFIX = "Charge"
+# What the generator says it wrote into a row; recorded beside the rows, never as a printed field.
+BUILT_FIELDS = ("event_type", "entity")
 ZERO = Decimal("0.00")
-# Labels the statement summary prints that the rows can confirm.
-TOTAL_LABELS = (
-    "Transaction Count",
-    "Total Paid In",
-    "Total Withdrawn",
-    "Opening Balance",
-    "Closing Balance",
+# The summary block's rows, each printed as a label, a colon, paid in and paid out.
+SUMMARY_TOTAL = "TOTAL:"
+SUMMARY_TYPES = (
+    "SEND MONEY:",
+    "RECEIVED MONEY:",
+    "AGENT DEPOSIT:",
+    "AGENT WITHDRAWAL:",
+    "LIPA NA M-PESA (PAYBILL):",
+    "LIPA NA M-PESA (BUY GOODS):",
+    "OTHERS:",
 )
 
 
@@ -23,11 +28,14 @@ def compute_expected(rows, summary_lines=()):
 
     Args:
         rows: Raw rows in print order, with amounts as printed text.
-        summary_lines: Tuples of label and printed value from the statement summary.
+        summary_lines: Tuples of the texts printed on each page 1 line above the table.
 
     Returns:
-        A map of totals, cash flow, balances, counts, chain breaks by kind, the summary's totals and
-        whether each agrees with the rows, and the rows themselves. ``opening_balance`` and
+        A map of totals, cash flow, balances, counts, chain breaks by kind, the summary's TOTAL row,
+        whether its paid in and paid out agree with the rows (None without it), how many type rows
+        it printed, the count of each event type the rows were built as, what
+        each row was built as (``built``, in print order), and the rows with their printed fields
+        and position only. ``opening_balance`` and
         ``closing_balance`` are None for an empty statement.
 
     Side Effects:
@@ -50,7 +58,8 @@ def compute_expected(rows, summary_lines=()):
         "Opening Balance": _opening_balance(rows, amounts),
         "Closing Balance": _closing_balance(rows, amounts),
     }
-    printed_totals = {label: value for label, value in summary_lines if label in TOTAL_LABELS}
+    summary_rows = {line[0]: line[1:] for line in summary_lines if len(line) == 3}
+    printed_total = summary_rows.get(SUMMARY_TOTAL)
     return {
         "row_count": len(rows),
         "total_paid_in": totals["Total Paid In"],
@@ -66,14 +75,43 @@ def compute_expected(rows, summary_lines=()):
         "chain_breaks": len(breaks),
         "chain_break_kinds": _chain_break_kinds(rows, breaks),
         "status_counts": status_counts,
-        "summary_totals": printed_totals,
-        "summary_reconciliation": {
-            label: _parse_amount(0, printed) == _parse_amount(0, totals[label])
-            for label, printed in printed_totals.items()
-        },
+        "summary_total": (
+            {}
+            if printed_total is None
+            else dict(zip(("paid_in", "paid_out"), printed_total, strict=True))
+        ),
+        "summary_total_paid_in_matches": _summary_agrees(printed_total, 0, totals["Total Paid In"]),
+        "summary_total_paid_out_matches": _summary_agrees(
+            printed_total, 1, totals["Total Withdrawn"]
+        ),
+        "summary_type_rows_parsed": sum(label in summary_rows for label in SUMMARY_TYPES),
         "same_second_pairs": _same_second_pairs(rows),
-        "rows": list(rows),
+        "event_type_counts": _event_type_counts(rows),
+        "built": [_built_as(row) for row in rows],
+        "rows": [
+            {field: value for field, value in row.items() if field not in BUILT_FIELDS}
+            for row in rows
+        ],
     }
+
+
+def _summary_agrees(printed_total, column, computed):
+    """Compare one column of the printed TOTAL row with the rows' total.
+
+    Args:
+        printed_total: The TOTAL row's paid in and paid out as printed, or None.
+        column: 0 for paid in, 1 for paid out.
+        computed: The rows' total as text.
+
+    Returns:
+        Whether they are equal; None without a TOTAL row.
+
+    Side Effects:
+        None.
+    """
+    if printed_total is None:
+        return None
+    return _parse_amount(0, printed_total[column]) == _parse_amount(0, computed)
 
 
 def _parse_row(row_index, row):
@@ -137,7 +175,7 @@ def _chronological_positions(rows):
 
 
 def _opening_balance(rows, amounts):
-    """Work the balance before the oldest row back from that row's printed amounts.
+    """Work the balance before the oldest row back from that row's printed amounts (D-06).
 
     Args:
         rows: Raw rows in print order.
@@ -151,12 +189,13 @@ def _opening_balance(rows, amounts):
     """
     if not rows:
         return None
-    paid_in, withdrawn, balance = amounts[_chronological_positions(rows)[0]]
+    oldest = len(rows) - 1 if _prints_newest_first(rows) else 0
+    paid_in, withdrawn, balance = amounts[oldest]
     return _text(balance - paid_in + withdrawn)
 
 
 def _closing_balance(rows, amounts):
-    """Find the balance of the latest row; ties go to the first one printed (D-06).
+    """Find the balance of the newest row in print order, whatever its time ties with (D-06).
 
     Args:
         rows: Raw rows in print order.
@@ -170,9 +209,24 @@ def _closing_balance(rows, amounts):
     """
     if not rows:
         return None
-    latest = max(row["completion_time"] for row in rows)
-    first_printed = next(i for i, row in enumerate(rows) if row["completion_time"] == latest)
-    return _text(amounts[first_printed][2])
+    newest = 0 if _prints_newest_first(rows) else len(rows) - 1
+    return _text(amounts[newest][2])
+
+
+def _prints_newest_first(rows):
+    """Tell the print orientation from the two ends' times, without reading the balance chain.
+
+    Args:
+        rows: Raw rows in print order; at least one.
+
+    Returns:
+        False only if the last printed row is later than the first; equal times read as newest
+        first, the usual statement order.
+
+    Side Effects:
+        None.
+    """
+    return rows[0]["completion_time"] >= rows[-1]["completion_time"]
 
 
 def _chain_break_links(rows, amounts):
@@ -257,6 +311,40 @@ def _same_second_pairs(rows):
         if same_second and same_receipt and upper_is_fee != lower["details"].endswith(FEE_SUFFIX):
             pairs.append("fee_first" if upper_is_fee else "parent_first")
     return pairs
+
+
+def _event_type_counts(rows):
+    """Count the event types the generator wrote into the rows, without reading any details.
+
+    Args:
+        rows: Raw rows in print order; a generated row carries the ``event_type`` it was built as.
+
+    Returns:
+        Map of event type to count; empty when no row carries one.
+
+    Side Effects:
+        None.
+    """
+    counts = {}
+    for row in rows:
+        if "event_type" in row:
+            counts[row["event_type"]] = counts.get(row["event_type"], 0) + 1
+    return counts
+
+
+def _built_as(row):
+    """Give what the generator says a row was built as.
+
+    Args:
+        row: A raw row, which may carry ``event_type`` and ``entity``.
+
+    Returns:
+        Map of those two fields, None where the row does not carry one.
+
+    Side Effects:
+        None.
+    """
+    return {field: row.get(field) for field in BUILT_FIELDS}
 
 
 def _text(amount):

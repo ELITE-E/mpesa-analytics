@@ -20,6 +20,22 @@ class ErrorCode(Enum):
     TIMEOUT = "TIMEOUT"
 
 
+class AnalysisCode(Enum):
+    """Why the analysis stopped. The bridge passes these to the UI unchanged."""
+
+    DATE_UNREADABLE = "DATE_UNREADABLE"
+    ANALYSIS_FAILED = "ANALYSIS_FAILED"
+
+
+class AttestationCode(Enum):
+    """Why a statement could not be tied to its verification token."""
+
+    NO_PAGES = "NO_PAGES"
+    BRAND_MISSING = "BRAND_MISSING"
+    ANCHOR_MISSING = "ANCHOR_MISSING"
+    TOKEN_MISSING = "TOKEN_MISSING"
+
+
 class CoreError(Exception):
     """Base class for every error the core raises deliberately."""
 
@@ -51,16 +67,23 @@ class ExtractionError(CoreError):
 class AttestationError(CoreError):
     """A statement could not be tied to its verification token."""
 
-    def __init__(self, *, expected_count=None, found_count=None):
-        """Record the counts that disagreed, if there are any.
+    def __init__(self, code, *, expected_count=None, found_count=None):
+        """Record why attestation failed and the counts that disagreed, if there are any.
 
         Args:
+            code: The ``AttestationCode`` member naming the failure.
             expected_count: How many items the statement should have.
             found_count: How many items were found.
+
+        Raises:
+            TypeError: If ``code`` is not an ``AttestationCode`` or a count is not an integer.
 
         Side Effects:
             None.
         """
+        if not isinstance(code, AttestationCode):
+            raise TypeError("code must be an AttestationCode member")
+        self.code = code
         self.expected_count = _checked_optional("expected_count", expected_count)
         self.found_count = _checked_optional("found_count", found_count)
         counts = []
@@ -68,7 +91,31 @@ class AttestationError(CoreError):
             counts.append(f"expected {expected_count}")
         if found_count is not None:
             counts.append(f"found {found_count}")
-        super().__init__(" ".join(["attestation failed", *counts]))
+        super().__init__(" ".join(["attestation failed", code.value, *counts]))
+
+
+class AnalysisError(CoreError):
+    """The analysis could not finish. Its cause, which may quote a value, stays in ``__cause__``."""
+
+    def __init__(self, code, *, row_index=None):
+        """Record why the analysis stopped and, if known, at which row.
+
+        Args:
+            code: The ``AnalysisCode`` member naming the failure.
+            row_index: Zero-based index, in print order, of the first row involved.
+
+        Raises:
+            TypeError: If ``code`` is not an ``AnalysisCode`` or ``row_index`` is not an integer.
+
+        Side Effects:
+            None.
+        """
+        if not isinstance(code, AnalysisCode):
+            raise TypeError("code must be an AnalysisCode member")
+        self.code = code
+        self.row_index = _checked_optional("row_index", row_index)
+        position = "" if row_index is None else f" at row {row_index}"
+        super().__init__(f"{code.value}{position}")
 
 
 class DomainRowError(CoreError):
