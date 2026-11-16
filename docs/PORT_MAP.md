@@ -82,16 +82,18 @@ Old paths are in mpesa-parser; new paths are in this repo, under `src/mpesa_core
 
 | Old | New | Notes |
 |---|---|---|
-| `src/persistence/identity.py` `resolve_transaction_identity`, `IdentityOutcome`, `IdentityResolution`, `_material_fingerprint` | `reconciliation/identity.py` (CP7b) | Pure, no storage |
-| `src/persistence/collisions.py` `preserve_collision` and helpers | `web/src/persistence` (CP9) | Rewritten for browser storage |
-| `src/persistence/orchestration.py`, `statements.py`, `transactions.py`, `observations.py`, `provenance.py`, `analytics_snapshots.py` | `web/src/persistence` (CP9) | |
+| `src/persistence/identity.py` `resolve_transaction_identity`, `IdentityOutcome`, `IdentityResolution`, `_material_fingerprint` | `reconciliation/identity.py` `resolve_identity`, `NEW`/`MATCH`/`COLLISION`, `IdentityResolution` (contracts), `fingerprint` | Pure, no storage. Candidates are passed in, not queried; owners are dropped. Rules: `docs/decisions/identity-behaviour.md` |
+| `src/persistence/collisions.py` `preserve_collision` and helpers | Decision: `reconciliation/import_plan.py` (`preserve` actions; `validate_import_plan` refuses preserving a non-collision). Storage: `web/src/persistence` (CP9) | Python decides, JavaScript persists |
+| `src/persistence/orchestration.py`, `statements.py`, `transactions.py`, `observations.py`, `provenance.py`, `analytics_snapshots.py` | Row decisions: `reconciliation/import_plan.py` `plan_statement_import`, exposed by `bridge.py` as JSON. Storage, in one IndexedDB transaction: `web/src/persistence` (CP9) | Rules: `docs/decisions/import-plan-behaviour.md` |
 | `src/persistence/database.py`, `src/persistence/models.py` (`User`, `AuthSession`, `LoginThrottleCounter` and the tables) | dropped | No server, no accounts |
 
 ## New in the rewrite
 
 | New | What it does |
 |---|---|
-| `contracts.py` | Typed shapes passed between stages, including `Balances`, `Period` and `PipelineResult` |
+| `contracts.py` | Typed shapes passed between stages, including `Balances`, `Period`, `PipelineResult`, `IdentityResolution` and `ImportPlan` |
+| `bridge.py` `plan_statement_import_json`, `validate_import_plan_json` | JSON in and out for the browser store; typed `ImportPlanError` on failure |
+| `tools/synth/import_ledger.py` | Independent import planner for the agreement test |
 | `extraction/columns.py` `calibrate_columns` | Column positions from anchor rows (ADR 0009) |
 | `extraction/rows.py` `assemble_rows` | Rows plus layout counts |
 | `reconciliation/reconcile.py` `reconcile` | Data quality: chain breaks in both orientations, summary check, receipt lengths |

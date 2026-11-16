@@ -68,6 +68,16 @@ The whole run is `pipeline.run` in `src/mpesa_core/pipeline.py`. **To watch ever
 - **File:** `src/mpesa_core/pipeline.py`.
 - **Out:** a `PipelineResult` (`contracts.py`): `verification_token`, `processed_at` (only if the caller passed a time), `period` (from `measure_period`), `balances`, `transactions`, `report`, `quality`, `diagnostics`. Plain JSON values only, so it can be stored if the user opts in to "Remember on this device" (ADR 0012).
 
+## 9. Remembering it: `plan_statement_import`
+
+Only if the user opts in to "Remember on this device".
+
+- **File:** `src/mpesa_core/reconciliation/import_plan.py`, with `resolve_identity` in `reconciliation/identity.py`; the browser calls it through `bridge.py` `plan_statement_import_json`.
+- **In:** this statement's transactions, and the transactions already remembered.
+- **What happens:** our transaction's candidate key is its receipt and `MERCHANT_PAYMENT`. The first time, nothing remembered shares it, so the outcome is NEW and the action `insert`. Importing the same statement again finds the remembered copy with the same material fingerprint: MATCH, action `link`. Had the balance printed as 1,549.00 the second time, the fingerprint would differ: COLLISION, action `preserve`, keeping both with an observation.
+- **Out:** an `ImportPlan`: one action per row and the counts. Positions only, never a value. The browser store applies it in one IndexedDB transaction (CP9).
+- **Breakpoint:** `_action_for`, conditional on `row_index`.
+
 ## Where to look next
 
 - `docs/DEBUGGING.md`: running one stage, and which test covers it.

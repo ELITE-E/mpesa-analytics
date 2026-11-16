@@ -36,6 +36,17 @@ class AttestationCode(Enum):
     TOKEN_MISSING = "TOKEN_MISSING"
 
 
+class ImportPlanCode(Enum):
+    """Why an import plan could not be made or was refused."""
+
+    REQUEST_INVALID = "REQUEST_INVALID"
+    INCOMING_ROW_INVALID = "INCOMING_ROW_INVALID"
+    EXISTING_ROW_INVALID = "EXISTING_ROW_INVALID"
+    ROW_ACTION_COUNT = "ROW_ACTION_COUNT"
+    PRESERVE_NOT_COLLISION = "PRESERVE_NOT_COLLISION"
+    PLAN_MISMATCH = "PLAN_MISMATCH"
+
+
 class CoreError(Exception):
     """Base class for every error the core raises deliberately."""
 
@@ -112,6 +123,30 @@ class AnalysisError(CoreError):
         """
         if not isinstance(code, AnalysisCode):
             raise TypeError("code must be an AnalysisCode member")
+        self.code = code
+        self.row_index = _checked_optional("row_index", row_index)
+        position = "" if row_index is None else f" at row {row_index}"
+        super().__init__(f"{code.value}{position}")
+
+
+class ImportPlanError(CoreError):
+    """An import plan could not be made, or a plan was refused. Its cause stays in ``__cause__``."""
+
+    def __init__(self, code, *, row_index=None):
+        """Record why and, if known, at which row.
+
+        Args:
+            code: The ``ImportPlanCode`` member naming the failure.
+            row_index: Zero-based index of the row involved, in the list it came from.
+
+        Raises:
+            TypeError: If ``code`` is not an ``ImportPlanCode`` or ``row_index`` is not an integer.
+
+        Side Effects:
+            None.
+        """
+        if not isinstance(code, ImportPlanCode):
+            raise TypeError("code must be an ImportPlanCode member")
         self.code = code
         self.row_index = _checked_optional("row_index", row_index)
         position = "" if row_index is None else f" at row {row_index}"
