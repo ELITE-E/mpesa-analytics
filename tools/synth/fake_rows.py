@@ -2,6 +2,7 @@
 
 import random
 import string
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 ALPHANUMERIC = string.ascii_uppercase + string.digits
@@ -15,6 +16,7 @@ LOW_BALANCE_CENTS = 300_000
 TRANSFER_FEE_CENTS = 1_300
 PAY_BILL_FEE_CENTS = 2_500
 MAX_GAP_MINUTES = 900
+TIED_TIME_EVERY = 8
 FEE_FIRST = "fee_first"
 PARENT_FIRST = "parent_first"
 SINGLE_LINE_SHARE = 0.6
@@ -38,13 +40,23 @@ PAIR_BUILDERS = ("transfer", "pay_bill")
 UNCLASSIFIED = "UNCLASSIFIED"
 
 
+@dataclass(frozen=True)
+class RowMix:
+    """How the rows are mixed: short details, parent and fee pairs, and tied values."""
+
+    single_line_share: float = SINGLE_LINE_SHARE
+    pair_share: float = PAIR_SHARE
+    # Every amount at the bottom of its range and most transactions at the second before, so
+    # amounts and times tie often.
+    tied_values: bool = False
+
+
 def build_fake_rows(
     seed_text,
     row_count,
     *,
     pair_orders=None,
-    single_line_share=SINGLE_LINE_SHARE,
-    pair_share=PAIR_SHARE,
+    mix=None,
 ):
     """Build fake transactions with a running balance, newest first as a statement prints them.
 
@@ -53,8 +65,8 @@ def build_fake_rows(
         row_count: Exact number of rows to build.
         pair_orders: Print orders to cycle through, making every transaction a parent and fee
             pair at the same second. By default pairs print fee first and singles are mixed in.
-        single_line_share: Share of single rows whose details are short enough for one line.
-        pair_share: Share of transactions built as a parent and fee pair, when not pairs-only.
+        mix: A ``RowMix``: shares of short details and of pairs, and whether values tie often.
+            The default mix by default.
 
     Returns:
         Row maps with ``time``, ``receipt_no``, ``details``, ``paid_in_cents``,
@@ -66,7 +78,7 @@ def build_fake_rows(
         None.
     """
     rng = random.Random(seed_text)
-    builder = _RowBuilder(rng, single_line_share=single_line_share, pair_share=pair_share)
+    builder = _RowBuilder(rng, mix or RowMix())
     print_groups = []
     built = 0
     while built < row_count:
@@ -118,20 +130,20 @@ def plant_chain_breaks(fake_rows, count):
 class _RowBuilder:
     """Tracks the running balance, clock and used receipts while rows are built."""
 
-    def __init__(self, rng, *, single_line_share, pair_share):
+    def __init__(self, rng, mix):
         """Start at the opening balance.
 
         Args:
             rng: Seeded random source.
-            single_line_share: Share of single rows with short details.
-            pair_share: Share of transactions built as a parent and fee pair.
+            mix: The ``RowMix`` to build.
 
         Side Effects:
             None.
         """
         self.rng = rng
-        self.single_line_share = single_line_share
-        self.pair_share = pair_share
+        self.single_line_share = mix.single_line_share
+        self.pair_share = mix.pair_share
+        self.tied_values = mix.tied_values
         self.balance_cents = OPENING_CENTS
         self.time = START_TIME
         self.used_receipts = set()
@@ -151,7 +163,10 @@ class _RowBuilder:
         Side Effects:
             Advances the clock and the running balance.
         """
-        self.time += timedelta(minutes=1 + int(self.rng.random() * MAX_GAP_MINUTES))
+        gap = timedelta(minutes=1 + int(self.rng.random() * MAX_GAP_MINUTES))
+        # With tied values the clock moves only every TIED_TIME_EVERY transactions.
+        if not self.tied_values or self.rng.random() < 1 / TIED_TIME_EVERY:
+            self.time += gap
         if remaining >= 2 and (pair_only or self.rng.random() < self.pair_share):
             return self._build_paid_in_pair(order) if paid_in_parent else self._build_pair(order)
         return [self._build_single()]
@@ -476,7 +491,7 @@ class _RowBuilder:
                 return receipt
 
     def _amount_cents(self, low, high):
-        """Pick an amount in whole shillings.
+        """Pick an amount in whole shillings; the lowest one when values are tied.
 
         Args:
             low: Smallest amount, in cents.
@@ -488,7 +503,8 @@ class _RowBuilder:
         Side Effects:
             None.
         """
-        return (low + int(self.rng.random() * (high - low))) // 100 * 100
+        drawn = (low + int(self.rng.random() * (high - low))) // 100 * 100
+        return low // 100 * 100 if self.tied_values else drawn
 
     def _digits(self, count):
         """Pick a run of digits.

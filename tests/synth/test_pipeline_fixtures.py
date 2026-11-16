@@ -1,5 +1,6 @@
 """pipeline.run on every committed fixture: the composition of the stages, JSON-safe, no secrets."""
 
+import hashlib
 import json
 
 import pytest
@@ -12,6 +13,7 @@ from mpesa_core.cleaning.canonicalize import canonicalize_rows
 from mpesa_core.contracts import SCHEMA_VERSION
 from mpesa_core.errors import ErrorCode, ExtractionError
 from mpesa_core.extraction.rows import build_rows
+from mpesa_core.reconciliation.account import account_digest
 from mpesa_core.reconciliation.attest import attest
 from mpesa_core.reconciliation.reconcile import measure_balances, measure_unclassified, reconcile
 from synth.generate import COMMITTED_FIXTURES, FAKE_PASSWORD
@@ -33,10 +35,16 @@ def composed(statement_pages):
     token = attest(statement_pages)
     rows = build_rows(statement_pages)
     transactions, diagnostics = classify_transactions(canonicalize_rows(rows))
-    quality = {**reconcile(statement_pages, rows), **measure_unclassified(transactions)}
+    digest = account_digest(statement_pages)
+    quality = {
+        **reconcile(statement_pages, rows),
+        **measure_unclassified(transactions),
+        "account_number_unreadable": digest is None,
+    }
     return {
         "schema_version": SCHEMA_VERSION,
         "verification_token": token,
+        "account_digest": digest,
         "processed_at": None,
         "period": pipeline.measure_period(transactions),
         "balances": measure_balances(rows, quality["chain_orientation"]),
@@ -82,10 +90,12 @@ def test_fixture_without_rows_attests_then_raises_layout_unrecognized():
 INVENTED_NAME = "Example Person 00"
 INVENTED_PHONE = "07000000" + "00"
 INVENTED_EMAIL = "example.person@example.invalid"
+INVENTED_CANONICAL_PHONE = "254" + INVENTED_PHONE[1:]
 INVENTED_IDENTITY = (
     INVENTED_NAME,
     INVENTED_PHONE,
     INVENTED_PHONE[1:],
+    INVENTED_CANONICAL_PHONE,
     INVENTED_EMAIL,
     "example.person",
     "example.invalid",
@@ -117,3 +127,11 @@ def test_the_result_holds_none_of_the_name_phone_or_email_anywhere(name):
     for planted in INVENTED_IDENTITY:
         assert not any(planted in text for text in texts), "identity text in the result"
     assert not any("@" in text for text in texts)
+
+
+@pytest.mark.parametrize("name", WITH_ROWS)
+def test_the_result_carries_the_digest_of_the_invented_number(name):
+    pipeline_result = pipeline.run(pages_of(name))
+    expected = hashlib.sha256(INVENTED_CANONICAL_PHONE.encode("ascii")).hexdigest()
+    assert pipeline_result["account_digest"] == expected
+    assert pipeline_result["quality"]["account_number_unreadable"] is False

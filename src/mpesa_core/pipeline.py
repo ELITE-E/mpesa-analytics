@@ -11,6 +11,7 @@ from mpesa_core.classification.classify import classify_transactions
 from mpesa_core.cleaning.canonicalize import canonicalize_rows
 from mpesa_core.contracts import SCHEMA_VERSION
 from mpesa_core.extraction.rows import build_rows
+from mpesa_core.reconciliation.account import account_digest
 from mpesa_core.reconciliation.attest import attest
 from mpesa_core.reconciliation.reconcile import measure_balances, measure_unclassified, reconcile
 
@@ -34,7 +35,8 @@ def run(statement_pages, *, processed_at=None):
         processed_at: A time chosen by the caller, carried into the result as given.
 
     Returns:
-        A ``PipelineResult`` of plain JSON values. The input is not changed.
+        A ``PipelineResult`` of plain JSON values. The input is not changed. Page 1's mobile
+        number is carried only as its digest, which must never be persisted.
 
     Side Effects:
         Imports pandas on the first run that reaches the analysis.
@@ -44,10 +46,16 @@ def run(statement_pages, *, processed_at=None):
     classified, diagnostics = classify_transactions(canonicalize_rows(rows))
     transactions = [_with_plain_classes(transaction) for transaction in classified]
     report = analyze_transactions(transactions)
-    quality = {**reconcile(statement_pages, rows), **measure_unclassified(transactions)}
+    digest = account_digest(statement_pages)
+    quality = {
+        **reconcile(statement_pages, rows),
+        **measure_unclassified(transactions),
+        "account_number_unreadable": digest is None,
+    }
     return {
         "schema_version": SCHEMA_VERSION,
         "verification_token": verification_token,
+        "account_digest": digest,
         "processed_at": processed_at,
         "period": measure_period(transactions),
         "balances": measure_balances(rows, quality["chain_orientation"]),

@@ -1,17 +1,20 @@
+import copy
 import json
 import os
 import re
 import subprocess
 import sys
+import unicodedata
 
 import pytest
 
 from conftest import REPO
+from mpesa_core import pipeline
 from mpesa_core.analysis import analyze_transactions
 from mpesa_core.classification.classify import classify_transactions
 from mpesa_core.cleaning.canonicalize import canonicalize_rows
 from mpesa_core.errors import AnalysisError, DomainRowError
-from synth.generate import FAKE_PASSWORD
+from synth.generate import FAKE_PASSWORD, ON_DEMAND_FIXTURES, build_outputs
 from synth.layout import wrap_details
 
 TOOL = REPO / "tools" / "equivalence" / "compare.py"
@@ -1116,3 +1119,508 @@ def test_a_report_without_labels_still_needs_a_baseline():
         text=True,
     )
     assert completed.returncode == 2
+
+
+# compare.py --browser-result: the browser engine's output against the baseline (CP8a item 8).
+# The directory is what tools/equivalence/browser_run.mjs writes: the browser's statement pages
+# and its pipeline result, without the account digest.
+
+PROCESSED_AT = "2026-11-16T09:00:00Z"
+BROWSER_GATE = "browser_result_equals_cpython"
+
+
+def write_browser_result(directory, name, change=None, pages_change=None):
+    """Write pages.json and result.json as browser_run.mjs does, from the recorded pages.
+
+    ``pages_change`` alters the pages before the result is computed from them; ``change`` alters
+    the result afterwards, as a browser that disagreed with CPython would.
+    """
+    directory.mkdir()
+    pages = json.loads((FIXTURES / f"{name}.items.json").read_text(encoding="utf-8"))
+    if pages_change:
+        pages_change(pages)
+    pages_text = json.dumps(pages)
+    (directory / "pages.json").write_text(pages_text, encoding="utf-8")
+    pipeline_result = json.loads(
+        json.dumps(pipeline.run(json.loads(pages_text), processed_at=PROCESSED_AT))
+    )
+    present = pipeline_result.pop("account_digest") is not None
+    if change:
+        change(pipeline_result)
+    browser_result = {
+        "processed_at": PROCESSED_AT,
+        "pipeline_result": pipeline_result,
+        "account_digest_present": present,
+    }
+    (directory / "result.json").write_text(json.dumps(browser_result), encoding="utf-8")
+    return directory
+
+
+def run_with_browser_result(tmp_path, name, change=None, *options, pages_change=None):
+    baseline = write_baseline(tmp_path, baseline_from(name))
+    browser = write_browser_result(tmp_path / "browser", name, change, pages_change)
+    return subprocess.run(
+        [
+            sys.executable,
+            str(TOOL),
+            "--browser-result",
+            str(browser),
+            "--baseline",
+            str(baseline),
+            "--share",
+            *options,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_a_matching_browser_result_passes_every_gate_and_the_browser_gate(tmp_path):
+    completed = run_with_browser_result(tmp_path, "F-GOLDEN")
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    gates = gates_of(completed)
+    assert gates[BROWSER_GATE] == "PASS"
+    assert set(gates.values()) == {"PASS"}
+    assert completed.stdout.strip().splitlines()[-1] == "RESULT: PASS"
+
+
+def test_the_lines_are_the_pdf_runs_lines_plus_the_browser_gate(tmp_path):
+    (tmp_path / "pdf").mkdir()
+    from_pdf = compare_fixture(tmp_path / "pdf", "F-GOLDEN")
+    from_browser = run_with_browser_result(tmp_path, "F-GOLDEN")
+    pdf_lines = from_pdf.stdout.strip().splitlines()
+    browser_lines = from_browser.stdout.strip().splitlines()
+    # Every line the browser comparison adds names "browser_".
+    assert [line for line in browser_lines if "browser_" not in line] == pdf_lines
+
+
+def test_a_browser_result_that_differs_from_cpython_fails_its_gate(tmp_path):
+    def change(pipeline_result):
+        pipeline_result["transactions"][0]["paid_out"] += 1.0
+
+    completed = run_with_browser_result(tmp_path, "F-GOLDEN", change)
+    assert completed.returncode == 1
+    assert gates_of(completed)[BROWSER_GATE] == "FAIL"
+    assert completed.stdout.strip().splitlines()[-1] == "RESULT: FAIL"
+
+
+def test_a_browser_result_holding_the_account_digest_is_refused(tmp_path):
+    def change(pipeline_result):
+        pipeline_result["account_digest"] = "0" * 64
+
+    completed = run_with_browser_result(tmp_path, "F-GOLDEN", change)
+    assert completed.returncode == 2
+    assert completed.stdout == "compare: ERROR (BROWSER_RESULT_HOLDS_DIGEST)\n"
+
+
+def test_a_missing_browser_result_cannot_run(tmp_path):
+    baseline = write_baseline(tmp_path, baseline_from("F-GOLDEN"))
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(TOOL),
+            "--browser-result",
+            str(tmp_path / "absent"),
+            "--baseline",
+            str(baseline),
+            "--share",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 2
+    assert completed.stdout == "compare: ERROR (BROWSER_RESULT_UNREADABLE)\n"
+
+
+def test_digest_presence_is_reported_but_excluded_from_the_gate(tmp_path):
+    completed = run_with_browser_result(tmp_path, "F-GOLDEN")
+    result_path = tmp_path / "browser" / "result.json"
+    browser_result = json.loads(result_path.read_text(encoding="utf-8"))
+    flipped = copy.deepcopy(browser_result)
+    flipped["account_digest_present"] = not browser_result["account_digest_present"]
+    result_path.write_text(json.dumps(flipped), encoding="utf-8")
+    rerun = subprocess.run(
+        [
+            sys.executable,
+            str(TOOL),
+            "--browser-result",
+            str(tmp_path / "browser"),
+            "--baseline",
+            str(tmp_path / "SECRETPATHMARKER.json"),
+            "--share",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0
+    # account_digest is left out of the browser output by design, so it is excluded from the
+    # comparison; whether both sides read one is still reported.
+    assert gates_of(rerun)[BROWSER_GATE] == "PASS"
+    assert counts_of(rerun)["browser_vs_cpython_account_digest_present_agrees"] == "no"
+
+
+def test_labels_cannot_be_combined_with_a_browser_result(tmp_path):
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(TOOL),
+            "--browser-result",
+            str(tmp_path),
+            "--pdf",
+            "x.pdf",
+            "--labels",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 2
+    assert "--labels" in completed.stderr
+
+
+def test_shared_browser_output_is_labels_and_counts_only(tmp_path):
+    completed = run_with_browser_result(tmp_path, "F-GOLDEN")
+    assert completed.returncode == 0
+    for line in completed.stdout.splitlines():
+        assert SHARE_LINE.fullmatch(line), line
+    assert "SECRETPATHMARKER" not in completed.stdout
+    assert str(tmp_path) not in completed.stdout
+
+
+# CP8a-2 item 6: why browser_result_equals_cpython fails, in counts only.
+
+TOP_LEVEL_KEYS = (
+    "balances",
+    "diagnostics",
+    "period",
+    "processed_at",
+    "quality",
+    "report",
+    "schema_version",
+    "transactions",
+    "verification_token",
+)
+ROW_FIELDS = (
+    "receipt_no",
+    "completion_time",
+    "details",
+    "status",
+    "paid_in",
+    "withdrawn",
+    "paid_out",
+    "balance",
+    "event_type",
+    "cash_flow_direction",
+    "economic_meaning",
+    "total_cost",
+    "entity",
+)
+PLANTED_TILL = "Merchant Payment Example Till 110"
+PLANTED_CAFE = unicodedata.normalize("NFC", "Merchant Payment Example Caf\u00e9 110")
+
+
+def plant_cafe(pages):
+    for page in pages["pages"]:
+        for text_item in page["items"]:
+            if text_item["text"] == PLANTED_TILL:
+                text_item["text"] = PLANTED_CAFE
+                return
+    raise AssertionError("planted item not found")
+
+
+def run_browser_and_pdf(tmp_path, pages_change=None):
+    baseline = write_baseline(tmp_path, baseline_from("F-GOLDEN"))
+    browser = write_browser_result(tmp_path / "browser", "F-GOLDEN", None, pages_change)
+    return subprocess.run(
+        [
+            sys.executable,
+            str(TOOL),
+            "--browser-result",
+            str(browser),
+            "--pdf",
+            str(FIXTURES / "F-GOLDEN.pdf"),
+            "--baseline",
+            str(baseline),
+            "--share",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        input="\n",
+    )
+
+
+def test_a_matching_browser_result_counts_no_differing_path_under_any_top_level_key(tmp_path):
+    counts = counts_of(run_with_browser_result(tmp_path, "F-GOLDEN"))
+    for key in TOP_LEVEL_KEYS:
+        assert counts[f"browser_vs_cpython_paths_differing {key}"] == "0", key
+        assert counts[f"browser_vs_cpython_paths_below_half_cent {key}"] == "0", key
+    assert "browser_vs_cpython_paths_differing account_digest" not in counts
+
+
+def test_differing_paths_are_counted_per_top_level_key_with_those_below_half_a_cent(tmp_path):
+    def change(pipeline_result):
+        pipeline_result["report"]["cash_flow"]["total_inflow"] += 1e-9
+        pipeline_result["quality"]["row_count"] += 1
+        pipeline_result["transactions"][2]["paid_out"] += 1.0
+
+    completed = run_with_browser_result(tmp_path, "F-GOLDEN", change)
+    counts = counts_of(completed)
+    assert counts["browser_vs_cpython_paths_differing report"] == "1"
+    assert counts["browser_vs_cpython_paths_below_half_cent report"] == "1"
+    assert counts["browser_vs_cpython_paths_differing quality"] == "1"
+    assert counts["browser_vs_cpython_paths_below_half_cent quality"] == "0"
+    assert counts["browser_vs_cpython_paths_differing transactions"] == "1"
+    assert counts["browser_vs_cpython_paths_differing diagnostics"] == "0"
+    assert gates_of(completed)[BROWSER_GATE] == "FAIL"
+
+
+def test_rows_are_counted_per_field_with_whether_normalisation_clears_them(tmp_path):
+    def change(pipeline_result):
+        rows = pipeline_result["transactions"]
+        cafe = next(row for row in rows if row["details"] == PLANTED_CAFE)
+        cafe["details"] = unicodedata.normalize("NFD", PLANTED_CAFE)
+        rows[0]["status"] = rows[0]["status"] + "  "
+        rows[1]["paid_out"] += 1.0
+        rows[3]["entity"] = "Example Person 99"
+
+    completed = run_with_browser_result(tmp_path, "F-GOLDEN", change, pages_change=plant_cafe)
+    counts = counts_of(completed)
+    assert counts["browser_vs_cpython_row_count_equal"] == "yes"
+    assert counts["browser_vs_cpython_rows_differing details"] == "1"
+    assert counts["browser_vs_cpython_rows_equal_after_normalisation details"] == "yes"
+    assert counts["browser_vs_cpython_rows_differing status"] == "1"
+    assert counts["browser_vs_cpython_rows_equal_after_normalisation status"] == "yes"
+    assert counts["browser_vs_cpython_rows_differing paid_out"] == "1"
+    assert counts["browser_vs_cpython_rows_equal_after_normalisation paid_out"] == "no"
+    assert counts["browser_vs_cpython_rows_differing entity"] == "1"
+    assert counts["browser_vs_cpython_rows_equal_after_normalisation entity"] == "no"
+    for field in set(ROW_FIELDS) - {"details", "status", "paid_out", "entity"}:
+        assert counts[f"browser_vs_cpython_rows_differing {field}"] == "0", field
+        assert f"browser_vs_cpython_rows_equal_after_normalisation {field}" not in counts
+    assert "Caf" not in completed.stdout
+    assert "Example Person 99" not in completed.stdout
+
+
+def test_a_browser_result_with_fewer_rows_says_the_row_counts_differ(tmp_path):
+    def change(pipeline_result):
+        pipeline_result["transactions"].pop()
+
+    counts = counts_of(run_with_browser_result(tmp_path, "F-GOLDEN", change))
+    assert counts["browser_vs_cpython_row_count_equal"] == "no"
+
+
+def test_the_account_digest_is_left_out_by_design_and_excluded_explicitly(tmp_path):
+    # browser_run writes only whether a digest was read; the verification token is kept.
+    counts = counts_of(run_with_browser_result(tmp_path, "F-GOLDEN"))
+    assert counts["browser_output_omits_account_digest"] == "yes"
+    assert counts["browser_output_omits_verification_token"] == "no"
+    assert counts["browser_vs_cpython_excluded_by_design"] == "account_digest"
+    assert counts["browser_vs_cpython_account_digest_present_agrees"] == "yes"
+
+
+def test_without_a_pdf_the_browser_pages_are_not_compared_with_the_node_reader(tmp_path):
+    counts = counts_of(run_with_browser_result(tmp_path, "F-GOLDEN"))
+    assert counts["browser_vs_node_pages_compared"] == "no"
+
+
+def test_with_the_pdf_the_browser_pages_are_compared_with_the_node_readers_pages(tmp_path):
+    completed = run_browser_and_pdf(tmp_path)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    counts = counts_of(completed)
+    assert counts["browser_vs_node_pages_compared"] == "yes"
+    assert counts["browser_vs_node_pages_browser"] == counts["browser_vs_node_pages_node"] == "2"
+    items = sum(
+        len(page["items"])
+        for page in json.loads((FIXTURES / "F-GOLDEN.items.json").read_text(encoding="utf-8"))[
+            "pages"
+        ]
+    )
+    assert (
+        counts["browser_vs_node_items_browser"]
+        == counts["browser_vs_node_items_node"]
+        == str(items)
+    )
+    assert counts["browser_vs_node_items_differing"] == "0"
+    assert counts["browser_vs_node_items_differing_after_normalisation"] == "0"
+
+
+def test_page_items_that_differ_only_in_text_normalisation_are_counted_apart(tmp_path):
+    def pages_change(pages):
+        items = pages["pages"][0]["items"]
+        till = next(text_item for text_item in items if text_item["text"] == PLANTED_TILL)
+        till["text"] = PLANTED_TILL.replace(" ", "  ")
+        items[0]["x0"] += 0.01
+
+    counts = counts_of(run_browser_and_pdf(tmp_path, pages_change))
+    assert counts["browser_vs_node_items_differing"] == "2"
+    assert counts["browser_vs_node_items_differing_after_normalisation"] == "1"
+
+
+# CP8a-3: which report paths differ, masked, and whether only tie order differs.
+
+REPORT_PATH_LINE = re.compile(
+    r"^browser_vs_cpython_report_path: [a-z_.<>\[\]0-9]+ type=(number|string|null) "
+    r"parent_list_reordered=(yes|no)( magnitude=(lt_1|lt_100|lt_10000|gte))?$"
+)
+
+
+def report_path_lines(completed):
+    return [
+        line
+        for line in completed.stdout.splitlines()
+        if line.startswith("browser_vs_cpython_report_path:")
+    ]
+
+
+def swap_first_two_purchases(pipeline_result):
+    purchases = pipeline_result["report"]["spending"]["largest_purchases"]
+    purchases[0], purchases[1] = purchases[1], purchases[0]
+
+
+def test_a_reordered_report_list_prints_masked_paths_with_type_and_reordered_yes(tmp_path):
+    completed = run_with_browser_result(tmp_path, "F-GOLDEN", swap_first_two_purchases)
+    lines = report_path_lines(completed)
+    assert lines
+    for line in lines:
+        assert REPORT_PATH_LINE.fullmatch(line), line
+        assert "parent_list_reordered=yes" in line
+        assert line.split()[1].startswith("spending.largest_purchases[")
+    assert any("type=string" in line for line in lines)
+    assert "Example" not in completed.stdout
+    assert "ZZ" not in completed.stdout
+
+
+def test_a_changed_report_number_prints_its_magnitude_and_reordered_no(tmp_path):
+    def change(pipeline_result):
+        pipeline_result["report"]["cash_flow"]["total_inflow"] += 1.0
+
+    lines = report_path_lines(run_with_browser_result(tmp_path, "F-GOLDEN", change))
+    assert len(lines) == 1
+    path, kind, reordered, magnitude = lines[0].split()[1:]
+    assert path == "cash_flow.total_inflow"
+    assert (kind, reordered) == ("type=number", "parent_list_reordered=no")
+    assert magnitude in {"magnitude=lt_10000", "magnitude=gte"}
+
+
+def test_a_report_key_taken_from_data_is_masked(tmp_path):
+    def change(pipeline_result):
+        pipeline_result["report"]["spending"]["Example Person 77"] = None
+
+    completed = run_with_browser_result(tmp_path, "F-GOLDEN", change)
+    assert report_path_lines(completed) == [
+        "browser_vs_cpython_report_path: spending.<key> type=null parent_list_reordered=no"
+    ]
+    assert "Example Person 77" not in completed.stdout
+
+
+def run_browser_only(tmp_path, *options):
+    browser = write_browser_result(tmp_path / "browser", "F-GOLDEN")
+    return subprocess.run(
+        [
+            sys.executable,
+            str(TOOL),
+            "--browser-result",
+            str(browser),
+            "--skip-baseline",
+            "--share",
+            *options,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_skip_baseline_runs_only_the_browser_against_cpython_part(tmp_path):
+    completed = run_browser_only(tmp_path)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    counts = counts_of(completed)
+    assert "rows_old" not in counts
+    assert counts["browser_vs_cpython_paths_differing report"] == "0"
+    assert gates_of(completed) == {BROWSER_GATE: "PASS"}
+    assert completed.stdout.strip().splitlines()[-1] == "RESULT: PASS"
+
+
+def test_skip_baseline_needs_a_browser_result(tmp_path):
+    completed = subprocess.run(
+        [sys.executable, str(TOOL), "--pdf", "x.pdf", "--skip-baseline"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 2
+    assert "--skip-baseline" in completed.stderr
+
+
+@pytest.fixture(scope="module")
+def tied_statement(tmp_path_factory):
+    seed, options = ON_DEMAND_FIXTURES["F-TIED"]
+    outputs = build_outputs(seed, options)
+    directory = tmp_path_factory.mktemp("tied")
+    (directory / "F-TIED.pdf").write_bytes(outputs[".pdf"])
+    rows = json.loads(outputs[".expected.json"])["rows"]
+    return directory / "F-TIED.pdf", [{field: row[field] for field in SEVEN_FIELDS} for row in rows]
+
+
+def compare_tied(tmp_path, tied_statement, report_change):
+    pdf_path, rows = tied_statement
+    baseline = write_baseline(tmp_path, rows, report_change=report_change)
+    return run_compare(pdf_path, baseline, "--share")
+
+
+def swap_tied_purchases(report):
+    purchases = report["spending"]["largest_purchases"]
+    first = next(
+        index
+        for index in range(len(purchases) - 1)
+        if purchases[index]["amount"] == purchases[index + 1]["amount"]
+    )
+    purchases[first], purchases[first + 1] = purchases[first + 1], purchases[first]
+
+
+def test_an_old_report_differing_only_in_tie_order_passes_and_is_counted_per_path_class(
+    tmp_path, tied_statement
+):
+    completed = compare_tied(tmp_path, tied_statement, swap_tied_purchases)
+    counts = counts_of(completed)
+    assert int(counts["report_paths_tie_order_only"]) >= 1
+    assert int(counts["report_tie_order_only spending.largest_purchases[].transaction"]) >= 1
+    assert counts["report_paths_tie_order_only"] == counts["report_paths_different"]
+    assert gates_of(completed)["report_paths_equal"] == "PASS"
+
+
+def test_an_old_report_whose_sort_values_differ_still_fails(tmp_path, tied_statement):
+    # F-TIED ties every one of the ten largest purchases, so an untied swap is made by changing
+    # one amount: the sort values then differ position by position.
+    def swap_untied(report):
+        report["spending"]["largest_purchases"][0]["amount"] += 1.0
+
+    completed = compare_tied(tmp_path, tied_statement, swap_untied)
+    assert counts_of(completed)["report_paths_tie_order_only"] == "0"
+    assert gates_of(completed)["report_paths_equal"] == "FAIL"
+
+
+def test_an_old_closing_balance_from_another_row_at_the_tied_latest_time_is_tie_order_only(
+    tmp_path, tied_statement
+):
+    _, rows = tied_statement
+    latest = max(row["completion_time"] for row in rows)
+    tied_balances = {row["balance"] for row in rows if row["completion_time"] == latest}
+
+    def change(report):
+        current = report["cash_flow"]["closing_balance"]
+        other = next(
+            float(balance.replace(",", ""))
+            for balance in sorted(tied_balances)
+            if float(balance.replace(",", "")) != current
+        )
+        report["cash_flow"]["closing_balance"] = other
+
+    completed = compare_tied(tmp_path, tied_statement, change)
+    counts = counts_of(completed)
+    assert counts["report_tie_order_only cash_flow.closing_balance"] == "1"
+    assert gates_of(completed)["report_paths_equal"] == "PASS"

@@ -5,6 +5,7 @@ import re
 import statistics
 import subprocess
 import sys
+from collections import Counter
 from typing import get_type_hints
 
 import pdfplumber
@@ -13,7 +14,7 @@ import pytest
 from _common import find_tokens
 from conftest import REPO
 from mpesa_core import contracts
-from synth.generate import StatementOptions, build_outputs
+from synth.generate import ON_DEMAND_FIXTURES, StatementOptions, build_outputs
 from synth.layout import COLUMNS, HEADER_LABELS, PAGE_HEIGHT, PAGE_WIDTH
 
 SEED = 11
@@ -411,3 +412,30 @@ def test_split_datetime_gap_is_wide_enough_to_stay_two_items():
     for date, clock in zip(dates, clocks, strict=True):
         assert clock["x0"] - date["x1"] >= 6.0
         assert clock["x1"] <= COLUMNS[1].x1
+
+
+# CP8a-3: a statement with many tied values, for the tie-order tests. Generated on demand.
+
+
+def tied_ledger():
+    seed, options = ON_DEMAND_FIXTURES["F-TIED"]
+    return json.loads(build_outputs(seed, options)[".expected.json"])
+
+
+def test_the_tied_fixture_is_on_demand_and_never_committed():
+    assert "F-TIED" in ON_DEMAND_FIXTURES
+    assert not any(
+        path.name.startswith("F-TIED") for path in (REPO / "tests/fixtures/synthetic").iterdir()
+    )
+
+
+def test_the_tied_fixture_repeats_amounts_many_times():
+    rows = tied_ledger()["rows"]
+    withdrawn = Counter(row["withdrawn"] for row in rows if row["withdrawn"])
+    assert withdrawn.most_common(1)[0][1] >= 20
+
+
+def test_the_tied_fixture_shares_its_latest_completion_time_between_rows():
+    times = Counter(row["completion_time"] for row in tied_ledger()["rows"])
+    assert times[max(times)] >= 2
+    assert len(times) < len(tied_ledger()["rows"]) / 2

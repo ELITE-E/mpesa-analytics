@@ -23,6 +23,7 @@ from mpesa_core.errors import (
     ExtractionError,
 )
 from mpesa_core.extraction.rows import build_rows
+from mpesa_core.reconciliation.account import account_digest
 from mpesa_core.reconciliation.attest import attest
 from mpesa_core.reconciliation.reconcile import measure_balances, measure_unclassified, reconcile
 
@@ -31,6 +32,7 @@ JSON_TYPES = (str, int, float, bool, type(None), list, dict)
 RESULT_FIELDS = {
     "schema_version",
     "verification_token",
+    "account_digest",
     "processed_at",
     "period",
     "balances",
@@ -47,10 +49,16 @@ def composed(statement_pages, processed_at=None):
     rows = build_rows(statement_pages)
     transactions, diagnostics = classify_transactions(canonicalize_rows(rows))
     report = analyze_transactions(transactions)
-    quality = {**reconcile(statement_pages, rows), **measure_unclassified(transactions)}
+    digest = account_digest(statement_pages)
+    quality = {
+        **reconcile(statement_pages, rows),
+        **measure_unclassified(transactions),
+        "account_number_unreadable": digest is None,
+    }
     return {
         "schema_version": SCHEMA_VERSION,
         "verification_token": token,
+        "account_digest": digest,
         "processed_at": processed_at,
         "period": pipeline.measure_period(transactions),
         "balances": measure_balances(rows, quality["chain_orientation"]),
@@ -213,3 +221,26 @@ def test_a_run_that_stops_before_analysis_leaves_pandas_unloaded(printed):
 def test_a_run_that_reaches_analysis_loads_pandas(printed):
     pages = attestable_statement(printed)
     assert pandas_loaded_by_running(lambda load: load("mpesa_core.pipeline").run(pages))
+
+
+def with_mobile_number(statement_pages, printed, text):
+    page_one = statement_pages["pages"][0]
+    page_one["items"].append(printed.left_item(f"Mobile Number: {text}", 20.0, 20.0))
+    return statement_pages
+
+
+def test_result_carries_the_digest_of_page_one_mobile_number(printed):
+    number = "07000000" + "03"
+    pages = with_mobile_number(attestable_statement(printed), printed, number)
+    pipeline_result = pipeline.run(pages)
+    assert pipeline_result["account_digest"] == account_digest(pages)
+    assert pipeline_result["account_digest"] is not None
+    assert pipeline_result["quality"]["account_number_unreadable"] is False
+    assert number not in repr(pipeline_result)
+    assert number[1:] not in repr(pipeline_result)
+
+
+def test_an_unreadable_mobile_number_gives_no_digest_and_a_quality_flag(printed):
+    pipeline_result = pipeline.run(attestable_statement(printed))
+    assert pipeline_result["account_digest"] is None
+    assert pipeline_result["quality"]["account_number_unreadable"] is True

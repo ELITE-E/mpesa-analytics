@@ -9,14 +9,14 @@ from conftest import REPO
 from synth.generate import COMMITTED_FIXTURES, build_outputs
 
 FIXTURES = REPO / "tests" / "fixtures" / "synthetic"
-ADAPTER = REPO / "pdf_reader" / "pdfjs" / "adapter.js"
+LIMITS = REPO / "pdf_reader" / "limits.js"
 MAX_COMMITTED_BYTES = 2 * 1024 * 1024
 MIN_DENSE_OPERATORS = 50_000
 
 
 def adapter_page_limit():
-    source = ADAPTER.read_text(encoding="utf-8")
-    return int(re.search(r"DEFAULT_PAGE_LIMIT = (\d+);", source).group(1))
+    source = LIMITS.read_text(encoding="utf-8")
+    return int(re.search(r"pageLimit: (\d+),", source).group(1))
 
 
 def expected(name):
@@ -36,13 +36,14 @@ def test_hostile_fixture_is_committed_and_small_enough(name):
 
 
 def test_many_pages_fixture_exceeds_the_default_page_limit():
-    assert len(statement_pages("F-MANY-PAGES")["pages"]) == adapter_page_limit() + 1
+    assert len(statement_pages("F-MANY-PAGES")["pages"]) > adapter_page_limit()
 
 
 def test_many_pages_fixture_really_has_that_many_pages():
     content = (FIXTURES / "F-MANY-PAGES.pdf").read_bytes()
     with pdfplumber.open(io.BytesIO(content)) as pdf:
-        assert len(pdf.pages) == adapter_page_limit() + 1
+        assert len(pdf.pages) == len(statement_pages("F-MANY-PAGES")["pages"])
+        assert len(pdf.pages) > adapter_page_limit()
 
 
 def test_many_pages_fixture_has_a_real_statement_on_page_one():

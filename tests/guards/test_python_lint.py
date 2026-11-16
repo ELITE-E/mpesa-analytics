@@ -93,18 +93,13 @@ def test_print_stays_banned_outside_tools(tmp_path):
     assert "T201" in ruff_codes(tmp_path)
 
 
-def test_bundle_budget_is_reported_as_not_enforced():
-    completed = subprocess.run(
-        [sys.executable, str(REPO / "tools" / "measure_bundle.py")],
-        capture_output=True,
-        text=True,
-    )
-    assert completed.returncode == 0, completed.stderr
-    assert "NOT ENFORCED" in completed.stdout
+def test_bundle_budget_is_enforced():
+    source = (REPO / "tools" / "measure_bundle.py").read_text(encoding="utf-8")
+    assert "NOT ENFORCED" not in source
 
 
-def test_bundle_budget_is_not_a_ci_gate():
-    assert "measure_bundle" not in (REPO / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+def test_bundle_budget_is_a_ci_gate():
+    assert "measure_bundle" in (REPO / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
 
 def pydoclint(root):

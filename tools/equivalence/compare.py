@@ -14,7 +14,17 @@ screen. If the PDF needs a password, the CLI asks with a hidden prompt.
 above the block is printed, as that is where the name, number and email are. If either marker is
 missing it prints nothing and exits 2. It refuses ``--share``: read it on your own screen first.
 
+``--browser-result DIR`` replaces ``--pdf``: it reads the statement pages and pipeline result that
+``browser_run.mjs`` wrote from the browser engine, prints the same lines and gates, and adds the
+gate ``browser_result_equals_cpython``: CPython's pipeline result on the browser's pages equals the
+browser's. The browser result never holds the account digest, only whether one was read, so the
+digest is excluded from that comparison by design. Lines starting ``browser_`` count where the two
+differ: paths per top-level key (and how many of those are numbers under half a cent apart), rows
+per field (and whether Unicode NFC plus whitespace normalisation makes them equal). With ``--pdf``
+as well, the browser's statement pages are compared with the Node reader's for that PDF.
+
     python tools/equivalence/compare.py --pdf PATH --baseline FILE --share
+    python tools/equivalence/compare.py --browser-result DIR --pdf PATH --baseline FILE --share
     python tools/equivalence/compare.py --pdf PATH --labels
 """
 
@@ -29,6 +39,7 @@ import secrets
 import subprocess
 import sys
 import tempfile
+import unicodedata
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
@@ -93,6 +104,8 @@ CLASS_FIELDS = {
 }
 CLASSIFIED_AMOUNT_FIELDS = ("total_cost", "paid_out")
 HALF_CENT = 0.005
+# Marks a path or field present on one side only; never equal to a JSON value.
+MISSING = object()
 REPORT_UNREADABLE = "REPORT_UNREADABLE"
 REPORT_NAME = "report.json"
 MASKED_KEY = "<key>"
@@ -169,6 +182,53 @@ SHOWABLE_STATUS = re.compile(r"[A-Za-z ]{3,20}")
 SHOWABLE_STATUS_MINIMUM = 20
 OTHER_STATUS = "OTHER"
 SUMMARY_WORDS = {True: "yes", False: "no", None: "not_found"}
+BROWSER_RESULT_UNREADABLE = "BROWSER_RESULT_UNREADABLE"
+BROWSER_RESULT_HOLDS_DIGEST = "BROWSER_RESULT_HOLDS_DIGEST"
+BROWSER_PAGES_NAME = "pages.json"
+BROWSER_RESULT_NAME = "result.json"
+BROWSER_RESULT_FIELDS = {"processed_at", "pipeline_result", "account_digest_present"}
+BROWSER_GATE = "browser_result_equals_cpython"
+DIGEST_FIELD = "account_digest"
+TOKEN_FIELD = "verification_token"
+# Left out of browser_run's output on purpose (it must never be stored), so never compared.
+EXCLUDED_BY_DESIGN = (DIGEST_FIELD,)
+PIPELINE_RESULT_KEYS = frozenset(
+    {
+        "schema_version",
+        "verification_token",
+        "account_digest",
+        "processed_at",
+        "period",
+        "balances",
+        "transactions",
+        "report",
+        "quality",
+        "diagnostics",
+    }
+)
+ROW_FIELDS = (
+    "receipt_no",
+    "completion_time",
+    "details",
+    "status",
+    "paid_in",
+    "withdrawn",
+    "paid_out",
+    "balance",
+    "event_type",
+    "cash_flow_direction",
+    "economic_meaning",
+    "total_cost",
+    "entity",
+)
+ITEM_POSITION_FIELDS = ("x0", "x1", "top", "bottom")
+# Report lists ordered by value, with the field they are ordered by (behaviour-changes T-1, T-2).
+TIE_ORDERED_LISTS = {
+    ("spending", "top_recipients"): "amount_received",
+    ("spending", "largest_purchases"): "amount",
+}
+CLOSING_BALANCE_PATH = ("cash_flow", "closing_balance")
+MAGNITUDE_BUCKETS = ((1, "lt_1"), (100, "lt_100"), (10_000, "lt_10000"))
 
 
 @dataclass(frozen=True)
@@ -219,18 +279,11 @@ def main():
         Reads the baseline, runs the extract CLI (which may prompt), writes and deletes a temporary
         file outside the repo, and prints counts.
     """
-    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument("--pdf", type=Path, required=True)
-    parser.add_argument("--baseline", type=Path)
-    parser.add_argument("--share", action="store_true")
-    parser.add_argument("--labels", action="store_true")
-    args = parser.parse_args()
-    if args.labels and args.share:
-        parser.error("--labels cannot be combined with --share")
+    args = _parse_arguments()
     if args.labels:
         return _print_summary_labels(args.pdf)
-    if args.baseline is None:
-        parser.error("--baseline is required")
+    if args.skip_baseline:
+        return _compare_browser_only(args)
     try:
         old = OldSide(
             _read_baseline(args.baseline),
@@ -238,7 +291,12 @@ def main():
             _read_classified(args.baseline.parent / CLASSIFIED_NAME),
             _read_report(args.baseline.parent / REPORT_NAME),
         )
-        statement_pages = _extract_statement_pages(args.pdf)
+        browser_result = node_pages = None
+        if args.browser_result is None:
+            statement_pages = _extract_statement_pages(args.pdf)
+        else:
+            statement_pages, browser_result = _read_browser_result(args.browser_result)
+            node_pages = None if args.pdf is None else _extract_statement_pages(args.pdf)
         assembly = assemble_rows(statement_pages)
         new_classified = classify_transactions(canonicalize_rows(assembly["rows"]))[0]
         new_report = analyze_transactions(new_classified)
@@ -255,13 +313,86 @@ def main():
         # Under the pinned pandas a date-based analysis cannot compare a missing date (A-3).
         print(f"compare: ERROR (ANALYSIS_STOPPED {error.code.value})")
         return CANNOT_RUN
-    lines, gates = build_report(old, assembly, (new_classified, new_report), statement_pages)
+    browser_section = (
+        ([], [])
+        if browser_result is None
+        else _browser_section(statement_pages, browser_result, node_pages)
+    )
+    lines, gates = build_report(
+        old, assembly, (new_classified, new_report), statement_pages, browser_section
+    )
     lines += [] if args.share else _mismatch_positions(old.rows, assembly)
     print("\n".join(lines))
     return 0 if all(verdict for verdict, _ in gates) else FAILED
 
 
-def build_report(old, assembly, new_results, statement_pages):
+def _compare_browser_only(args):
+    """Compare the browser's output with CPython's alone, without the old code's baseline.
+
+    Args:
+        args: The parsed arguments: ``--browser-result``, and ``--pdf`` to compare the pages
+            with the Node reader's.
+
+    Returns:
+        Process exit code: 0 if the browser gate passes, 1 if not, 2 if it could not run.
+
+    Side Effects:
+        Reads the browser result, may run the extract CLI (which may prompt), prints counts.
+    """
+    try:
+        statement_pages, browser_result = _read_browser_result(args.browser_result)
+        node_pages = None if args.pdf is None else _extract_statement_pages(args.pdf)
+    except CompareError as error:
+        print(f"compare: ERROR ({error.code})")
+        return CANNOT_RUN
+    lines, gates = _browser_section(statement_pages, browser_result, node_pages)
+    passed = all(verdict for verdict, _ in gates)
+    print(
+        "\n".join(
+            [
+                *lines,
+                *[f"{'PASS' if verdict else 'FAIL'} {label}" for verdict, label in gates],
+                f"RESULT: {'PASS' if passed else 'FAIL'}",
+            ]
+        )
+    )
+    return 0 if passed else FAILED
+
+
+def _parse_arguments():
+    """Read and check the command line.
+
+    Returns:
+        The parsed arguments: ``--pdf`` or ``--browser-result`` (or both), and ``--baseline``
+        unless ``--labels`` or ``--skip-baseline`` is asked for.
+
+    Side Effects:
+        Exits with a usage message if the combination is not allowed.
+    """
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    parser.add_argument("--pdf", type=Path)
+    parser.add_argument("--browser-result", type=Path)
+    parser.add_argument("--baseline", type=Path)
+    parser.add_argument("--share", action="store_true")
+    parser.add_argument("--labels", action="store_true")
+    parser.add_argument("--skip-baseline", action="store_true")
+    args = parser.parse_args()
+    if args.skip_baseline and args.browser_result is None:
+        parser.error("--skip-baseline needs --browser-result")
+    if args.pdf is None and args.browser_result is None:
+        parser.error("--pdf or --browser-result is required")
+    if args.labels and args.browser_result is not None:
+        parser.error("--labels cannot be combined with --browser-result")
+    if args.labels and args.share:
+        parser.error("--labels cannot be combined with --share")
+    if args.labels and args.pdf is None:
+        parser.error("--labels needs --pdf")
+    if not (args.labels or args.skip_baseline) and args.baseline is None:
+        parser.error("--baseline is required")
+    return args
+
+
+def build_report(old, assembly, new_results, statement_pages, browser_section=((), ())):
     """Compare both sides and describe the outcome in counts.
 
     Args:
@@ -270,6 +401,9 @@ def build_report(old, assembly, new_results, statement_pages):
         new_results: Tuple of the new rows, cleaned and classified, in print order, and the new
             report.
         statement_pages: The statement pages the new rows came from.
+        browser_section: Tuple of more lines, printed before the verdicts, and more gates, as
+            tuples of whether each passed and its label, printed after the others and counted in
+            the result.
 
     Returns:
         Tuple of the report's lines, ending in the verdicts, and the gates as tuples of whether
@@ -289,7 +423,7 @@ def build_report(old, assembly, new_results, statement_pages):
         old.canonical, canonicalize_rows(assembly["rows"])
     )
     classified_lines, classified_gates = _classified_report(old.classified, new_classified)
-    report_lines, report_gate = _report_comparison(old.report, new_report)
+    report_lines, report_gate = _report_comparison(old.report, new_report, new_classified)
     gates = [
         *_row_and_field_gates(aligned, field_mismatches),
         _status_gate(aligned, field_mismatches["status"], status_counts),
@@ -297,6 +431,7 @@ def build_report(old, assembly, new_results, statement_pages):
         *canonical_gates,
         *classified_gates,
         report_gate,
+        *browser_section[1],
     ]
     lines = [
         *_row_count_lines(aligned),
@@ -317,10 +452,386 @@ def build_report(old, assembly, new_results, statement_pages):
         *_balance_lines(aligned.new_rows, new_quality, (old.report, new_report)),
         *_chain_diagnostic_lines(aligned.new_rows, new_quality),
         *_remaining_break_lines(aligned.new_rows, new_classified, new_quality),
+        *browser_section[0],
         *[f"{'PASS' if verdict else 'FAIL'} {label}" for verdict, label in gates],
         f"RESULT: {'PASS' if all(verdict for verdict, _ in gates) else 'FAIL'}",
     ]
     return lines, gates
+
+
+def _read_browser_result(directory):
+    """Read what ``browser_run.mjs`` wrote: the browser's statement pages and pipeline result.
+
+    Args:
+        directory: The browser run's output directory.
+
+    Returns:
+        Tuple of the statement pages and the browser result: ``processed_at``,
+        ``pipeline_result`` (without the account digest) and ``account_digest_present``.
+
+    Raises:
+        CompareError: ``BROWSER_RESULT_UNREADABLE`` if a file is missing or malformed;
+            ``BROWSER_RESULT_HOLDS_DIGEST`` if the result holds the account digest, which must
+            never be stored.
+
+    Side Effects:
+        Reads two files.
+    """
+    try:
+        statement_pages = json.loads((directory / BROWSER_PAGES_NAME).read_text(encoding="utf-8"))
+        browser_result = json.loads((directory / BROWSER_RESULT_NAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise CompareError(BROWSER_RESULT_UNREADABLE) from error
+    is_valid = (
+        isinstance(statement_pages, dict)
+        and isinstance(statement_pages.get("pages"), list)
+        and isinstance(browser_result, dict)
+        and set(browser_result) == BROWSER_RESULT_FIELDS
+        and isinstance(browser_result["pipeline_result"], dict)
+    )
+    if not is_valid:
+        raise CompareError(BROWSER_RESULT_UNREADABLE)
+    if DIGEST_FIELD in browser_result["pipeline_result"]:
+        raise CompareError(BROWSER_RESULT_HOLDS_DIGEST)
+    return statement_pages, browser_result
+
+
+def _browser_section(statement_pages, browser_result, node_pages):
+    """Compare the browser's output with CPython's, and its pages with the Node reader's.
+
+    Args:
+        statement_pages: The browser's statement pages.
+        browser_result: The browser result from ``_read_browser_result``.
+        node_pages: The Node reader's statement pages for the same PDF, or None without ``--pdf``.
+
+    Returns:
+        Tuple of lines (labels, counts and yes or no only) and the one gate,
+        ``browser_result_equals_cpython``, as a list of a tuple of its verdict and label. A run
+        that stops on a core error fails the gate.
+
+    Side Effects:
+        Imports pandas on first use.
+    """
+    browser_pipeline_result = browser_result["pipeline_result"]
+    browser_fields = set(browser_pipeline_result)
+    lines = [
+        f"browser_output_omits_account_digest: {_yes(DIGEST_FIELD not in browser_fields)}",
+        f"browser_output_omits_verification_token: {_yes(TOKEN_FIELD not in browser_fields)}",
+        f"browser_vs_cpython_excluded_by_design: {','.join(EXCLUDED_BY_DESIGN)}",
+    ]
+    try:
+        cpython_result = json.loads(
+            json.dumps(pipeline.run(statement_pages, processed_at=browser_result["processed_at"]))
+        )
+    except CoreError as error:
+        code = getattr(error, "code", None)
+        lines.append(
+            f"browser_vs_cpython_run: FAIL ({'DOMAIN_ROW' if code is None else code.value})"
+        )
+        return [*lines, *_node_page_lines(statement_pages, node_pages)], [(False, BROWSER_GATE)]
+    digest_present = cpython_result[DIGEST_FIELD] is not None
+    lines.append(
+        "browser_vs_cpython_account_digest_present_agrees: "
+        f"{_yes(digest_present == browser_result['account_digest_present'])}"
+    )
+    path_counts = _differing_path_counts(browser_pipeline_result, cpython_result)
+    lines += [
+        line
+        for key, (differing, below_half_cent) in sorted(path_counts.items())
+        for line in (
+            f"browser_vs_cpython_paths_differing {key}: {differing}",
+            f"browser_vs_cpython_paths_below_half_cent {key}: {below_half_cent}",
+        )
+    ]
+    lines += _report_path_lines(browser_pipeline_result.get("report"), cpython_result["report"])
+    lines += _row_field_lines(
+        browser_pipeline_result.get("transactions", []), cpython_result["transactions"]
+    )
+    lines += _node_page_lines(statement_pages, node_pages)
+    agrees = all(differing == 0 for differing, _ in path_counts.values())
+    return lines, [(agrees, BROWSER_GATE)]
+
+
+def _report_path_lines(browser_report, cpython_report):
+    """Describe each differing report path without its value.
+
+    Args:
+        browser_report: The browser's report.
+        cpython_report: CPython's report.
+
+    Returns:
+        One line per differing leaf: the path with keys from the data as ``<key>`` and list
+        positions kept, the leaf's type (number, string, null), whether its list holds the same
+        values on both sides in another order, and for a number its size bucket.
+
+    Side Effects:
+        None.
+    """
+    lines = []
+    for path in _differing_raw_paths(browser_report, cpython_report):
+        cpython_value = _value_at(cpython_report, path)
+        value = _value_at(browser_report, path) if cpython_value is MISSING else cpython_value
+        parent = _parent_list_path(path)
+        reordered = parent is not None and _is_reordered(
+            _value_at(browser_report, parent), _value_at(cpython_report, parent)
+        )
+        line = (
+            f"browser_vs_cpython_report_path: {_masked_path(path)} type={_leaf_type(value)} "
+            f"parent_list_reordered={_yes(reordered)}"
+        )
+        if _leaf_type(value) == "number":
+            line += f" magnitude={_magnitude(value)}"
+        lines.append(line)
+    return lines
+
+
+def _is_reordered(first_list, second_list):
+    """Tell whether two lists hold the same values in a different order.
+
+    Args:
+        first_list: A JSON value.
+        second_list: Another JSON value.
+
+    Returns:
+        True if both are lists, differ in order, and hold the same multiset of values.
+
+    Side Effects:
+        None.
+    """
+    if not (isinstance(first_list, list) and isinstance(second_list, list)):
+        return False
+
+    def canonical(values):
+        """Sort a list's values by their canonical JSON, so equal multisets compare equal.
+
+        Args:
+            values: The list.
+
+        Returns:
+            The values' canonical JSON texts, sorted.
+
+        Side Effects:
+            None.
+        """
+        return sorted(json.dumps(value, sort_keys=True) for value in values)
+
+    return first_list != second_list and canonical(first_list) == canonical(second_list)
+
+
+def _leaf_type(value):
+    """Name a JSON leaf's type.
+
+    Args:
+        value: The leaf.
+
+    Returns:
+        ``number``, ``string``, ``null``, or ``other`` (a boolean).
+
+    Side Effects:
+        None.
+    """
+    if value is None:
+        return "null"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        return "number"
+    return "other"
+
+
+def _magnitude(number):
+    """Put a number's size in a bucket, so its value is never printed.
+
+    Args:
+        number: The number.
+
+    Returns:
+        ``lt_1``, ``lt_100``, ``lt_10000`` or ``gte`` for its absolute value.
+
+    Side Effects:
+        None.
+    """
+    for limit, name in MAGNITUDE_BUCKETS:
+        if abs(number) < limit:
+            return name
+    return "gte"
+
+
+def _differing_path_counts(browser_pipeline_result, cpython_result):
+    """Count differing leaf paths under each top-level key, leaving out what is excluded by design.
+
+    Args:
+        browser_pipeline_result: The browser's pipeline result, without the digest.
+        cpython_result: CPython's pipeline result through JSON.
+
+    Returns:
+        Map of top-level key (outside the schema written as ``<key>``) to a tuple of the number of
+        leaf paths whose values differ or exist on one side only, and how many of those are two
+        numbers less than half a cent apart.
+
+    Side Effects:
+        None.
+    """
+    keys = (set(browser_pipeline_result) | set(cpython_result)) - set(EXCLUDED_BY_DESIGN)
+    counts = {}
+    for key in keys:
+        name = key if key in PIPELINE_RESULT_KEYS else MASKED_KEY
+        browser_leaves = dict(_leaf_paths(browser_pipeline_result.get(key)))
+        cpython_leaves = dict(_leaf_paths(cpython_result.get(key)))
+        differing = below_half_cent = 0
+        for path in set(browser_leaves) | set(cpython_leaves):
+            browser_value = browser_leaves.get(path, MISSING)
+            cpython_value = cpython_leaves.get(path, MISSING)
+            # MISSING equals nothing, so a path on one side only always counts.
+            if browser_value == cpython_value:
+                continue
+            differing += 1
+            below_half_cent += _is_below_half_cent(browser_value, cpython_value)
+        previous = counts.get(name, (0, 0))
+        counts[name] = (previous[0] + differing, previous[1] + below_half_cent)
+    return counts
+
+
+def _leaf_paths(value, path=""):
+    """List every leaf of a JSON value with its path. Paths are compared, never printed.
+
+    Args:
+        value: A JSON value.
+        path: The path so far.
+
+    Returns:
+        Tuples of path and value for every value that is not a map or a list.
+
+    Side Effects:
+        None.
+    """
+    if isinstance(value, dict):
+        return [
+            leaf for key, inner in value.items() for leaf in _leaf_paths(inner, f"{path}.{key}")
+        ]
+    if isinstance(value, list):
+        return [
+            leaf
+            for position, inner in enumerate(value)
+            for leaf in _leaf_paths(inner, f"{path}[{position}]")
+        ]
+    return [(path, value)]
+
+
+def _row_field_lines(browser_rows, cpython_rows):
+    """Count, per field, the rows whose value differs, and whether normalising text clears it.
+
+    Args:
+        browser_rows: The browser's transactions.
+        cpython_rows: CPython's transactions.
+
+    Returns:
+        Lines: whether the row counts are equal, then for each field the differing rows (rows
+        compared by position), and for a field with differences whether every one disappears
+        after Unicode NFC and whitespace normalisation. Fields outside the schema are counted
+        as ``<key>``.
+
+    Side Effects:
+        None.
+    """
+    lines = [f"browser_vs_cpython_row_count_equal: {_yes(len(browser_rows) == len(cpython_rows))}"]
+    differing = dict.fromkeys(ROW_FIELDS, 0)
+    cleared = dict.fromkeys(ROW_FIELDS, True)
+    for browser_row, cpython_row in zip(browser_rows, cpython_rows, strict=False):
+        for field in set(browser_row) | set(cpython_row):
+            browser_value = browser_row.get(field, MISSING)
+            cpython_value = cpython_row.get(field, MISSING)
+            if browser_value == cpython_value:
+                continue
+            name = field if field in ROW_FIELDS else MASKED_KEY
+            differing[name] = differing.get(name, 0) + 1
+            same = _normalised(browser_value) == _normalised(cpython_value)
+            cleared[name] = cleared.get(name, True) and same
+    for field, count in differing.items():
+        lines.append(f"browser_vs_cpython_rows_differing {field}: {count}")
+        if count:
+            lines.append(
+                f"browser_vs_cpython_rows_equal_after_normalisation {field}: {_yes(cleared[field])}"
+            )
+    return lines
+
+
+def _node_page_lines(browser_pages, node_pages):
+    """Compare the browser's statement pages with the Node reader's, item by item.
+
+    Args:
+        browser_pages: The browser's statement pages.
+        node_pages: The Node reader's statement pages for the same PDF, or None.
+
+    Returns:
+        Lines of page and item counts on each side, items that differ (text or position, by
+        position in the page), and items that still differ once text is normalised. Without
+        Node pages, one line saying they were not compared.
+
+    Side Effects:
+        None.
+    """
+    if node_pages is None:
+        return ["browser_vs_node_pages_compared: no"]
+    differing = differing_normalised = 0
+    browser_list, node_list = browser_pages["pages"], node_pages["pages"]
+    for page_index in range(max(len(browser_list), len(node_list))):
+        browser_items = browser_list[page_index]["items"] if page_index < len(browser_list) else []
+        node_items = node_list[page_index]["items"] if page_index < len(node_list) else []
+        for item_index in range(max(len(browser_items), len(node_items))):
+            browser_item = browser_items[item_index] if item_index < len(browser_items) else None
+            node_item = node_items[item_index] if item_index < len(node_items) else None
+            differing += browser_item != node_item
+            differing_normalised += not _items_equal_after_normalisation(browser_item, node_item)
+    return [
+        "browser_vs_node_pages_compared: yes",
+        f"browser_vs_node_pages_browser: {len(browser_list)}",
+        f"browser_vs_node_pages_node: {len(node_list)}",
+        f"browser_vs_node_items_browser: {sum(len(page['items']) for page in browser_list)}",
+        f"browser_vs_node_items_node: {sum(len(page['items']) for page in node_list)}",
+        f"browser_vs_node_items_differing: {differing}",
+        f"browser_vs_node_items_differing_after_normalisation: {differing_normalised}",
+    ]
+
+
+def _items_equal_after_normalisation(browser_item, node_item):
+    """Tell whether two text items match once their text is normalised; positions must match.
+
+    Args:
+        browser_item: A text item, or None if that side has no item here.
+        node_item: A text item, or None.
+
+    Returns:
+        True if both exist, their positions are equal and their normalised text is equal.
+
+    Side Effects:
+        None.
+    """
+    if browser_item is None or node_item is None:
+        return False
+    same_position = all(
+        browser_item.get(field) == node_item.get(field) for field in ITEM_POSITION_FIELDS
+    )
+    return same_position and _normalised(browser_item.get("text")) == _normalised(
+        node_item.get("text")
+    )
+
+
+def _normalised(value):
+    """Normalise text for comparison: Unicode NFC, runs of whitespace as one space, trimmed.
+
+    Args:
+        value: Any JSON value.
+
+    Returns:
+        The normalised text for a string; any other value unchanged.
+
+    Side Effects:
+        None.
+    """
+    if not isinstance(value, str):
+        return value
+    return " ".join(unicodedata.normalize("NFC", value).split())
 
 
 def _read_baseline(baseline_path):
@@ -1016,17 +1527,23 @@ def _chain_breaks_by_event_type(new_rows, new_classified, new_quality):
     return [f"chain_breaks_new_after_{name}: {count}" for name, count in sorted(counts.items())]
 
 
-def _report_comparison(old_report, new_report):
+def _report_comparison(old_report, new_report, new_rows):
     """Compare two reports value by value, by JSON path. Paths print; values never do.
+
+    A difference proven to be tie order only does not fail the gate: in a list ordered by value
+    (``TIE_ORDERED_LISTS``) whose sort values are the same on both sides, position by position;
+    or a closing balance that is another row's balance at a latest time several rows share. The
+    old code left tie order undefined (behaviour-changes T-1 to T-3).
 
     Args:
         old_report: The old analytics' report.
         new_report: This repo's report.
+        new_rows: This repo's classified rows, which show whether the latest time is tied.
 
     Returns:
         Tuple of report lines and the gate. A path present on one side only counts as different.
         Every differing path is listed, with its list positions, and any key outside the schema
-        shows as ``<key>``.
+        shows as ``<key>``; tie-order-only paths are counted per path class (positions as ``[]``).
 
     Side Effects:
         None.
@@ -1040,14 +1557,184 @@ def _report_comparison(old_report, new_report):
     below_half_cent = sum(
         _is_below_half_cent(old_values.get(path), new_values.get(path)) for path in different
     )
+    raw_different = _differing_raw_paths(old_report, new_report)
+    tie_order_only = [
+        path for path in raw_different if _is_tie_order_only(path, old_report, new_report, new_rows)
+    ]
+    classes = Counter(_masked_path(path, keep_positions=False) for path in tie_order_only)
     lines = [
         f"report_paths_total: {len(paths)}",
         f"report_paths_equal: {len(paths) - len(different)}",
         f"report_paths_different: {len(different)}",
         f"report_paths_different_below_half_cent: {below_half_cent}",
+        f"report_paths_tie_order_only: {len(tie_order_only)}",
+        *[f"report_tie_order_only {name}: {count}" for name, count in sorted(classes.items())],
         *[f"report_path_different: {path}" for path in different],
     ]
-    return lines, (not different, "report_paths_equal")
+    return lines, (len(tie_order_only) == len(raw_different), "report_paths_equal")
+
+
+def _differing_raw_paths(first, second):
+    """List the leaf paths, as tuples of keys and positions, whose values differ.
+
+    Args:
+        first: A JSON value.
+        second: Another JSON value.
+
+    Returns:
+        Paths present on one side only, or holding different values, sorted by their masked form.
+
+    Side Effects:
+        None.
+    """
+    first_leaves, second_leaves = dict(_raw_leaves(first)), dict(_raw_leaves(second))
+    differing = [
+        path
+        for path in first_leaves.keys() | second_leaves.keys()
+        if first_leaves.get(path, MISSING) != second_leaves.get(path, MISSING)
+    ]
+    return sorted(differing, key=lambda path: (_masked_path(path), repr(path)))
+
+
+def _raw_leaves(value, path=()):
+    """List every leaf of a JSON value with its path as a tuple. Paths are never printed raw.
+
+    Args:
+        value: A JSON value.
+        path: The path so far.
+
+    Returns:
+        Tuples of path and value for every value that is not a map or a list.
+
+    Side Effects:
+        None.
+    """
+    if isinstance(value, dict):
+        return [leaf for key, inner in value.items() for leaf in _raw_leaves(inner, (*path, key))]
+    if isinstance(value, list):
+        return [
+            leaf
+            for position, inner in enumerate(value)
+            for leaf in _raw_leaves(inner, (*path, position))
+        ]
+    return [(path, value)]
+
+
+def _masked_path(path, *, keep_positions=True):
+    """Write a path with every key from the data as ``<key>``.
+
+    Args:
+        path: The path, as a tuple of keys and list positions.
+        keep_positions: Whether to keep list positions, or write them as ``[]``.
+
+    Returns:
+        The path as text: schema keys joined by dots, positions in brackets.
+
+    Side Effects:
+        None.
+    """
+    text = ""
+    for step in path:
+        if isinstance(step, int):
+            text += f"[{step}]" if keep_positions else "[]"
+        else:
+            name = step if step in REPORT_SCHEMA_KEYS else MASKED_KEY
+            text += f".{name}" if text else name
+    return text
+
+
+def _value_at(root, path):
+    """Follow a path into a JSON value.
+
+    Args:
+        root: The JSON value.
+        path: Keys and list positions.
+
+    Returns:
+        The value there, or ``MISSING`` if the path does not exist.
+
+    Side Effects:
+        None.
+    """
+    value = root
+    for step in path:
+        within_list = isinstance(value, list) and isinstance(step, int) and step < len(value)
+        within_map = isinstance(value, dict) and step in value
+        if not (within_list or within_map):
+            return MISSING
+        value = value[step]
+    return value
+
+
+def _parent_list_path(path):
+    """Find the path of the nearest list holding a leaf.
+
+    Args:
+        path: The leaf's path.
+
+    Returns:
+        The path up to the last list position, or None if no list holds the leaf.
+
+    Side Effects:
+        None.
+    """
+    positions = [index for index, step in enumerate(path) if isinstance(step, int)]
+    return path[: positions[-1]] if positions else None
+
+
+def _is_tie_order_only(path, old_report, new_report, new_rows):
+    """Tell whether a differing report path is proven to differ by tie order only.
+
+    Args:
+        path: The differing leaf's path.
+        old_report: The old report.
+        new_report: The new report.
+        new_rows: The new classified rows.
+
+    Returns:
+        True for a leaf in a list ordered by value whose sort values match position by position,
+        or for a closing balance that is another row's balance at a shared latest time.
+
+    Side Effects:
+        None.
+    """
+    if path == CLOSING_BALANCE_PATH:
+        return _is_tied_closing_balance(
+            _value_at(old_report, path), _value_at(new_report, path), new_rows
+        )
+    parent = _parent_list_path(path)
+    if parent not in TIE_ORDERED_LISTS:
+        return False
+    old_list, new_list = _value_at(old_report, parent), _value_at(new_report, parent)
+    if not (isinstance(old_list, list) and isinstance(new_list, list)):
+        return False
+    sort_key = TIE_ORDERED_LISTS[parent]
+    return len(old_list) == len(new_list) and [entry.get(sort_key) for entry in old_list] == [
+        entry.get(sort_key) for entry in new_list
+    ]
+
+
+def _is_tied_closing_balance(old_balance, new_balance, new_rows):
+    """Tell whether two closing balances both belong to rows at a latest time several rows share.
+
+    Args:
+        old_balance: The old report's closing balance.
+        new_balance: The new report's closing balance.
+        new_rows: The new classified rows.
+
+    Returns:
+        True if the latest completion time is shared by two or more rows and both balances are
+        balances of those rows.
+
+    Side Effects:
+        None.
+    """
+    times = [row["completion_time"] for row in new_rows if isinstance(row["completion_time"], str)]
+    if not times:
+        return False
+    latest = max(times)
+    tied = [row["balance"] for row in new_rows if row["completion_time"] == latest]
+    return len(tied) >= 2 and old_balance in tied and new_balance in tied
 
 
 def _print_summary_labels(pdf_path):

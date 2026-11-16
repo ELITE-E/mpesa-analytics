@@ -1,0 +1,15 @@
+body {
+  font-family: system-ui, sans-serif;
+  margin: 2rem;
+  max-width: 40rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+pre {
+  background: #f4f4f4;
+  padding: 1rem;
+}

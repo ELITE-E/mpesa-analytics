@@ -65,6 +65,12 @@ jobs:
         run: node --test tests/pdf_readers/*.test.js
       - name: Build wheel
         run: uv build --wheel --out-dir dist
+      - name: Build and verify the browser runtime
+        run: uv run python tools/vendor.py runtime --wheel dist/mpesa_core-0.0.0-py3-none-any.whl
+      - name: Bundle budget (15 MB gzip with pandas, 8 MB without)
+        run: uv run python tools/measure_bundle.py
+      - name: Statement engine in real Chrome (system Chrome, no browser download)
+        run: node --test --test-concurrency=1 tests/browser/*.test.js
       - name: Core tests under Pyodide, from the wheel
         run: node tools/run_pyodide_tests.mjs
       - name: Guard 8, wheel

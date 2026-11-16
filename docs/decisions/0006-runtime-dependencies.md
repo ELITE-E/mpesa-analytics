@@ -58,4 +58,4 @@ How it is held in place:
 
 ## Enforcement
 
-The wheel check fails if `mpesa_core` declares an undeclared runtime dependency. `measure_bundle.py` fails CI when the budget is exceeded.
+The wheel check fails if `mpesa_core` declares an undeclared runtime dependency. `measure_bundle.py` fails CI when the budget is exceeded. Enforced from CP8a-2, over the built runtime: 14,569,080 bytes gzip with pandas (budget 15,000,000), 6,886,551 without (budget 8,000,000).

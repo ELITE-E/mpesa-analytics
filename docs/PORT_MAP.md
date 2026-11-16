@@ -77,6 +77,7 @@ Old paths are in mpesa-parser; new paths are in this repo, under `src/mpesa_core
 | `src/pipeline.py` `analyze_mpesa_statement`, `prepare_mpesa_statement_for_persistence`, `process_mpesa_statement`, `canonicalize_mpesa_statement` | `pipeline.py` `run` | Takes statement pages, never a path, bytes or password. No I/O, no clock |
 | `src/pipeline.py` `ingest_mpesa_statement`, `_unrecognized_event_observations` | CP9 browser store; unclassified rows are counted in `quality` via `measure_unclassified` | "Remember on this device", opt-in (ADR 0012) |
 | `src/pipeline.py` `_read_statement_bytes` | none | The core reads no files |
+| The old API upload route (the server read the PDF, ran `pipeline.py` and returned JSON) | `pdf_reader/reader.worker.js` in the browser: pdf.js reads the PDF, then `bridge.py` `run_json` runs `pipeline.run` under Pyodide; `pdf_reader/engine_client.js` is the main thread's handle | New (CP8a). Nothing is uploaded. Failures are `{code, stage}` only; `TIMEOUT` terminates the worker and starts a fresh one |
 
 ## Persistence (server only in the old repo)
 
@@ -102,3 +103,14 @@ Old paths are in mpesa-parser; new paths are in this repo, under `src/mpesa_core
 | `pipeline.py` `measure_period` | The span of readable completion times |
 | `tools/synth/` | Synthetic statements and the independent ledger |
 | `tools/equivalence/` | Owner-only comparison against the old code |
+| `reconciliation/account.py` `account_digest` | SHA-256 of page 1's mobile number in one canonical form; in memory only, never persisted. New (CP8a) |
+| `bridge.py` `run_json` | Statement pages JSON in, `{ok, pipeline_result}` or `{ok: false, error: {code, row_index}}` out; reports `ANALYSIS_RUNTIME_MISSING` so the browser loads pandas only when the analysis needs it. New (CP8a) |
+| `pdf_reader/runtime.js` `load_runtime` | Verifies every runtime file against the SHA-256 manifest, then loads pdf.js, Pyodide and the wheel; pandas later, on demand. New (CP8a) |
+| `pdf_reader/bridge.js` `run_pipeline` | JSON text to and from `run_json`; maps core codes to the engine's codes. New (CP8a) |
+| `pdf_reader/limits.js` `DESKTOP_LIMITS` | Byte, page and time limits, measured on F-LARGE (cp8-notes). New (CP8a) |
+| `tools/vendor.py runtime` | Builds `web/public/runtime/<version>/` and its manifest; the version is the manifest's digest. New (CP8a) |
+| `web/harness/` | The bare CP8a test page and its CSP server; CP8b replaces the page. New (CP8a) |
+| `tools/equivalence/browser_run.mjs`, `compare.py --browser-result` | The owner's real-statement check through the browser engine. New (CP8a) |
+| `tools/probes/pdf_signature_probe.mjs` | Yes or no: signature field, `/ByteRange` token. New (CP8a) |
+| `tools/measure_stage_timing.mjs`, `web/harness/stage_timing.*` | Per-stage milliseconds and memory in Chrome, cold and warm. New (CP8a-2) |
+| `tools/measure_bundle.py` | Now enforces the download budget on the built runtime in CI. Changed (CP8a-2) |

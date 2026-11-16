@@ -7,7 +7,7 @@ prune_names = [
   ".venv", ".vscode", ".cache", ".ruff_cache", "node_modules", "__pycache__",
   ".pytest_cache", ".import_linter_cache", "dist", "build",
 ]
-prune_paths = ["web/public/vendor"]
+prune_paths = ["web/public/vendor", "web/public/runtime"]
 
 [patterns]
 # Fully matched against the token with spaces, plus signs and hyphens removed.
