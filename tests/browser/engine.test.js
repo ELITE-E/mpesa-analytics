@@ -4,7 +4,6 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 
 import { DESKTOP_LIMITS } from "../../pdf_reader/limits.js";
-import { extract_statement_pages } from "../../pdf_reader/pdfjs/adapter.js";
 import {
   FIXTURE_NAMES,
   extract_fixture,
@@ -25,10 +24,14 @@ const NO_PAGE_LIMIT = { pageLimit: Number.MAX_SAFE_INTEGER };
 const ENCRYPTED = "F-ENCRYPTED";
 const WITHOUT_ROWS = "F-NOTABLE";
 const PDF_HEADER = "%PDF-1.7\n";
-// About 10 s for pdf.js on the dev machine; the Node reader proves it is slower than 4 s here.
-const HOSTILE_LINES = 2_000_000;
-const HOSTILE_SLOWER_THAN_MS = 4000;
-const ENGINE_TIMEOUT_MS = 1000;
+// The hostile PDF is calibrated on the machine running the test: it must take at least
+// MIN_HOSTILE_READ_MS to read in this browser, or it is made heavier (CP8b: a fixed size was
+// slow on the dev laptop but read in under a second on GitHub's runner).
+const START_HOSTILE_LINES = 250_000;
+const MAX_HOSTILE_LINES = 12_000_000;
+const MIN_HOSTILE_READ_MS = 2000;
+const CALIBRATION_TIMEOUT_MS = 180_000;
+const MIN_ENGINE_TIMEOUT_MS = 250;
 
 let session;
 const browserRuns = new Map();
@@ -166,20 +169,37 @@ test("pandas loads at the analysis step only, and its load time is reported apar
 });
 
 test("a hostile PDF times out by terminating the worker, and a fresh one serves the next run", async () => {
-  const hostile = deflate_bomb_pdf(HOSTILE_LINES);
-  await assert.rejects(
-    extract_statement_pages(hostile, undefined, { timeoutMs: HOSTILE_SLOWER_THAN_MS }),
-    { code: "TIMEOUT" },
-  );
+  const { hostile, readMs } = await calibrated_hostile_pdf();
+  const timeoutMs = Math.max(MIN_ENGINE_TIMEOUT_MS, Math.floor(readMs / 4));
   const started = Date.now();
-  const outcome = await run_in_browser(session, hostile, { timeout_ms: ENGINE_TIMEOUT_MS });
+  const outcome = await run_in_browser(session, hostile, { timeout_ms: timeoutMs });
   const waited = Date.now() - started;
   assert.deepEqual(outcome.failure, { code: "TIMEOUT", stage: "engine" });
-  assert.ok(waited < HOSTILE_SLOWER_THAN_MS, `waited ${waited} ms`);
+  // The engine stopped the read rather than waiting for it to finish.
+  assert.ok(waited < readMs * 0.75, `waited ${waited} ms for a ${readMs} ms read`);
   const next = await run_in_browser(session, fixture_pdf("F-BASIC"));
   assert.equal(next.ok, true);
   assert.ok(next.timings.worker_restarts >= 1);
 });
+
+/**
+ * A hostile PDF that takes at least MIN_HOSTILE_READ_MS to read in this browser, measured by the
+ * engine's own read time, made heavier until it does.
+ *
+ * @returns {Promise<{hostile: Uint8Array, readMs: number}>} The PDF and its measured read time.
+ */
+async function calibrated_hostile_pdf() {
+  let lines = START_HOSTILE_LINES;
+  for (;;) {
+    const hostile = deflate_bomb_pdf(lines);
+    const measured = await run_in_browser(session, hostile, { timeout_ms: CALIBRATION_TIMEOUT_MS });
+    const readMs = measured.timings.read_ms;
+    if (readMs >= MIN_HOSTILE_READ_MS) return { hostile, readMs };
+    assert.ok(lines < MAX_HOSTILE_LINES, `still read in ${readMs} ms at ${lines} lines`);
+    const growth = Math.min(8, Math.ceil((MIN_HOSTILE_READ_MS * 1.5) / Math.max(readMs, 50)));
+    lines = Math.min(MAX_HOSTILE_LINES, lines * growth);
+  }
+}
 
 test("a runtime file that fails its checksum stops the engine before it loads", async () => {
   const tampered = await open_session({ corrupt_runtime_file: "pdfjs/pdf.min.mjs" });
