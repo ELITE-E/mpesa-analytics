@@ -94,6 +94,31 @@ function failed(failure, pandasLoadMs) {
 }
 
 /**
+ * Ask the core how the browser store would take this statement's rows: insert, link or preserve
+ * each, against the transactions the session already holds (CP8b).
+ *
+ * Side effects: calls the core.
+ *
+ * @param {object} core The loaded core.
+ * @param {Function} core.plan_json mpesa_core.bridge.plan_statement_import_json: JSON text in and out.
+ * @param {string} pipelineResultJson The run's pipeline result, as JSON text.
+ * @param {string} existingTransactionsJson The session's transactions, as JSON text of a list.
+ * @returns {object} `{ok: true, plan_json}`, or `{ok: false, failure}` with ENGINE_FAILED if the
+ *   core refuses the request; its message, which may quote a row, is dropped.
+ */
+export function plan_import(core, pipelineResultJson, existingTransactionsJson) {
+  try {
+    const request = {
+      incoming_rows: JSON.parse(pipelineResultJson).transactions,
+      existing_transactions: JSON.parse(existingTransactionsJson),
+    };
+    return { ok: true, plan_json: core.plan_json(JSON.stringify(request)) };
+  } catch {
+    return { ok: false, failure: { code: "ENGINE_FAILED", stage: "core" } };
+  }
+}
+
+/**
  * Turn a PDF reader failure into the engine's failure.
  *
  * Side effects: none.

@@ -2,7 +2,7 @@
 // runs under Pyodide. The password is used once, for pdf.js, and never logged, posted back or
 // passed to Python. Only codes, counts, timings and JSON text leave this worker.
 
-import { reader_failure, run_pipeline } from "./bridge.js";
+import { plan_import, reader_failure, run_pipeline } from "./bridge.js";
 import { configure_reader, extract_statement_pages } from "./pdfjs/adapter.js";
 import { load_runtime } from "./runtime.js";
 
@@ -16,6 +16,7 @@ self.addEventListener("securitypolicyviolation", () => {
 self.onmessage = ({ data: message }) => {
   if (message.type === "start") start(message.runtime_url);
   if (message.type === "run") run(message);
+  if (message.type === "warm_up") warm_up();
 };
 
 /**
@@ -58,10 +59,28 @@ async function run(message) {
     return;
   }
   const coreStarted = performance.now();
-  const outcome = await run_pipeline(runtime.core, statementPagesText, message.processed_at);
+  post_progress(message, { stage: "core" });
+  // Tell the page when the analysis step has to load pandas, so it can show that stage.
+  const core = {
+    ...runtime.core,
+    load_analysis_runtime: () => {
+      post_progress(message, { stage: "analysis" });
+      return runtime.core.load_analysis_runtime();
+    },
+  };
+  const outcome = await run_pipeline(core, statementPagesText, message.processed_at);
   const coreMs = performance.now() - coreStarted;
   const { pandas_load_ms: pandasLoadMs, ...coreOutcome } = outcome;
   if (message.include_statement_pages) coreOutcome.statement_pages_json = statementPagesText;
+  if (coreOutcome.ok && typeof message.existing_transactions_json === "string") {
+    const planned = plan_import(
+      runtime.core,
+      coreOutcome.pipeline_result_json,
+      message.existing_transactions_json,
+    );
+    if (planned.ok) coreOutcome.plan_json = planned.plan_json;
+    else Object.assign(coreOutcome, { ok: false, failure: planned.failure });
+  }
   post_done(message, coreOutcome, {
     read_ms: readMs,
     core_ms: coreMs,
@@ -82,7 +101,18 @@ async function read_statement(message) {
   message.password = undefined;
   try {
     const pdfBytes = new Uint8Array(message.pdf_bytes);
-    return JSON.stringify(await extract_statement_pages(pdfBytes, password, message.limits));
+    /**
+     * Report one page read.
+     *
+     * @param {number} page The page just read.
+     * @param {number} pageCount The statement's page count.
+     * @returns {void}
+     */
+    const onPage = (page, pageCount) =>
+      post_progress(message, { stage: "reading", page, page_count: pageCount });
+    return JSON.stringify(
+      await extract_statement_pages(pdfBytes, password, message.limits, onPage),
+    );
   } catch (error) {
     return reader_failure(error);
   } finally {
@@ -110,4 +140,34 @@ function post_done(message, outcome, timings) {
       wasm_memory_bytes: runtime.core.wasm_memory_bytes(),
     },
   });
+}
+
+/**
+ * Load and import pandas before the first statement needs it (the app's warm-up, CP8b). Only
+ * counts and timings leave the worker.
+ *
+ * Side effects: loads the analysis runtime into Pyodide; posts `warmed`.
+ *
+ * @returns {Promise<void>} Resolves once the outcome is posted.
+ */
+async function warm_up() {
+  const started = performance.now();
+  try {
+    await runtime.core.warm_analysis();
+  } catch {
+    // A failed warm-up costs nothing: the first run loads pandas itself and reports any failure.
+  }
+  self.postMessage({ type: "warmed", timings: { warm_up_ms: performance.now() - started } });
+}
+
+/**
+ * Tell the page how far a run has got: a stage name and, while reading, the page counts.
+ *
+ * Side effects: posts `progress`.
+ *
+ * @param {object} message The run request.
+ * @param {object} step `{stage, page?, page_count?}`; never anything from the statement.
+ */
+function post_progress(message, step) {
+  self.postMessage({ type: "progress", request_id: message.request_id, ...step });
 }

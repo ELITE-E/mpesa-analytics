@@ -15,7 +15,11 @@ PINNED_NODE = REPO / ".cache" / "bin" / "node"
 TOOLS = {
     "eslint": REPO / "node_modules" / "eslint" / "bin" / "eslint.js",
     "prettier": REPO / "node_modules" / "prettier" / "bin" / "prettier.cjs",
+    # ADR 0014: the web app's own ESLint 9, which its Next.js config needs.
+    "web-eslint": REPO / "web" / "node_modules" / "eslint" / "bin" / "eslint.js",
 }
+# Tools that must run from their own folder, so they find that folder's config.
+TOOL_DIRECTORIES = {"web-eslint": REPO / "web"}
 USAGE_ERROR = 2
 
 
@@ -26,7 +30,8 @@ def main():
         The tool's exit code, or 2 if the tool is unknown or no node can be found.
 
     Side Effects:
-        Runs the tool as a subprocess, which inherits stdout and stderr.
+        Runs the tool as a subprocess, from its own folder if it has one, which inherits stdout
+        and stderr.
     """
     tool, *tool_args = sys.argv[1:] or [""]
     if tool not in TOOLS:
@@ -36,7 +41,9 @@ def main():
     if node is None:
         print("run_node_tool: ERROR (node not found; run tools/vendor.py fetch node)")
         return USAGE_ERROR
-    return subprocess.run([node, str(TOOLS[tool]), *tool_args]).returncode
+    return subprocess.run(
+        [node, str(TOOLS[tool]), *tool_args], cwd=TOOL_DIRECTORIES.get(tool)
+    ).returncode
 
 
 def resolve_node(pinned, search_path):

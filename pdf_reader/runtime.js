@@ -100,7 +100,9 @@ async function load_absolute_runtime(runtimeUrl) {
   const pyodide = await start_pyodide(runtimeUrl, lockFile);
   const pyodideStartedAt = performance.now();
   install_wheel(pyodide, wheelBytes);
-  const runJson = pyodide.pyimport("mpesa_core.bridge").run_json;
+  const coreBridge = pyodide.pyimport("mpesa_core.bridge");
+  const runJson = coreBridge.run_json;
+  const planJson = coreBridge.plan_statement_import_json;
   const wheelInstalledAt = performance.now();
   return {
     pdfjsLib,
@@ -108,9 +110,17 @@ async function load_absolute_runtime(runtimeUrl) {
     // For measurement tools only; the engine talks to Python through `core` alone.
     pyodide,
     core: {
+      plan_json: (requestText) => planJson(requestText),
       run_json: (statementPagesText, processedAt) =>
         runJson(statementPagesText, processedAt ?? undefined),
       load_analysis_runtime: () => load_analysis_runtime(pyodide, runtimeUrl, manifest),
+      // Load pandas and import the analysis now, so the first statement does not wait for it.
+      warm_analysis: async () => {
+        if (!pyodide.loadedPackages.pandas) {
+          await load_analysis_runtime(pyodide, runtimeUrl, manifest);
+        }
+        pyodide.runPython("import mpesa_core.analysis.report");
+      },
       wasm_memory_bytes: () => pyodide._module?.HEAPU8?.length ?? null,
     },
     timings: {

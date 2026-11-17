@@ -85,7 +85,14 @@ repos:
         always_run: true
       - id: eslint
         name: eslint
-        entry: uv run --frozen python tools/guards/run_node_tool.py eslint .
+        entry: uv run --frozen python tools/guards/run_node_tool.py eslint --config eslint.config.mjs .
+        language: system
+        pass_filenames: false
+        always_run: true
+      # ADR 0014: the web app's own ESLint 9 and Next.js config.
+      - id: web-eslint
+        name: eslint (web app)
+        entry: uv run --frozen python tools/guards/run_node_tool.py web-eslint .
         language: system
         pass_filenames: false
         always_run: true

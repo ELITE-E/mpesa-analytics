@@ -31,6 +31,16 @@ export default [
     ignores: [
       "web/public/vendor/**",
       "web/public/runtime/**",
+      // ADR 0014: the web app (Next.js) is linted by its own ESLint 9 and config, in web/.
+      "web/src/**",
+      "web/tests/**",
+      "web/eslint.config.mjs",
+      "web/next.config.ts",
+      "web/next-env.d.ts",
+      "web/postcss.config.mjs",
+      "web/node_modules/**",
+      "web/.next/**",
+      "web/out/**",
       "node_modules/**",
       ".cache/**",
       ".venv/**",

@@ -17,7 +17,8 @@ const READER_DEADLINE_FACTOR = 2;
  * @param {string} options.runtime_url URL of the verified runtime, ending in its version and `/`.
  * @param {number} [options.timeout_ms] Longest run, in milliseconds, from handing over the PDF.
  * @param {number} [options.start_timeout_ms] Longest wait for the runtime to load.
- * @returns {{ready: Function, run: Function, close: Function}} The engine.
+ * @returns {{ready: Function, run: Function, warm_up: Function, cancel: Function, close: Function}}
+ *   The engine.
  */
 export function create_statement_engine({
   create_worker,
@@ -25,11 +26,20 @@ export function create_statement_engine({
   timeout_ms = DESKTOP_LIMITS.timeoutMs,
   start_timeout_ms = DEFAULT_START_TIMEOUT_MS,
 }) {
-  const state = { worker: null, started: null, nextRequestId: 1, pending: null, restarts: 0 };
+  const state = {
+    worker: null,
+    started: null,
+    nextRequestId: 1,
+    pending: null,
+    restarts: 0,
+    warmed: null,
+  };
   const settings = { create_worker, runtime_url, timeout_ms, start_timeout_ms };
   return {
     ready: () => ensure_started(state, settings),
     run: (request) => run_statement(state, settings, request),
+    warm_up: () => warm_up(state, settings),
+    cancel: () => fail_pending(state, { code: "CANCELLED", stage: "engine" }),
     close: () => stop_worker(state),
   };
 }
@@ -94,6 +104,10 @@ function start_worker(state, settings) {
  * @param {object} [request.limits] Reader limit overrides.
  * @param {string} [request.processed_at] A time carried into the result.
  * @param {number} [request.timeout_ms] This run's timeout, instead of the engine's.
+ * @param {Function} [request.on_progress] Called with each step the worker reports: `{stage:
+ *   "reading", page, page_count}`, `{stage: "core"}` or `{stage: "analysis"}`.
+ * @param {string} [request.existing_transactions_json] The session's transactions, as JSON text;
+ *   given, the outcome also holds the import plan as `plan_json`.
  * @param {boolean} [request.include_statement_pages] Also return the statement pages (tests and
  *   the owner's equivalence check only).
  * @returns {Promise<object>} `{ok: true, pipeline_result_json, timings, statement_pages_json?}`,
@@ -111,7 +125,7 @@ async function run_statement(state, settings, request) {
   const timeoutMs = request.timeout_ms ?? settings.timeout_ms;
   const outcome = new Promise((resolve) => {
     const timer = setTimeout(() => resolve(timed_out()), timeoutMs);
-    state.pending = { requestId, resolve, timer };
+    state.pending = { requestId, resolve, timer, onProgress: request.on_progress };
   });
   state.worker.postMessage(
     {
@@ -123,6 +137,7 @@ async function run_statement(state, settings, request) {
       limits: { timeoutMs: timeoutMs * READER_DEADLINE_FACTOR, ...request.limits },
       processed_at: request.processed_at ?? null,
       include_statement_pages: request.include_statement_pages === true,
+      existing_transactions_json: request.existing_transactions_json,
     },
     [request.pdf_bytes.buffer],
   );
@@ -135,7 +150,26 @@ async function run_statement(state, settings, request) {
 }
 
 /**
- * Pass a worker's answer to the run waiting for it.
+ * Load the analysis runtime (pandas) in the started worker ahead of the first statement, so the
+ * user's first run does not wait for it. Cancelled or crashed workers start cold again.
+ *
+ * Side effects: may start the worker; posts it the warm-up message.
+ *
+ * @param {object} state The engine's mutable state.
+ * @param {object} settings The engine's options.
+ * @returns {Promise<object>} `{ok: true, timings}` once warmed, or the start's failure.
+ */
+async function warm_up(state, settings) {
+  const started = await ensure_started(state, settings);
+  if (!started.ok) return started;
+  return new Promise((resolve) => {
+    state.warmed = resolve;
+    state.worker.postMessage({ type: "warm_up" });
+  });
+}
+
+/**
+ * Pass a worker's answer to whoever waits for it: a run's progress or outcome, or the warm-up.
  *
  * Side effects: resolves the pending run.
  *
@@ -143,9 +177,14 @@ async function run_statement(state, settings, request) {
  * @param {object} message The worker's message.
  */
 function settle_pending(state, message) {
-  if (message.type !== "run_done" || state.pending?.requestId !== message.request_id) return;
-  const { request_id: _, type: __, ...outcome } = message;
-  state.pending.resolve(outcome);
+  if (message.type === "warmed") {
+    state.warmed?.({ ok: true, timings: message.timings });
+    return;
+  }
+  if (state.pending?.requestId !== message.request_id) return;
+  const { request_id: _, type: __, ...fields } = message;
+  if (message.type === "progress") state.pending.onProgress?.(fields);
+  if (message.type === "run_done") state.pending.resolve(fields);
 }
 
 /**

@@ -56,12 +56,14 @@ LARGEST_PURCHASE_COUNT = 10
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
-def build_report(rows, period=None):
+def build_report(rows, period=None, *, closing_balance=None):
     """Build the report for classified transactions.
 
     Args:
         rows: ``ClassifiedRow`` records in print order.
         period: Tuple of start and end; None, or a None in it, means the span of the rows.
+        closing_balance: The closing balance by print order, or None to take the balance of the
+            latest completion time.
 
     Returns:
         The report as plain JSON values, with its six sections in the old order.
@@ -75,7 +77,7 @@ def build_report(rows, period=None):
     dates = (_calendar_date(period[0]), _calendar_date(period[1]))
     return public_value(
         {
-            "cash_flow": _cash_flow_section(frame),
+            "cash_flow": _cash_flow_section(frame, closing_balance),
             "spending": _spending_section(frame),
             "bills": _bills_section(frame, dates),
             "investments": _investments_section(frame, dates),
@@ -116,11 +118,13 @@ def public_value(value):
     return value
 
 
-def _cash_flow_section(frame):
+def _cash_flow_section(frame, closing_balance=None):
     """Assemble the cash flow section.
 
     Args:
         frame: A prepared frame.
+        closing_balance: The closing balance by print order, or None to take the balance of the
+            latest completion time.
 
     Returns:
         The four figures as plain floats.
@@ -132,7 +136,9 @@ def _cash_flow_section(frame):
         "total_inflow": _as_float(calculate_total_inflow(frame)),
         "total_outflow": _as_float(calculate_total_outflow(frame)),
         "net_cash_flow": _as_float(calculate_net_cash_flow(frame)),
-        "closing_balance": _as_float(calculate_closing_balance(frame)),
+        "closing_balance": _as_float(
+            calculate_closing_balance(frame) if closing_balance is None else closing_balance
+        ),
     }
 
 

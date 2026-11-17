@@ -45,20 +45,22 @@ def run(statement_pages, *, processed_at=None):
     rows = build_rows(statement_pages)
     classified, diagnostics = classify_transactions(canonicalize_rows(rows))
     transactions = [_with_plain_classes(transaction) for transaction in classified]
-    report = analyze_transactions(transactions)
     digest = account_digest(statement_pages)
     quality = {
         **reconcile(statement_pages, rows),
         **measure_unclassified(transactions),
         "account_number_unreadable": digest is None,
     }
+    balances = measure_balances(rows, quality["chain_orientation"])
+    # The report's closing balance follows the same print-order rule as balances (T-4).
+    report = analyze_transactions(transactions, closing_balance=balances["closing_balance"])
     return {
         "schema_version": SCHEMA_VERSION,
         "verification_token": verification_token,
         "account_digest": digest,
         "processed_at": processed_at,
         "period": measure_period(transactions),
-        "balances": measure_balances(rows, quality["chain_orientation"]),
+        "balances": balances,
         "transactions": transactions,
         "report": report,
         "quality": quality,

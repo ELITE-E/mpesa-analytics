@@ -27,6 +27,7 @@ jobs:
           node-version: "24"
       - run: uv sync
       - run: npm ci --no-audit --no-fund
+      - run: npm ci --prefix web --no-audit --no-fund
       - name: Fetch and verify pinned runtime
         run: uv run python tools/vendor.py fetch
       - name: Guard 1, patterns
@@ -56,7 +57,9 @@ jobs:
       - name: Pydoclint
         run: uv run pydoclint src tools web/probe
       - name: ESLint
-        run: node_modules/.bin/eslint .
+        run: node_modules/.bin/eslint --config eslint.config.mjs .
+      - name: ESLint (web app, ADR 0014)
+        run: uv run python tools/guards/run_node_tool.py web-eslint .
       - name: Prettier
         run: node_modules/.bin/prettier --check .
       - name: Tests

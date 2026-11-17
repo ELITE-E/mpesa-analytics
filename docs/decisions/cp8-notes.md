@@ -94,3 +94,7 @@ Enforced at CP8a-2. `tools/measure_bundle.py` measures the built runtime (every 
 ## PDF metadata for attestation
 
 `StatementPages` carries no PDF metadata, so `attest` reads page 1's printed text only (behaviour-changes B-1). The old code also looked for the brand in metadata. If the owner's `compare.py` run shows `attestation: FAIL (BRAND_MISSING)`, CP8 should add an optional metadata text to `StatementPages` from pdf.js `getMetadata()`: a contract change that needs an ADR.
+
+## Two ESLint versions (ADR 0014)
+
+The web app is linted by its own ESLint 9.39.5 because `eslint-config-next` 16.3.6 brings `eslint-plugin-react` 7.37.5, which crashes under ESLint 10. ESLint 9 is end-of-life. When `eslint-config-next` supports ESLint 10, move the web app onto the root's ESLint 10 and drop the second version.

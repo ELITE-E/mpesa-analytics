@@ -271,3 +271,30 @@ New tests corrected while still red: `test_run_json_returns_the_pipeline_result_
 
 New tests corrected while still red: `test_an_old_report_with_untied_entries_swapped_still_fails` searched F-TIED's ten largest purchases for two adjacent different amounts, but F-TIED ties all ten, so it raised `StopIteration`; renamed `test_an_old_report_whose_sort_values_differ_still_fails`, it changes one amount instead. `test_skip_baseline_needs_a_browser_result` passed before the flag existed, because argparse's "unrecognized arguments" message names the flag; it passes now because the flag refuses to run without `--browser-result`.
 | `test_vendor_runtime.py` and `test_bundle_budget.py`, every test using the wheel | Built the runtime from `dist/mpesa_core-0.0.0-py3-none-any.whl` | Build it from a wheel the session builds from the current source (`built_wheel` in `tests/guards/conftest.py`) | CI runs pytest before its "Build wheel" step, so `dist/` was empty there and 2 tests failed with 7 errors; they had passed locally only because an older wheel sat in `dist/`. Same assertions |
+
+## Edits for CP8b
+
+| Test | Old assertion | New assertion | Reason |
+|---|---|---|---|
+| `test_pipeline.py` and `tests/synth/test_pipeline_fixtures.py`, `composed()` | `analyze_transactions(transactions)` | `analyze_transactions(transactions, closing_balance=balances["closing_balance"])`, balances measured first | Owner instruction (CP8b item 6, behaviour-changes T-4): the report's closing balance follows print order, as `pipeline.run` now composes it |
+| `test_compare.py`, `test_an_old_report_whose_sort_values_differ_still_fails` | `report_paths_tie_order_only` is 0 | No `spending.` path counts as tie order, and the gate fails | Same: F-TIED's closing balance now legitimately differs from the old rule at its tied latest time and counts as tie order; the test is about the changed amount |
+
+Guard and config changes for CP8b: `tools/guards/guards.toml` allows `web/tsconfig.json` among JSON files (the Next.js app's TypeScript config) and prunes `web/.next` and `web/out` (Next's build output, gitignored) from the guard walk. `.prettierignore` leaves the ported prototype (`web/src/`, `web/tests/`) to its own formatting so `docs/web-port-map.md` can record files as unchanged; new files written for CP8b are formatted. `web/tests/fees-browser.test.mjs` line 206: the fees scope selector, whose URL-encoded colon the pattern guard read as a receipt number, became two attribute matches (`scope=fees` and `TRANSFER_OUT&`) that select the same link.
+
+Deleted for CP8b, with where each behaviour is now covered. `web/tests/upload-and-pagination-preservation.test.mjs` tested the prototype's HTTP seam (multipart upload and paged transaction loading), which no longer exists; gitleaks also flagged its placeholder password.
+
+| Deleted test | Why | Now covered by |
+|---|---|---|
+| M1 "POSTs multipart fields `file` and `password`…", "omits `password` when the statement has none" | No HTTP upload: the PDF goes to the worker | `data-layer.test.mjs` "an engine failure from upload…", `upload-flow-local.test.mjs` "the password goes to the engine once…" |
+| M2 "concurrent submissions share one request and one result" | Same behaviour, new seam | `upload-flow-local.test.mjs` "concurrent submissions share one engine run and one result (was M2)" |
+| M3 "after success the file and password are forgotten…", "after a non-retryable failure…", "after a retryable failure the file is kept…" | Same behaviour, new seam | `upload-flow-local.test.mjs` "the password goes to the engine once and is not kept…", "a retryable failure keeps the file…; any other forgets it (was M3)", "cancelling … forgets the file and password" |
+| M5 "fetches exactly the pages needed…" | No paging: every transaction is in memory | `data-layer.test.mjs` "the repo keeps imports in memory and answers the UI's calls from them" |
+| H2 "a failed intermediate page rejects…", "a reported total of 2,345 delivered incomplete…", "an import with no transactions…", "a load where … rejects as incomplete" | No pages can fail or arrive partly | `data-layer.test.mjs` (complete in-memory transactions, equal to the core's count) |
+
+The two tests marked "was M2" and "was M3" passed when written: `upload-flow.ts` keeps that logic unchanged from the prototype, so they pin preserved behaviour rather than new behaviour.
+
+| Test | Old assertion | New assertion | Reason |
+|---|---|---|---|
+| `tests/guards/test_js_lint.py`, `test_real_repo_eslint_is_clean` | `eslint .` exits 0 | `eslint --config eslint.config.mjs .` exits 0 | ADR 0014: ESLint 10 otherwise picks up `web/eslint.config.mjs` for files under `web/` and crashes in `eslint-plugin-react` |
+
+Lint changes for ADR 0014: the root `eslint.config.mjs` ignores the web app (`web/src/**`, `web/tests/**`) and its config files; `web/eslint.config.mjs` ignores `public/`, `harness/`, `probe/`, `scripts/` and the generated `icon-paths.ts`. `tools/guards/run_node_tool.py` gains a `web-eslint` tool run from `web/`; pre-commit gains an `eslint (web app)` hook and the root hook passes `--config`; CI installs `web/` and runs both.

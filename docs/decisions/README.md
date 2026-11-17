@@ -19,6 +19,7 @@ Architecture decision records (ADRs) and logs. An ADR records one decision, why,
 | 0011 | Timing of the pandas-free core | Measured (CP5) |
 | 0012 | v1 scope: "Remember on this device" stays, opt-in, with saving and merging | Accepted (CP7a), owner instruction |
 | 0013 | The architecture CSP holds for the browser engine (OQ-08) | Accepted (CP8a), measured in Chrome |
+| 0014 | Lint the web app with its own ESLint 9; the rest of the repo keeps ESLint 10 | Accepted (CP8b), owner decision |
 
 ## Logs
 

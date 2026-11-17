@@ -62,3 +62,17 @@ test("whitespace-only items are kept faithfully", async () => {
   const items = statementPages.pages.flatMap((page) => page.items);
   assert.ok(items.some((entry) => entry.text.trim() === ""));
 });
+
+test("each page read is reported to the progress callback, with the page count (CP8b)", async () => {
+  await use_real_pdfjs();
+  const seen = [];
+  await extract_statement_pages(fixture_bytes("F-MULTIPAGE"), undefined, {}, (page, pageCount) =>
+    seen.push([page, pageCount]),
+  );
+  assert.ok(seen.length >= 2);
+  assert.deepEqual(
+    seen.map(([page]) => page),
+    seen.map((_, index) => index + 1),
+  );
+  assert.ok(seen.every(([, pageCount]) => pageCount === seen.length));
+});
