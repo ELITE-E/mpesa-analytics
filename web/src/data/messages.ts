@@ -25,6 +25,7 @@ export const CORE_CODES = [
   "DOMAIN_ROW",
   "DATE_UNREADABLE",
   "ANALYSIS_FAILED",
+  "TOO_FEW_AMOUNTS",
 ] as const;
 
 /** The data layer's own codes. */
@@ -51,6 +52,8 @@ const MESSAGES: Record<string, string> = {
   DOMAIN_ROW: "A row came out with both money in and money out, so the table wasn't read reliably.",
   DATE_UNREADABLE: "A transaction's date couldn't be read, so the analysis stopped. Nothing was kept.",
   ANALYSIS_FAILED: "The transactions were read, but the analysis couldn't be completed. Nothing was kept.",
+  TOO_FEW_AMOUNTS:
+    "This statement has too few money-in or money-out entries for its columns to be found. A statement covering a longer period should work.",
   CANCELLED: "You stopped reading this statement. Nothing from it was kept.",
   import_not_found: "That statement isn't open in this session. Statements are forgotten when the page reloads.",
   no_statement: "Choose a statement to read first.",

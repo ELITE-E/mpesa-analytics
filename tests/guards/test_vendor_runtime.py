@@ -21,7 +21,10 @@ from vendor import (
 )
 
 TEST_RUNNER_WHEELS = ("pytest", "pluggy", "iniconfig", "pygments", "setuptools", "attrs")
-LOADED_PACKAGES = ("numpy", "pandas", "python_dateutil", "pytz", "six")
+LOADED_PACKAGES = ("numpy", "pandas", "python_dateutil", "six")
+# pandas 3 does not need pytz; Pyodide's lock still lists it, so the runtime's lock drops it (CP8b).
+NOT_SHIPPED = ("pytz",)
+LOCK = "pyodide/pyodide-lock.json"
 
 
 @pytest.fixture(scope="module")
@@ -39,8 +42,21 @@ def test_the_runtime_holds_pyodide_pdfjs_the_wheel_and_the_analysis_packages_onl
     assert {"pdfjs/pdf.min.mjs", "pdfjs/pdf.worker.min.mjs"} <= published
     for package in LOADED_PACKAGES:
         assert any(path.startswith(f"pyodide/{package}-") for path in published), package
-    for package in TEST_RUNNER_WHEELS:
+    for package in TEST_RUNNER_WHEELS + NOT_SHIPPED:
         assert not any(f"/{package}-" in path for path in published), package
+
+
+def test_the_runtime_lock_is_pyodides_with_pytz_dropped_from_pandas_only(built_runtime):
+    root, version = built_runtime
+    shipped = json.loads((root / version / LOCK).read_text(encoding="utf-8"))
+    pinned = json.loads((VENDOR / LOCK).read_text(encoding="utf-8"))
+    assert "pytz" not in shipped["packages"]["pandas"]["depends"]
+    assert pinned["packages"]["pandas"]["depends"] == [
+        *shipped["packages"]["pandas"]["depends"],
+        "pytz",
+    ]
+    shipped["packages"]["pandas"]["depends"] = pinned["packages"]["pandas"]["depends"]
+    assert shipped == pinned
 
 
 def test_the_runtime_takes_the_browser_build_of_pdfjs_not_the_node_build():

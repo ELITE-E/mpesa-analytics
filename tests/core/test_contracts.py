@@ -189,6 +189,10 @@ def test_import_plan_holds_one_action_per_row_and_the_counts():
     assert fields_of("PlanReference") == {"source": str, "index": int}
 
 
+def test_pipeline_result_carries_the_optional_printed_verification_instruction():
+    assert fields_of("PipelineResult")["verification_instruction"] == str | None
+
+
 def test_pipeline_result_carries_an_optional_account_digest():
     assert fields_of("PipelineResult")["account_digest"] == str | None
 

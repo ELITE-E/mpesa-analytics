@@ -18,6 +18,9 @@ class ErrorCode(Enum):
     TOO_LARGE = "TOO_LARGE"
     TOO_MANY_PAGES = "TOO_MANY_PAGES"
     TIMEOUT = "TIMEOUT"
+    # Some amount columns were found, but another printed fewer than two values (CP8b): too few
+    # money-in or money-out entries to place it. Relaxing this is on the CP10 list.
+    TOO_FEW_AMOUNTS = "TOO_FEW_AMOUNTS"
 
 
 class AnalysisCode(Enum):

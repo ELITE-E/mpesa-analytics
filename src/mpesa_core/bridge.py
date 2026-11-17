@@ -17,7 +17,7 @@ REQUEST_INVALID = "REQUEST_INVALID"
 DOMAIN_ROW = "DOMAIN_ROW"
 # The analysis step needs pandas, which the browser loads only when a run first reaches it.
 ANALYSIS_RUNTIME_MISSING = "ANALYSIS_RUNTIME_MISSING"
-ANALYSIS_PACKAGES = frozenset({"pandas", "numpy", "dateutil", "pytz", "six"})
+ANALYSIS_PACKAGES = frozenset({"pandas", "numpy", "dateutil", "six"})
 
 
 def run_json(statement_pages_text, processed_at):

@@ -14,7 +14,7 @@ from mpesa_core.contracts import SCHEMA_VERSION
 from mpesa_core.errors import ErrorCode, ExtractionError
 from mpesa_core.extraction.rows import build_rows
 from mpesa_core.reconciliation.account import account_digest
-from mpesa_core.reconciliation.attest import attest
+from mpesa_core.reconciliation.attest import attest, verification_instruction
 from mpesa_core.reconciliation.reconcile import measure_balances, measure_unclassified, reconcile
 from synth.generate import COMMITTED_FIXTURES, FAKE_PASSWORD
 
@@ -45,6 +45,7 @@ def composed(statement_pages):
     return {
         "schema_version": SCHEMA_VERSION,
         "verification_token": token,
+        "verification_instruction": verification_instruction(statement_pages),
         "account_digest": digest,
         "processed_at": None,
         "period": pipeline.measure_period(transactions),

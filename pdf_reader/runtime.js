@@ -17,13 +17,13 @@ const START_FILES = [
   PDFJS_MODULE,
   PDFJS_WORKER,
 ];
-// pandas and its dependencies, as the lock file resolves them; all are in the manifest.
+// pandas and its dependencies, as the runtime's lock file resolves them (pytz is not one: pandas 3
+// does not need it, so tools/vendor.py drops it, ADR 0006); all are in the manifest.
 const ANALYSIS_PACKAGE = "pandas";
 const ANALYSIS_FILE_PREFIXES = [
   "pyodide/numpy-",
   "pyodide/pandas-",
   "pyodide/python_dateutil-",
-  "pyodide/pytz-",
   "pyodide/six-",
 ];
 const HEX_BASE = 16;

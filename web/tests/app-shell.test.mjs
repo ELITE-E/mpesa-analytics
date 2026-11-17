@@ -56,16 +56,17 @@ describe("DesktopAppBar", () => {
     assert.deepEqual(desktop.filter((link) => link.current), []);
   });
 
-  test("carries the real account control, not a static avatar", () => {
+  test("says the statement stays on this device, with no account control (CP8b)", () => {
     const html = renderToString(createElement(DesktopAppBar, { navigation: { tabs: "ingest", active: "ingest" } }));
-    assert.match(html, /<button[^>]*aria-label="Sign in"/);
+    assert.match(html.replace(/<[^>]*>/g, " "), /Private on this device/);
+    assert.doesNotMatch(html, /aria-label="Sign in"/);
   });
 });
 
 describe("DesktopFooter", () => {
   test("states the brand, what the app does, privacy and the current year", () => {
     const text = renderToString(createElement(DesktopFooter)).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
-    for (const expected of ["Sovereign Ledger", "M-Pesa statement analysis", "Private to your account", `© ${new Date().getFullYear()} Sovereign Ledger`]) {
+    for (const expected of ["Sovereign Ledger", "M-Pesa statement analysis", "Private on this device", `© ${new Date().getFullYear()} Sovereign Ledger`]) {
       assert.ok(text.toLowerCase().includes(expected.toLowerCase()), `footer lacks "${expected}"`);
     }
     for (const unsupported of [/institutional/i, /reconcil/i, /hash/i, /aes/i, /encrypt/i, /audit/i]) {

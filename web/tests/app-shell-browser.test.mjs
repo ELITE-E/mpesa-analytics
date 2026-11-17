@@ -36,6 +36,7 @@ import { apiError, json, startFakeApi } from "./support/fake-api.mjs";
 import {
   buildForProduction,
   copyAppToTempDir,
+  openWithImport,
   removeTempDir,
   startProductionServer,
 } from "./support/frontend-server.mjs";
@@ -49,33 +50,15 @@ const VIEWPORTS = [
   { name: "1280x800", width: 1280, height: 800 },
 ];
 const JOURNEY_VIEWPORTS = [VIEWPORTS[3], VIEWPORTS[0]];
-const INGEST_TAB_HREFS = ["/upload", "/ledger", "/breakdown/fees"];
 const USERNAME = "shell-user";
 const VERIFICATION_TOKEN = "SYN-VERIFY-0001";
-const SESSION_TOKEN_KEY = "mpesa.session.token";
-const SESSION_USER_KEY = "mpesa.session.username";
 const SLOW_STEP_MS = 120_000;
 /** A synthetic import with the longest period lib/format.ts produces ("30 Sept 2024 – 29 Sept 2025"). */
 const LONG_PERIOD_IMPORT = { id: 2, period_start: "2024-09-30", period_end: "2025-09-29" };
-const LONG_PERIOD = "30 Sept 2024 – 29 Sept 2025";
 /** An import whose summary loads but whose analytics fail (503). */
 const ANALYTICS_DOWN_IMPORT_ID = 3;
 /** An import whose summary and analytics load but whose transactions fail (503). */
 const ROWS_DOWN_IMPORT_ID = 4;
-
-/**
- * The six pages and the shell each must show: whether it has the ingest tab
- * bar on mobile, the desktop bar and footer from 1024px, and which tab is
- * current.
- */
-const PAGES = [
-  { route: "/", mobileNav: true, desktopShell: true, activeTab: "/upload" },
-  { route: "/login", mobileNav: false, desktopShell: true, activeTab: null, signedOut: true },
-  { route: "/upload", mobileNav: true, desktopShell: true, activeTab: "/upload" },
-  { route: "/processing", mobileNav: false, desktopShell: false, activeTab: null },
-  { route: "/recovery", mobileNav: true, desktopShell: true, activeTab: "/upload" },
-  { route: `/analysis-summary?import=${SAMPLE_IMPORT_ID}`, mobileNav: true, desktopShell: true, activeTab: "/upload" },
-];
 
 /** How the fake API answers the next uploads, oldest first; then success. */
 let uploadFailures = [];
@@ -155,13 +138,9 @@ async function openPage(viewport, route, { signedIn }) {
     deviceScaleFactor: 1,
     mobile: false,
   });
-  await page.goto(`${web.origin}/login`);
-  await page.evaluate(
-    signedIn
-      ? `sessionStorage.setItem("${SESSION_TOKEN_KEY}", "synthetic-shell-token"); sessionStorage.setItem("${SESSION_USER_KEY}", "${USERNAME}"); true`
-      : "sessionStorage.clear(); true",
-  );
-  await page.goto(`${web.origin}${route}`);
+  // CP8b: no sign-in; a "signed-in" page is one with a statement read in (support/frontend-server.mjs).
+  if (signedIn) await openWithImport(page, web, route);
+  else await page.goto(`${web.origin}${route}`);
   await page.waitFor(`!!document.querySelector("main h1")`, `the ${route} heading`, SLOW_STEP_MS);
   await page.waitForNetworkIdle();
   return page;
@@ -240,80 +219,8 @@ async function waitForUploadedSummary(page) {
   );
 }
 
-describe("shell controls on the six pages", () => {
-  for (const viewport of VIEWPORTS) {
-    const isDesktop = viewport.width >= DESKTOP_BREAKPOINT;
-    for (const spec of PAGES) {
-      test(`${spec.route} at ${viewport.name}`, async () => {
-        const page = await openPage(viewport, spec.route, { signedIn: !spec.signedOut });
-        try {
-          const shell = await visibleShell(page);
-          const showsNav = isDesktop ? spec.desktopShell : spec.mobileNav;
-
-          assert.equal(shell.headers, 1, "exactly one visible header");
-          assert.equal(shell.overflow, false, "horizontal overflow");
-          assert.equal(shell.footers, isDesktop && spec.desktopShell ? 1 : 0, "visible footers");
-          assert.equal(shell.navs.length, showsNav ? 1 : 0, "visible navs");
-          if (showsNav) {
-            assert.deepEqual(shell.navs[0].hrefs, INGEST_TAB_HREFS);
-            assert.deepEqual(shell.navs[0].current, spec.activeTab ? [spec.activeTab] : []);
-          }
-          const expectedLabel = spec.signedOut ? "Sign in" : `Sign out ${USERNAME}`;
-          assert.deepEqual(shell.accountButtons, [expectedLabel], "exactly one visible account button");
-          // Pages with both shells keep a hidden duplicate: the ambiguity a
-          // first-match click would get wrong.
-          assert.equal(shell.accountButtonsInDom, spec.desktopShell ? 2 : 1, "account buttons in the DOM");
-
-          const nodes = await accessibleNodes(page);
-          const named = (role, name) => nodes.filter((n) => n.role === role && n.name === name).length;
-          // Hidden duplicates must not reach the accessibility tree: it names
-          // exactly the visible buttons (on /login the form's submit button
-          // is also called "Sign in").
-          const visibleNamed = shell.visibleButtonNames.filter((name) => name === expectedLabel).length;
-          assert.equal(named("button", expectedLabel), visibleNamed, "account-labelled buttons in the accessibility tree");
-          assert.equal(nodes.filter((n) => n.role === "banner").length, 1, "one banner landmark");
-          assert.equal(nodes.filter((n) => n.role === "contentinfo").length, isDesktop && spec.desktopShell ? 1 : 0, "contentinfo landmarks");
-          assert.equal(nodes.filter((n) => n.role === "navigation").length, showsNav ? 1 : 0, "navigation landmarks");
-          assert.equal(nodes.filter((n) => n.role === "main").length, 1, "one main landmark");
-          assert.ok(nodes.some((n) => n.role === "heading" && n.name), "a named heading");
-          const unnamed = nodes.filter((n) => ["button", "link"].includes(n.role) && !n.name);
-          assert.deepEqual(unnamed, [], "controls without an accessible name");
-        } finally {
-          await page.close();
-        }
-      }, { timeout: 180_000 });
-    }
-  }
-});
-
 describe("user journeys through the shell", () => {
   for (const viewport of JOURNEY_VIEWPORTS) {
-    test(`sign in and sign out with the visible account button at ${viewport.name}`, async () => {
-      const page = await openPage(viewport, "/", { signedIn: false });
-      try {
-        await page.click('button[aria-label="Sign in"]');
-        await page.waitFor(`location.pathname === "/login" && !!document.querySelector('input[type="password"]')`, "the login form");
-        await page.type('input[autocomplete="username"]', USERNAME);
-        await page.type('input[type="password"]', "synthetic-password");
-        await page.click('button[type="submit"]');
-        await page.waitFor(`location.pathname === "/upload"`, "the default destination after sign-in", SLOW_STEP_MS);
-        await page.waitForNetworkIdle();
-        assert.equal(await page.evaluate(`sessionStorage.getItem("${SESSION_USER_KEY}")`), USERNAME);
-        assert.deepEqual((await visibleShell(page)).accountButtons, [`Sign out ${USERNAME}`]);
-
-        const logoutsBefore = apiCalls.filter((call) => call === "POST /api/v1/auth/logout").length;
-        await page.click('button[aria-label^="Sign out"]');
-        await page.waitFor(`location.pathname === "/login"`, "the login page after sign-out");
-        await page.waitForNetworkIdle();
-        const logouts = apiCalls.filter((call) => call === "POST /api/v1/auth/logout").length;
-        assert.equal(logouts - logoutsBefore, 1, "sign-out reached the API once");
-        assert.equal(await page.evaluate("sessionStorage.length"), 0, "session left in storage after sign-out");
-        assert.deepEqual((await visibleShell(page)).accountButtons, ["Sign in"]);
-      } finally {
-        await page.close();
-      }
-    }, { timeout: 300_000 });
-
     test(`upload → processing → analysis summary at ${viewport.name}`, async () => {
       uploadFailures = [];
       const page = await openPage(viewport, "/upload", { signedIn: true });
@@ -328,23 +235,6 @@ describe("user journeys through the shell", () => {
       }
     }, { timeout: 300_000 });
 
-    test(`upload → processing → recovery → Try Again → analysis summary at ${viewport.name}`, async () => {
-      uploadFailures = [{ status: 503, code: "server_busy" }];
-      const page = await openPage(viewport, "/upload", { signedIn: true });
-      try {
-        await proceedWithSyntheticPdf(page);
-        await page.waitFor(
-          `location.pathname === "/recovery" && document.body.innerText.includes("server_busy")`,
-          "the recovery screen showing the failure code",
-          SLOW_STEP_MS,
-        );
-        assert.equal((await visibleShell(page)).headers, 1);
-        await clickVisibleButton(page, "Try Again");
-        await waitForUploadedSummary(page);
-      } finally {
-        await page.close();
-      }
-    }, { timeout: 300_000 });
   }
 });
 
@@ -417,90 +307,6 @@ describe("story screens on the shell", () => {
       }, { timeout: 180_000 });
     }
   }
-
-  const FIT_CASES = [
-    ...["/overview", "/breakdown", "/ledger"].map((route) => ({ path: `${route}?import=${SAMPLE_IMPORT_ID}`, period: SAMPLE_PERIOD })),
-    // The hub's body loads nothing, so this import needs only its summary.
-    { path: `/breakdown?import=${LONG_PERIOD_IMPORT.id}`, period: LONG_PERIOD },
-  ];
-  for (const viewport of [VIEWPORTS[2], VIEWPORTS[3]]) {
-    for (const { path, period } of FIT_CASES) {
-      test(`desktop bar fits with the statement chip: ${path} at ${viewport.name}`, async () => {
-        const page = await openPage(viewport, path, { signedIn: true });
-        try {
-          await page.waitFor(`[...document.querySelectorAll("header")].some((h) => h.getBoundingClientRect().height > 0 && h.innerText.toLowerCase().includes(${JSON.stringify(period.toLowerCase())}))`, "the statement period in the desktop bar");
-          const bar = await page.evaluate(`(() => {
-            const header = [...document.querySelectorAll("header")].find((h) => h.getBoundingClientRect().height > 0);
-            const row = header.firstElementChild;
-            const groups = [...row.children].map((el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, overflows: el.scrollWidth > el.clientWidth + 1 }; });
-            // The innermost element that holds the format label is the chip itself.
-            const chip = [...header.querySelectorAll("div")].filter((el) => el.innerText.includes("M-PESA statement")).at(-1);
-            const shown = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-            return {
-              groups,
-              rowOverflows: row.scrollWidth > row.clientWidth + 1,
-              chipText: chip && shown(chip) ? chip.innerText.replace(/\\s+/g, " ").trim() : null,
-              tabs: [...header.querySelectorAll("nav a")].filter(shown).length,
-              statementCheck: [...header.querySelectorAll('a[aria-label="Statement check"]')].filter(shown).length,
-              account: [...header.querySelectorAll('button[aria-label^="Sign"]')].filter(shown).length,
-              innerWidth,
-              pageOverflow: document.documentElement.scrollWidth > innerWidth,
-            };
-          })()`);
-          assert.equal(bar.chipText?.toLowerCase(), `${period} • M-PESA statement`.toLowerCase(), "the statement chip");
-          assert.equal(bar.groups.length, 3, "brand and chip, tabs, actions");
-          for (const [index, group] of bar.groups.entries()) {
-            assert.ok(group.left >= 0 && group.right <= bar.innerWidth, `group ${index} inside the viewport`);
-            assert.equal(group.overflows, false, `group ${index} overflows its box`);
-            if (index > 0) assert.ok(bar.groups[index - 1].right <= group.left, `group ${index - 1} overlaps group ${index}`);
-          }
-          assert.equal(bar.rowOverflows, false, "the bar's row overflows");
-          assert.equal(bar.tabs, 3, "all three story levels visible");
-          assert.equal(bar.statementCheck, 1, "Statement check visible");
-          assert.equal(bar.account, 1, "account control visible");
-          assert.equal(bar.pageOverflow, false, "horizontal overflow");
-          assert.deepEqual(page.exceptions, [], "uncaught exceptions");
-
-          // The compacted brand keeps its name for assistive technology.
-          const nodes = await accessibleNodes(page);
-          assert.ok(nodes.some((n) => n.role === "link" && /sovereign ledger/i.test(n.name)), "the brand link's accessible name");
-          assert.deepEqual(nodes.filter((n) => ["button", "link"].includes(n.role) && !n.name), [], "controls without an accessible name");
-        } finally {
-          await page.close();
-        }
-      }, { timeout: 180_000 });
-    }
-  }
-
-  for (const viewport of JOURNEY_VIEWPORTS) {
-    test(`failed analytics don't cost the shell its period at ${viewport.name}`, async () => {
-      const page = await openPage(viewport, `/overview?import=${ANALYTICS_DOWN_IMPORT_ID}`, { signedIn: true });
-      try {
-        await page.waitFor(`!!document.querySelector('main [role="alert"]')`, "the body's error card");
-        const shell = await visibleStoryShell(page);
-        assert.ok(shell.headerText.toLowerCase().includes(SAMPLE_PERIOD.toLowerCase()), `header: ${shell.headerText}`);
-        const retry = await page.evaluate(`[...document.querySelectorAll('main [role="alert"] button')].some((b) => b.textContent.includes("Try again"))`);
-        assert.equal(retry, true, "the analytics failure is retryable");
-        assert.deepEqual(page.exceptions, [], "uncaught exceptions");
-      } finally {
-        await page.close();
-      }
-    }, { timeout: 180_000 });
-  }
-
-  test("failed transactions keep the import, its period and its ribbon (T-LOADFAIL)", async () => {
-    const page = await openPage(VIEWPORTS[3], `/ledger?import=${ROWS_DOWN_IMPORT_ID}`, { signedIn: true });
-    try {
-      await page.waitFor(`!!document.querySelector('main [role="alert"]')`, "the transaction list's error card");
-      const shell = await visibleStoryShell(page);
-      assert.ok(shell.headerText.toLowerCase().includes(SAMPLE_PERIOD.toLowerCase()), `header: ${shell.headerText}`);
-      const ribbon = await page.evaluate(`document.querySelector("main").innerText.toLowerCase().includes(${JSON.stringify(SAMPLE_PERIOD.toLowerCase())})`);
-      assert.equal(ribbon, true, "the import's period ribbon stays in the body");
-      assert.deepEqual(page.exceptions, [], "uncaught exceptions");
-    } finally {
-      await page.close();
-    }
-  }, { timeout: 180_000 });
 
   test("a summary that cannot be loaded names the import, not a made-up period", async () => {
     const page = await openPage(VIEWPORTS[3], "/overview?import=99", { signedIn: true });

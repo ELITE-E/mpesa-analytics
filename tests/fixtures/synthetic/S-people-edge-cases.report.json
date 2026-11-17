@@ -1,0 +1,162 @@
+{
+ "engine": "mpesa_core analysis",
+ "report": {
+  "bills": {
+   "bill_spending": [],
+   "recurring_bills": []
+  },
+  "cash_flow": {
+   "closing_balance": 19268.0,
+   "net_cash_flow": 9268.0,
+   "total_inflow": 17000.0,
+   "total_outflow": 7732.0
+  },
+  "fees": {
+   "mpesa_fees": {
+    "fee_amount": 132.0,
+    "period": {
+     "end": "2026-10-01",
+     "start": "2026-10-01"
+    }
+   },
+   "total_fees": {
+    "period": {
+     "end": "2026-10-01",
+     "start": "2026-10-01"
+    },
+    "total_fees": 132.0
+   },
+   "transfer_charges": {
+    "period": {
+     "end": "2026-10-01",
+     "start": "2026-10-01"
+    },
+    "transfer_charge_amount": 132.0
+   }
+  },
+  "investments": {
+   "by_platform": [],
+   "frequency": {
+    "dates": [],
+    "frequency": 0,
+    "investment_transactions": 0
+   },
+   "monthly_investment": [],
+   "total_investment": {
+    "investment_amount": 0,
+    "period": {
+     "end": "2026-10-01",
+     "start": "2026-10-01"
+    }
+   }
+  },
+  "spending": {
+   "largest_purchases": [
+    {
+     "amount": 400.0,
+     "date": "2026-10-01 18:00:00",
+     "ranking": 1,
+     "recipient": "Mary Wanjiku",
+     "transaction": "SYNPE07"
+    }
+   ],
+   "merchant_usage_frequency": [
+    {
+     "merchant": "Mary Wanjiku",
+     "ranking": 1,
+     "transaction_count": 1
+    }
+   ],
+   "monthly_expenditure": [
+    {
+     "expenditure": 400.0,
+     "month": "2026-10"
+    }
+   ],
+   "recurring_purchases": [],
+   "spending_by_entity": [
+    {
+     "amount": 400.0,
+     "entity": "Mary Wanjiku"
+    }
+   ],
+   "top_recipients": [
+    {
+     "amount_received": 400.0,
+     "ranking": 1,
+     "recipient": "Mary Wanjiku"
+    }
+   ]
+  },
+  "transfers": {
+   "by_recipient_count": [
+    {
+     "ranking": 1,
+     "recipient": "NO_ENTITY_IDENTIFIED",
+     "transaction_count": 1
+    },
+    {
+     "ranking": 1,
+     "recipient": "Nyambura Wairimu Chepkoech Akinyi Odhiambo-Kamau Mutua Wanjohi",
+     "transaction_count": 1
+    },
+    {
+     "ranking": 1,
+     "recipient": "MARY WANJIKU",
+     "transaction_count": 1
+    },
+    {
+     "ranking": 1,
+     "recipient": "Mary Wanjiku",
+     "transaction_count": 1
+    }
+   ],
+   "largest_transfers": [
+    {
+     "amount": 3000.0,
+     "date": "2026-10-01",
+     "ranking": 1,
+     "recipient": "Nyambura Wairimu Chepkoech Akinyi Odhiambo-Kamau Mutua Wanjohi"
+    },
+    {
+     "amount": 2000.0,
+     "date": "2026-10-01",
+     "ranking": 2,
+     "recipient": "Mary Wanjiku"
+    },
+    {
+     "amount": 1500.0,
+     "date": "2026-10-01",
+     "ranking": 3,
+     "recipient": "MARY WANJIKU"
+    },
+    {
+     "amount": 700.0,
+     "date": "2026-10-01",
+     "ranking": 4,
+     "recipient": "NO_ENTITY_IDENTIFIED"
+    }
+   ],
+   "monthly_transfer_amounts": [
+    {
+     "month": "2026-10",
+     "transfer_amount": 7200.0
+    }
+   ],
+   "total_received": {
+    "period": {
+     "end": "2026-10-01",
+     "start": "2026-10-01"
+    },
+    "total_received": 17000.0
+   },
+   "total_transfers": {
+    "period": {
+     "end": "2026-10-01",
+     "start": "2026-10-01"
+    },
+    "total_transfer_amount": 7200.0
+   }
+  }
+ }
+}

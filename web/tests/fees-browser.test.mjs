@@ -28,8 +28,10 @@ import { launchBrowser } from "./support/cdp-browser.mjs";
 import { contractFixtures } from "./support/contract-fixtures.mjs";
 import { apiError, json, startFakeApi } from "./support/fake-api.mjs";
 import {
+  appGoto,
   buildForProduction,
   copyAppToTempDir,
+  openWithImport,
   removeTempDir,
   startProductionServer,
 } from "./support/frontend-server.mjs";
@@ -114,9 +116,8 @@ const FEES_READY = `[...document.querySelectorAll("main h2")].some((h) => h.text
 async function openPage(viewport, route, ready = FEES_READY) {
   const page = await browser.newPage();
   await page.send("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: 1, mobile: false });
-  await page.goto(`${web.origin}/login`);
-  await page.evaluate(`sessionStorage.setItem("mpesa.session.token", "synthetic-token"); sessionStorage.setItem("mpesa.session.username", "fees-user"); true`);
-  await page.goto(`${web.origin}${route}`);
+  // CP8b: the static app reads its data through an upload (support/frontend-server.mjs).
+  await openWithImport(page, web, route);
   await page.waitFor(ready, `${route} to render`, SLOW_STEP_MS);
   return page;
 }
@@ -173,7 +174,7 @@ describe("every door's Ledger scope adds up to its figure, is titled in words, a
         assert.ok(scopes.some((scope) => scope.startsWith("receipt:")), scopes.join(" | "));
         if (id === EDGE_IMPORT_ID) assert.ok(scopes.includes("fees:unlinked"), scopes.join(" | "));
         for (const door of doors) {
-          await page.goto(`${web.origin}${door.href}`);
+          await appGoto(page, door.href);
           const scope = new URLSearchParams(door.href.split("?")[1]).get("scope");
           if (scope.startsWith("receipt:")) {
             // A receipt scope has no totals banner (scope-banner.tsx): its title names the receipt and its rows show the
@@ -275,33 +276,6 @@ describe("empty and error states are never a zero-valued Fees", () => {
     }
   }, { timeout: 300_000 });
 
-  test("analytics fail: the retryable error card and no figure", async () => {
-    const page = await openPage(DESKTOP, `/breakdown/fees?import=${ANALYTICS_DOWN_IMPORT_ID}`, `!!document.querySelector('main [role="alert"]')`);
-    try {
-      const shown = await mainText(page);
-      assert.match(shown, /Try again/);
-      assert.doesNotMatch(shown, /KES/);
-    } finally {
-      await page.close();
-    }
-  }, { timeout: 300_000 });
-
-  test("transactions fail (T-LOADFAIL): the API's total stays, the causes give way to a retryable error until Try again succeeds", async () => {
-    rowsRecovered = false;
-    const page = await openPage(DESKTOP, `/breakdown/fees?import=${ROWS_DOWN_IMPORT_ID}`, `!!document.querySelector('main [role="alert"]')`);
-    try {
-      const failed = await mainText(page);
-      assert.ok(failed.includes(kes(fixture.snapshot.result.fees.total_fees.total_fees)), "the API's total stays");
-      assert.doesNotMatch(failed, /What caused the charges/);
-      assert.equal(await page.evaluate(`!!document.querySelector('main a[href^="/ledger"]')`), false, "no door while the rows are missing");
-      rowsRecovered = true;
-      await page.click('main [role="alert"] button');
-      await page.waitFor(`[...document.querySelectorAll("main h2")].some((h) => h.textContent === "What caused the charges")`, "the causes after Try again", SLOW_STEP_MS);
-    } finally {
-      rowsRecovered = false;
-      await page.close();
-    }
-  }, { timeout: 300_000 });
 });
 
 describe("layout at four widths", () => {

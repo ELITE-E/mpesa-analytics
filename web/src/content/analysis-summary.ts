@@ -9,17 +9,13 @@ export const hero = {
   title: "Your Analysis is Ready",
 };
 
-/**
- * Safaricom's USSD code, which every statement prints for checking it: shown beside the
- * verification code. The core's attestation looks for the same "dial *334#" text (attest.py).
- */
-export const SAFARICOM_VERIFY_CODE = "*334#";
-
 /** The statement checks card (CP8b item 5): never "verified" or "genuine" (ADR-free copy rule). */
 export const checks = {
   title: "Statement checks",
   verificationLabel: "Verification code",
-  verifyWithSafaricom: `Verify with Safaricom: dial ${SAFARICOM_VERIFY_CODE}`,
+  verifyWithSafaricom: "Verify with Safaricom",
+  // Shown when the core could not read the statement's own instruction: the app never assumes a code.
+  instructionUnreadable: "Use the verification instruction printed on your statement.",
   passes: "This statement passes consistency checks, not yet verified with Safaricom.",
   doesNotPass: "This statement does not pass every consistency check, and is not yet verified with Safaricom.",
   chainBreaks: (count: number) => (count === 1 ? "1 row does not chain" : `${count} rows do not chain`),

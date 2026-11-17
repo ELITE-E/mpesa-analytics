@@ -7,7 +7,7 @@ import { useApiData } from "@/lib/use-api";
 
 /**
  * The statement's checks (CP8b item 5): its verification code and how to verify it with
- * Safaricom, whether the balances chain, whether the totals match the printed summary, and the
+ * Safaricom, in the statement's own printed words (or a fallback sentence, never an assumed code), whether the balances chain, whether the totals match the printed summary, and the
  * rows no rule recognised. It never calls the statement verified or genuine: only Safaricom can.
  *
  * @param props.checks The statement's checks, from the data layer.
@@ -27,7 +27,12 @@ export function StatementChecksCard({ checks }: { checks: StatementChecks }) {
         <span className="text-xs font-label text-on-surface-variant">
           {copy.verificationLabel}: <span className="font-semibold text-on-surface">{checks.verification_token}</span>
         </span>
-        <span className="text-xs font-label text-on-surface-variant">{copy.verifyWithSafaricom}</span>
+        <span className="text-xs font-label text-on-surface-variant">
+          {copy.verifyWithSafaricom}:{" "}
+          <span className="text-on-surface" data-verification-instruction="">
+            {checks.verification_instruction ?? copy.instructionUnreadable}
+          </span>
+        </span>
       </div>
       <ul className="flex flex-col gap-1 text-xs font-body text-on-surface-variant">
         <li>{checks.chain_breaks > 0 ? copy.chainBreaks(checks.chain_breaks) : copy.chainHolds}</li>

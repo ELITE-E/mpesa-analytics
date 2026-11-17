@@ -39,6 +39,8 @@ node tools/equivalence/browser_run.mjs --pdf <statement.pdf> --out <new scratch 
 
 `--skip-baseline` runs only the browser-against-CPython part, without `baseline.json`. Its `browser_vs_cpython_report_path:` lines name each differing report path with keys from the data as `<key>`, the leaf's type, whether its list holds the same values in another order, and a size bucket for numbers. Against the old report, differences proven to be tie order only (`report_tie_order_only <class>`) do not fail `report_paths_equal` (behaviour-changes T-1 to T-3).
 
+To check the real UI on a real statement, with nothing written: `node tools/equivalence/ui_run.mjs --pdf <statement.pdf>` (needs the runtime and the app built). It chooses the PDF on `/upload` as you would, asks for the password at a hidden prompt only if the PDF needs one, and prints counts only: `transactions_shown` (the Ledger's count), `compare_with_api` (pass when Overview withholds no breakdown, so the rows' inflow, outflow and charges equal the report's), `csp_violations`, `csp_console_reports`, `requests_other_origin` and `requests_breaking_rule` (requests other than GETs to the app, or prefetch HEADs to its pages; `tools/browser/request_rule.js`).
+
 To see whether a PDF carries a digital signature: `node tools/probes/pdf_signature_probe.mjs <statement.pdf>` prints `signature_field: yes|no` and `byterange_token: yes|no`, nothing else.
 
 ### Why a row was inserted, linked or preserved
@@ -115,12 +117,19 @@ To make a statement of your own: `.venv/bin/python tools/synth/generate.py --nam
 | Browser bridge and engine client | `pdf_reader/bridge.js`, `pdf_reader/engine_client.js` | `node --test tests/pdf_readers/engine_bridge.test.js tests/pdf_readers/engine_client.test.js` |
 | Runtime build | `tools/vendor.py runtime` | `pytest tests/guards/test_vendor_runtime.py` |
 | Bundle budget | `tools/measure_bundle.py` | `pytest tests/guards/test_bundle_budget.py` |
+| Contract scenarios (the frontend's fixtures) | `tools/synth/scenarios.py`, `scenario_ledger.py`, `tools/record_scenario_reports.py` | `pytest tests/synth/test_scenarios.py tests/synth/test_scenario_reports.py`; after changing a scenario: `python tools/synth/generate.py --write-fixtures tests/fixtures/synthetic`, then `python tools/record_scenario_reports.py`; the core against them: `python tools/equivalence/scenario_compare.py` (counts only) |
+| What a first visit downloads | `tools/measure_app_download.mjs` | `node --test tests/browser/measure_app_download.test.js`; by hand: `node tools/measure_app_download.mjs > <scratch>/fetched.json`, then `uv run python tools/measure_bundle.py --app web/out --fetched <scratch>/fetched.json` |
+| Request rule | `tools/browser/request_rule.js` | `node --test tests/browser/request_rule.test.js` |
 | Per-stage timing | `tools/measure_stage_timing.mjs`, `web/harness/stage_timing.*` | `node --test tests/browser/stage_timing.test.js` |
-| Statement engine in Chrome | `pdf_reader/`, `web/harness/` | `node --test --test-concurrency=1 tests/browser/*.test.js` (needs the runtime built and Chrome; about 10 minutes) |
+| Statement engine in Chrome | `pdf_reader/`, `web/harness/` | `node --test --test-concurrency=1 tests/browser/*.test.js` (needs the runtime and the app built, and Chrome; about 12 minutes) |
+| Verification instruction | `reconciliation/attest.py` `verification_instruction` | `pytest tests/core/test_verification_instruction.py` |
+| Web app, unit | `web/src/` | from `web/`: `node --import ./tests/support/register.mjs --test tests/<name>.test.mjs` |
+| Web app in Chrome: static export, CSP, real UI | `web/out`, `web/scripts/` | from `web/`, after `npm run build`: `node --import ./tests/support/register.mjs --test --test-concurrency=1 tests/static-export-csp.test.mjs tests/e2e-local.test.mjs` (about 7 minutes) |
+| The prototype's browser tests | `web/tests/*-browser.test.mjs`, `web/tests/support/frontend-server.mjs` | from `web/`, after `npm run build`: `node --import ./tests/support/register.mjs --test --test-concurrency=1 tests/<name>-browser.test.mjs` (a few minutes each). Tests expecting links to carry the fake API's import id fail until ledger switching (CP9) |
 
 The core tests also run under Pyodide: build the wheel (`uv build --wheel`), then `node tools/run_pyodide_tests.mjs`.
 
-The browser tests need the runtime: `uv build --wheel --out-dir dist`, then `uv run python tools/vendor.py runtime --wheel dist/mpesa_core-0.0.0-py3-none-any.whl`. Rebuild it after any core change, or Chrome runs the old wheel. To look at the engine by hand, `node web/harness/serve.js` serves the harness with the architecture CSP; open DevTools on the worker for its requests.
+The browser tests need the runtime: `uv build --wheel --out-dir dist`, then `uv run python tools/vendor.py runtime --wheel dist/mpesa_core-0.0.0-py3-none-any.whl`. Rebuild it after any core change, or Chrome runs the old wheel; then rebuild the app (`npm run build` in `web/`), which copies the runtime and `pdf_reader/` into `web/out`. To look at the engine by hand, `node web/harness/serve.js` serves the harness with the architecture CSP; open DevTools on the worker for its requests.
 
 ## Errors you may see
 
@@ -128,7 +137,7 @@ Every core error carries a code and, at most, a position; never a statement valu
 
 | Error | Codes | Raised by |
 |---|---|---|
-| `ExtractionError` | `LAYOUT_UNRECOGNIZED`, `NOT_A_PDF`, `PASSWORD_*`, `CORRUPT_PDF`, `TOO_*`, `TIMEOUT` | the PDF reader, `calibrate_columns` |
+| `ExtractionError` | `LAYOUT_UNRECOGNIZED`, `NOT_A_PDF`, `PASSWORD_*`, `CORRUPT_PDF`, `TOO_*` (`TOO_FEW_AMOUNTS`: an amount column printed fewer than twice, its own user message; CP10 relaxes it), `TIMEOUT` | the PDF reader, `calibrate_columns` |
 | `AttestationError` | `NO_PAGES`, `BRAND_MISSING`, `ANCHOR_MISSING`, `TOKEN_MISSING` | `attest` |
 | `DomainRowError` | row index only | `classify_transactions` (a row with both or neither amount) |
 | `AnalysisError` | `DATE_UNREADABLE` (with the row), `ANALYSIS_FAILED` | `analyze_transactions` |

@@ -11,14 +11,11 @@
 //   node --import ./tests/support/register.mjs --test tests/story-navigation.test.mjs
 
 import assert from "node:assert/strict";
-import { afterEach, describe, test } from "node:test";
+import { describe, test } from "node:test";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 
-const API_BASE_URL = "https://api.app.test";
-
 // Browser globals the client modules touch, set before the app is imported.
-process.env.NEXT_PUBLIC_API_BASE_URL = API_BASE_URL;
 const sessionStore = new Map([
   ["mpesa.session.token", "tok_STORY_NAV_TEST"],
   ["mpesa.session.username", "story-user"],
@@ -33,7 +30,6 @@ globalThis.window = {
 };
 
 const { withImport, parseImportId } = await import("../src/lib/import-link.ts");
-const { getImportOrLatest } = await import("../src/lib/api.ts");
 const { StoryBottomNav } = await import("../src/components/story-bottom-nav.tsx");
 const { storyPeriodLabel } = await import("../src/components/story-period.tsx");
 const { StatementDataProvider } = await import("../src/components/statement-data.tsx");
@@ -55,20 +51,6 @@ const SUMMARY = {
   observation_counts: {},
 };
 
-/** API paths requested through the faked fetch, in order. */
-let requestedPaths = [];
-
-/** Fake the API: `answers` maps a path (with query) to [status, body]. */
-function fakeApi(answers) {
-  requestedPaths = [];
-  globalThis.fetch = async (url) => {
-    const path = String(url).slice(API_BASE_URL.length);
-    requestedPaths.push(path);
-    const [status, body] = answers[path] ?? [404, { error: { code: "not_found", message: "Not found." } }];
-    return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
-  };
-}
-
 /** Each link in `html` as { href, text, current }, in DOM order; text without icon ligatures. */
 function links(html) {
   return [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].map(([, attributes, inner]) => ({
@@ -83,10 +65,6 @@ function links(html) {
     current: attributes.includes('aria-current="page"'),
   }));
 }
-
-afterEach(() => {
-  delete globalThis.fetch;
-});
 
 describe("withImport", () => {
   test("adds the import to a path without a query", () => {
@@ -112,30 +90,6 @@ describe("parseImportId", () => {
     for (const value of [undefined, "", "abc", "1.5", "0", "-3", "7abc"]) {
       assert.equal(parseImportId(value), null, JSON.stringify(value));
     }
-  });
-});
-
-describe("getImportOrLatest", () => {
-  test("loads the requested import", async () => {
-    fakeApi({ "/api/v1/imports/7": [200, SUMMARY] });
-    assert.deepEqual(await getImportOrLatest(7), SUMMARY);
-    assert.deepEqual(requestedPaths, ["/api/v1/imports/7"]);
-  });
-
-  test("without an id, loads the most recent import", async () => {
-    fakeApi({ "/api/v1/imports?limit=1": [200, { items: [SUMMARY] }] });
-    assert.deepEqual(await getImportOrLatest(null), SUMMARY);
-    assert.deepEqual(requestedPaths, ["/api/v1/imports?limit=1"]);
-  });
-
-  test("is null when the user has no imports", async () => {
-    fakeApi({ "/api/v1/imports?limit=1": [200, { items: [] }] });
-    assert.equal(await getImportOrLatest(null), null);
-  });
-
-  test("rejects with the API's error for an import that is not the user's", async () => {
-    fakeApi({});
-    await assert.rejects(getImportOrLatest(99), (error) => error.code === "not_found" && error.status === 404);
   });
 });
 
@@ -212,9 +166,10 @@ describe("DesktopAppBar: the desktop story tabs", () => {
     assert.doesNotMatch(textOf(html), /What happened|Why\?|Prove it/);
   });
 
-  test("links Statement check to this import's analysis summary and keeps the account control", () => {
+  test("links Statement check to this import's analysis summary and says the statement stays on this device", () => {
     assert.ok(links(html).some((link) => link.href === "/analysis-summary?import=7" && link.text.includes("Statement check")));
-    assert.match(html, /<button[^>]*aria-label="Sign in"/);
+    assert.match(html.replace(/<[^>]*>/g, " "), /Private on this device/);
+    assert.doesNotMatch(html, /aria-label="Sign in"/);
   });
 
   test("names the statement without a fabricated period before the summary loads", () => {
@@ -315,10 +270,9 @@ describe("the interim Breakdown hub", () => {
     return links(main);
   }
 
-  test("opens each area's existing screen and the Ledger, keeping the import exactly once", async () => {
+  test("opens each area's existing screen and the Ledger; a static page ignores the query until CP9", async () => {
     const hrefs = contentLinks(await renderHub({ import: "7" })).map((link) => link.href);
-    assert.deepEqual(hrefs, ["/ledger?import=7", "/breakdown/spending?import=7", "/breakdown/people?import=7", "/breakdown/savings?import=7", "/breakdown/fees?import=7", "/breakdown/cash?import=7", "/breakdown/money-in?import=7"]);
-    for (const href of hrefs) assert.deepEqual(new URL(href, "https://app.test").searchParams.getAll("import"), ["7"]);
+    assert.deepEqual(hrefs, ["/ledger", "/breakdown/spending", "/breakdown/people", "/breakdown/savings", "/breakdown/fees", "/breakdown/cash", "/breakdown/money-in"]);
   });
 
   test("without an import, links to the latest import's screens", async () => {
@@ -339,7 +293,7 @@ describe("the interim Breakdown hub", () => {
   test("marks Breakdown as the current level and makes no unsupported claim", async () => {
     const html = await renderHub({ import: "7" });
     for (const nav of [...html.matchAll(/<nav\b(?![^>]*aria-label="Breakdown areas")[\s\S]*?<\/nav>/g)]) {
-      assert.deepEqual(links(nav[0]).filter((link) => link.current).map((link) => link.href), ["/breakdown?import=7"]);
+      assert.deepEqual(links(nav[0]).filter((link) => link.current).map((link) => link.href), ["/breakdown"]);
     }
     assert.doesNotMatch(textOf(html), /reconcil|\baudit|verified|encrypt/i);
   });

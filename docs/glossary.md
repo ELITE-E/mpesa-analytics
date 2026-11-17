@@ -79,6 +79,7 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | baseline | The old extractor's rows for one statement, kept outside both repos for the equivalence check | `export_baseline.py`, `compare.py` | snapshot, golden |
 | account digest | The SHA-256 digest of page 1's mobile number in one canonical form (`254` and nine digits). In memory only: nine digits are few enough to try them all, so the store must never persist it | `account_digest`, `account_number_unreadable` | account id, phone hash |
 | verification token | The value `attest` produces, tying a result to its statement: the first eight-character code mixing capitals and digits after page 1's verification instruction | `verification_token`, `attest` | hash, signature |
+| verification instruction | Page 1's printed line telling the user how to check the statement with Safaricom (a "dial" USSD line), as printed; None when absent or when it looks like it holds personal data. The app shows it instead of a code of its own | `verification_instruction` | verify code, USSD constant |
 | pipeline result | What `pipeline.run` returns for one statement: plain JSON values, never PDF bytes or a password | `PipelineResult`, `pipeline.run` | output, response |
 | recurring | Seen at least three times, so an isolated transaction is not treated as recurring. | `recurring` | repeat, regular, subscription |
 
@@ -92,6 +93,8 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | runtime | The self-hosted files the statement engine loads: Pyodide, pdf.js, the wheel and the analysis packages, under `runtime/<version>/` with a SHA-256 manifest | `tools/vendor.py runtime`, `load_runtime` | CDN, bundle |
 | "error" | Reserved for exceptions raised by code: `ExtractionError`, `AttestationError`, `DomainRowError`, `AnalysisError`, each with a code or a position only | `*Error` | using it for data-quality counts |
 | remember on this device | The opt-in that keeps data in local browser storage. | `remember_on_device` | save, sync, upload, import |
+| session | The statements read since the app's page was opened, held in memory only; a reload forgets them (CP8b, until "Remember on this device" in CP9) | `session` in `web/src/data/repo.ts` | login session, account session |
+| static export | The web app built as plain files (`next build` with `output: "export"`), served with a per-page CSP (ADR 0015) | `web/out`, `postbuild.mjs` | server build |
 
 ## Verbs for functions
 

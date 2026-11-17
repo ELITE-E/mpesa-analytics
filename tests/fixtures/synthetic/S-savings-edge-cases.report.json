@@ -1,0 +1,141 @@
+{
+ "engine": "mpesa_core analysis",
+ "report": {
+  "bills": {
+   "bill_spending": [
+    {
+     "amount": 4000.0,
+     "bill": "Stanbic Money Market Fund",
+     "period": {
+      "end": "2026-09-20",
+      "start": "2026-08-03"
+     }
+    }
+   ],
+   "recurring_bills": []
+  },
+  "cash_flow": {
+   "closing_balance": 7000.0,
+   "net_cash_flow": 5000.0,
+   "total_inflow": 20000.0,
+   "total_outflow": 15000.0
+  },
+  "fees": {
+   "mpesa_fees": {
+    "fee_amount": 0.0,
+    "period": {
+     "end": "2026-09-20",
+     "start": "2026-08-03"
+    }
+   },
+   "total_fees": {
+    "period": {
+     "end": "2026-09-20",
+     "start": "2026-08-03"
+    },
+    "total_fees": 0.0
+   },
+   "transfer_charges": {
+    "period": {
+     "end": "2026-09-20",
+     "start": "2026-08-03"
+    },
+    "transfer_charge_amount": 0.0
+   }
+  },
+  "investments": {
+   "by_platform": [
+    {
+     "amount_invested": 1000.0,
+     "platform": "NO_ENTITY_IDENTIFIED"
+    },
+    {
+     "amount_invested": 6000.0,
+     "platform": "Mali Safaricom Unit Trust"
+    },
+    {
+     "amount_invested": 2500.0,
+     "platform": "Mali Safaricom Unit Trust Balanced Growth and Income Fund Class B Accumulation Units"
+    }
+   ],
+   "frequency": {
+    "dates": [
+     "2026-08-05",
+     "2026-08-20",
+     "2026-09-05",
+     "2026-09-12"
+    ],
+    "frequency": 4,
+    "investment_transactions": 4
+   },
+   "monthly_investment": [
+    {
+     "investment_amount": 5500.0,
+     "month": "2026-08"
+    },
+    {
+     "investment_amount": 4000.0,
+     "month": "2026-09"
+    }
+   ],
+   "total_investment": {
+    "investment_amount": 9500.0,
+    "period": {
+     "end": "2026-09-20",
+     "start": "2026-08-03"
+    }
+   }
+  },
+  "spending": {
+   "largest_purchases": [
+    {
+     "amount": 4000.0,
+     "date": "2026-09-15 12:00:00",
+     "ranking": 1,
+     "recipient": "Stanbic Money Market Fund",
+     "transaction": "SYNSA06"
+    }
+   ],
+   "merchant_usage_frequency": [],
+   "monthly_expenditure": [
+    {
+     "expenditure": 4000.0,
+     "month": "2026-09"
+    }
+   ],
+   "recurring_purchases": [],
+   "spending_by_entity": [
+    {
+     "amount": 4000.0,
+     "entity": "Stanbic Money Market Fund"
+    }
+   ],
+   "top_recipients": [
+    {
+     "amount_received": 4000.0,
+     "ranking": 1,
+     "recipient": "Stanbic Money Market Fund"
+    }
+   ]
+  },
+  "transfers": {
+   "by_recipient_count": [],
+   "largest_transfers": [],
+   "monthly_transfer_amounts": [],
+   "total_received": {
+    "period": {
+     "end": "2026-09-20",
+     "start": "2026-08-03"
+    },
+    "total_received": 20000.0
+   },
+   "total_transfers": {
+    "period": {
+     "end": "2026-09-20",
+     "start": "2026-08-03"
+    },
+    "total_transfer_amount": 0
+   }
+  }
+ }
+}

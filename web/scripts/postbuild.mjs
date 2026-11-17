@@ -2,7 +2,7 @@
 // After `next build` (static export): ships the statement engine with the app, drops what must not
 // ship, and writes each page's CSP. Next writes inline scripts into every page, so each page's
 // script-src gets one SHA-256 hash per inline script; it never gets 'unsafe-inline' or
-// 'unsafe-eval' (CP8b item 1, ADR 0014). The policies go to out/_headers, one block per path.
+// 'unsafe-eval' (CP8b item 1, ADR 0015). The policies go to out/_headers, one block per path.
 //   node scripts/postbuild.mjs
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -47,15 +47,28 @@ function main() {
 }
 
 /**
+ * The route a built page is served at: "/" for the home page, "/ledger" for ledger.html, and the
+ * 404 page under its own name.
+ *
+ * @param {string} path The page's path inside out/, from "/".
+ * @returns {string} Its route.
+ */
+function route_of(path) {
+  if (path === "/index.html") return "/";
+  if (path === "/404.html") return path;
+  return path.slice(0, -".html".length);
+}
+
+/**
  * Every built page and the path it is served at.
  *
- * @returns {Array<[string, string]>} Route ("/overview/", "/", "/404.html") and file path.
+ * @returns {Array<[string, string]>} Route ("/overview", "/", "/404.html") and file path.
  */
 function page_routes() {
   const routes = [];
   for (const file of html_files(OUT)) {
     const path = `/${relative(OUT, file).split(sep).join("/")}`;
-    routes.push([path.endsWith("/index.html") ? path.slice(0, -"index.html".length) : path, file]);
+    routes.push([route_of(path), file]);
   }
   return routes.sort(([first], [second]) => first.localeCompare(second));
 }

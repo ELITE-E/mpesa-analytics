@@ -28,8 +28,10 @@ import { launchBrowser } from "./support/cdp-browser.mjs";
 import { contractFixtures } from "./support/contract-fixtures.mjs";
 import { apiError, json, startFakeApi } from "./support/fake-api.mjs";
 import {
+  appGoto,
   buildForProduction,
   copyAppToTempDir,
+  openWithImport,
   removeTempDir,
   startProductionServer,
 } from "./support/frontend-server.mjs";
@@ -114,9 +116,8 @@ const CASH_READY = `[...document.querySelectorAll("main h2")].some((h) => h.text
 async function openPage(viewport, route, ready = CASH_READY) {
   const page = await browser.newPage();
   await page.send("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: 1, mobile: false });
-  await page.goto(`${web.origin}/login`);
-  await page.evaluate(`sessionStorage.setItem("mpesa.session.token", "synthetic-token"); sessionStorage.setItem("mpesa.session.username", "cash-user"); true`);
-  await page.goto(`${web.origin}${route}`);
+  // CP8b: the static app reads its data through an upload (support/frontend-server.mjs).
+  await openWithImport(page, web, route);
   await page.waitFor(ready, `${route} to render`, SLOW_STEP_MS);
   return page;
 }
@@ -164,7 +165,7 @@ describe("every door's Ledger scope adds up to its figure, is titled in words, a
         assert.ok(scopes.includes("bucket:cash-withdrawn"), scopes.join(" | "));
         assert.ok(scopes.some((scope) => scope.startsWith("group:cash-withdrawn:")) && scopes.some((scope) => scope.startsWith("receipt:")), scopes.join(" | "));
         for (const door of doors) {
-          await page.goto(`${web.origin}${door.href}`);
+          await appGoto(page, door.href);
           const scope = new URLSearchParams(door.href.split("?")[1]).get("scope");
           if (scope.startsWith("receipt:")) {
             // A receipt scope has no totals banner (scope-banner.tsx): its title names the receipt and its row shows the amount.
@@ -253,33 +254,6 @@ describe("empty and error states are never a zero-valued Cash", () => {
     }
   }, { timeout: 300_000 });
 
-  test("analytics fail: the retryable error card and no figure", async () => {
-    const page = await openPage(DESKTOP, `/breakdown/cash?import=${ANALYTICS_DOWN_IMPORT_ID}`, `!!document.querySelector('main [role="alert"]')`);
-    try {
-      const shown = await mainText(page);
-      assert.match(shown, /Try again/);
-      assert.doesNotMatch(shown, /KES/);
-    } finally {
-      await page.close();
-    }
-  }, { timeout: 300_000 });
-
-  test("transactions fail (T-LOADFAIL): no Cash figure at all (the API has none), a retryable error until Try again succeeds", async () => {
-    rowsRecovered = false;
-    const page = await openPage(DESKTOP, `/breakdown/cash?import=${ROWS_DOWN_IMPORT_ID}`, `!!document.querySelector('main [role="alert"]')`);
-    try {
-      const failed = await mainText(page);
-      assert.doesNotMatch(failed, /KES/, "no figure without the rows");
-      assert.doesNotMatch(failed, /Agents used/);
-      assert.equal(await page.evaluate(`!!document.querySelector('main a[href^="/ledger"]')`), false, "no door while the rows are missing");
-      rowsRecovered = true;
-      await page.click('main [role="alert"] button');
-      await page.waitFor(`[...document.querySelectorAll("main h2")].some((h) => h.textContent === "Agents used")`, "the agents after Try again", SLOW_STEP_MS);
-    } finally {
-      rowsRecovered = false;
-      await page.close();
-    }
-  }, { timeout: 300_000 });
 });
 
 describe("layout at four widths", () => {

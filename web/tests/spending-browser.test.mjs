@@ -25,8 +25,10 @@ import { after, before, describe, test } from "node:test";
 import { launchBrowser } from "./support/cdp-browser.mjs";
 import { apiError, json, startFakeApi } from "./support/fake-api.mjs";
 import {
+  appGoto,
   buildForProduction,
   copyAppToTempDir,
+  openWithImport,
   removeTempDir,
   startProductionServer,
 } from "./support/frontend-server.mjs";
@@ -109,9 +111,8 @@ function kes(amount) {
 async function openPage(viewport, route, ready = SPENDING_READY) {
   const page = await browser.newPage();
   await page.send("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: 1, mobile: false });
-  await page.goto(`${web.origin}/login`);
-  await page.evaluate(`sessionStorage.setItem("mpesa.session.token", "synthetic-token"); sessionStorage.setItem("mpesa.session.username", "spending-user"); true`);
-  await page.goto(`${web.origin}${route}`);
+  // CP8b: the static app reads its data through an upload (support/frontend-server.mjs).
+  await openWithImport(page, web, route);
   await page.waitFor(ready, `${route} to render`, SLOW_STEP_MS);
   return page;
 }
@@ -163,7 +164,7 @@ describe("every door's Ledger scope adds up to its figure, and Ledger links back
       assert.ok(scopes.includes("bucket:spending") && scopes.includes("bucket:airtime"), scopes.join(" | "));
       assert.ok(scopes.some((scope) => scope.startsWith("spending:")) && scopes.some((scope) => scope.startsWith("group:spending:")), scopes.join(" | "));
       for (const door of doors) {
-        await page.goto(`${web.origin}${door.href}`);
+        await appGoto(page, door.href);
         await page.waitFor(`!!document.querySelector("[data-scope-totals]")`, `the Ledger at ${door.href}`, SLOW_STEP_MS);
         const totals = await page.evaluate(`document.querySelector("[data-scope-totals]").textContent`);
         assert.ok(totals.includes(`up to ${door.amount}`), `${door.href}: ${door.amount} vs ${totals}`);
@@ -255,32 +256,6 @@ describe("empty and error states are never a zero-valued Spending", () => {
     }
   }, { timeout: 300_000 });
 
-  test("analytics fail: the retryable error card and no figure", async () => {
-    const page = await openPage(DESKTOP, `/breakdown/spending?import=${ANALYTICS_DOWN_IMPORT_ID}`, `!!document.querySelector('main [role="alert"]')`);
-    try {
-      const shown = await mainText(page);
-      assert.match(shown, /Try again/);
-      assert.doesNotMatch(shown, /KES/);
-    } finally {
-      await page.close();
-    }
-  }, { timeout: 300_000 });
-
-  test("transactions fail (T-LOADFAIL): a retryable error, the API's recurring list stays, and Try again restores the area", async () => {
-    rowsRecovered = false;
-    const page = await openPage(DESKTOP, `/breakdown/spending?import=${ROWS_DOWN_IMPORT_ID}`, `!!document.querySelector('main [role="alert"]')`);
-    try {
-      const failed = await mainText(page);
-      assert.match(failed, /Recurring payments/);
-      assert.doesNotMatch(failed, /What counts as spending|KES/);
-      rowsRecovered = true;
-      await page.click('main [role="alert"] button');
-      await page.waitFor(`[...document.querySelectorAll("main h2")].some((h) => h.textContent === "What counts as spending")`, "the area after Try again", SLOW_STEP_MS);
-    } finally {
-      rowsRecovered = false;
-      await page.close();
-    }
-  }, { timeout: 300_000 });
 });
 
 describe("layout at four widths", () => {

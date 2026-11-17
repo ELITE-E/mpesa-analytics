@@ -10,7 +10,7 @@ import pdfplumber
 import pytest
 
 from conftest import REPO, run_guard
-from synth.generate import generate
+from synth.generate import SCENARIO_FIXTURES, build_scenario_outputs, generate
 from vendor import PDFJS_VERSION
 
 FIXTURES = REPO / "tests" / "fixtures" / "synthetic"
@@ -60,7 +60,14 @@ def test_every_committed_output_exists(rel):
 
 
 def test_manifest_lists_exactly_the_committed_outputs():
-    assert sorted(entry["path"] for entry in manifest()["fixture"]) == sorted(ALL_FILES)
+    scenario_files = [
+        f"{name}{suffix}"
+        for name, (seed, scenario) in SCENARIO_FIXTURES.items()
+        for suffix in build_scenario_outputs(seed, scenario)
+    ]
+    assert sorted(entry["path"] for entry in manifest()["fixture"]) == sorted(
+        ALL_FILES + scenario_files
+    )
 
 
 def test_manifest_records_seed_version_hash_and_fake_password():
@@ -219,7 +226,11 @@ def test_every_fixture_has_a_model_marked_synthetic(name):
 
 
 def test_manifest_records_each_recorded_file_with_its_source_and_engine():
-    entries = manifest()["recorded"]
+    recorded = manifest()["recorded"]
+    entries = [entry for entry in recorded if entry["path"].endswith(".items.json")]
+    # Every other recorded entry is the core's report on a scenario (test_scenario_reports.py).
+    others = [entry for entry in recorded if entry not in entries]
+    assert all(entry["path"].endswith(".report.json") for entry in others)
     assert sorted(entry["path"] for entry in entries) == sorted(
         f"{name}.items.json" for name in COMMITTED
     )

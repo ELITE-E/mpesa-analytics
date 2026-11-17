@@ -32,8 +32,12 @@ async function main() {
   for (const name of FIXTURE_NAMES) {
     entries.push(await record_fixture(name));
   }
-  const [kept] = readFileSync(MANIFEST_PATH, "utf8").split(RECORDED_MARKER);
-  writeFileSync(MANIFEST_PATH, `${kept.trimEnd()}\n${entries.join("")}`);
+  // Keep the recorded entries another recorder owns (the core's scenario reports, CP8b).
+  const [kept, ...blocks] = readFileSync(MANIFEST_PATH, "utf8").split(RECORDED_MARKER);
+  const others = blocks
+    .filter((block) => !block.split("\n", 2)[1].includes('.items.json"'))
+    .map((block) => `${RECORDED_MARKER}${block}`);
+  writeFileSync(MANIFEST_PATH, `${kept.trimEnd()}\n${entries.join("")}${others.join("")}`);
   console.log(`record_items: recorded ${entries.length} fixtures`);
 }
 

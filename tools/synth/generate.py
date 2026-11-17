@@ -34,6 +34,8 @@ from synth.layout import (  # noqa: E402
 )
 from synth.ledger import compute_expected  # noqa: E402
 from synth.render import PDFJS_TOP_SHIFT, build_dense_lines, render_pdf  # noqa: E402
+from synth.scenario_ledger import api_ledger, printed_rows  # noqa: E402
+from synth.scenarios import SCENARIOS  # noqa: E402
 
 VERSION = "1.6.0"
 SCHEMA_VERSION = 1
@@ -169,6 +171,16 @@ ON_DEMAND_FIXTURES = {
 }
 
 
+# The frontend's contract scenarios (scenarios.py): (seed, scenario name). A scenario's ledger is
+# its ".api.json"; one a statement can print also gets its ".pdf" and ".model.json".
+SCENARIO_SEED_BASE = 2001
+SCENARIO_FIXTURES = {
+    name: (SCENARIO_SEED_BASE + position, name) for position, name in enumerate(SCENARIOS)
+}
+SCENARIO_LEDGER_SUFFIX = ".api.json"
+SCENARIO_PRINTED_SUFFIXES = (".pdf", ".model.json")
+
+
 def main():
     """Write one statement, or rewrite the committed fixtures and their manifest.
 
@@ -208,6 +220,11 @@ def write_fixtures(directory):
     for name, (seed, options) in COMMITTED_FIXTURES.items():
         outputs = _write_outputs(directory, seed, options)
         entries += [(f"{name}{suffix}", seed, outputs[suffix]) for suffix in OUTPUT_SUFFIXES]
+    for name, (seed, scenario_name) in SCENARIO_FIXTURES.items():
+        for suffix, content in build_scenario_outputs(seed, scenario_name).items():
+            (directory / f"{name}{suffix}").write_bytes(content)
+            print(f"{name}{suffix}: {len(content)} bytes")
+            entries.append((f"{name}{suffix}", seed, content))
     lines = [MANIFEST_HEADER, f'generator_version = "{VERSION}"\n']
     lines.append(f'fake_password = "{FAKE_PASSWORD}"\n')
     for path, seed, content in entries:
@@ -232,6 +249,9 @@ def generate(seed, name):
         None.
     """
     fixture_name, _, suffix = name.partition(".")
+    if fixture_name in SCENARIO_FIXTURES:
+        _, scenario_name = SCENARIO_FIXTURES[fixture_name]
+        return build_scenario_outputs(seed, scenario_name)[f".{suffix}"]
     if fixture_name in COMMITTED_FIXTURES:
         _, options = COMMITTED_FIXTURES[fixture_name]
         return build_outputs(seed, options)[f".{suffix}"]
@@ -284,6 +304,35 @@ def build_outputs(seed, options):
             _expected(placed, summary_lines, options, _page_one_token(pages))
         ),
     }
+
+
+def build_scenario_outputs(seed, scenario_name):
+    """Build a scenario's outputs: its ledger, and its PDF and model when it can be printed.
+
+    Args:
+        seed: Seed for the layout's jitter and footer tokens.
+        scenario_name: A name in ``SCENARIOS``.
+
+    Returns:
+        Map of file suffix to bytes.
+
+    Side Effects:
+        None.
+    """
+    scenario = SCENARIOS[scenario_name]
+    outputs = {SCENARIO_LEDGER_SUFFIX: _to_json(api_ledger(scenario))}
+    if not scenario.printable:
+        return outputs
+    rows = printed_rows(scenario)
+    pages, _ = lay_out_statement(
+        [_printed_columns(row) for row in rows],
+        _summary_lines(rows),
+        seed_text=f"{seed}:{scenario_name}:layout",
+        split_datetime=False,
+    )
+    outputs[".pdf"] = render_pdf(pages)
+    outputs[".model.json"] = _to_json(_statement_pages(pages))
+    return outputs
 
 
 def _recorded_entries(directory):

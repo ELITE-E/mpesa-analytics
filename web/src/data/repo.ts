@@ -68,6 +68,8 @@ type SessionImport = {
 /** What the statement checks card shows, from the core's data quality (CP8b item 5). */
 export type StatementChecks = {
   verification_token: string;
+  /** Page 1's printed verification instruction, as printed; null when the core could not read it. */
+  verification_instruction: string | null;
   row_count: number;
   chain_breaks: number;
   /** Whether the TOTAL row's paid in and paid out match the rows'; "not_found" without one. */
@@ -261,6 +263,7 @@ function toStatementChecks(result: PipelineResult): StatementChecks {
   const paidOut = quality.summary_total_paid_out_matches;
   return {
     verification_token: result.verification_token,
+    verification_instruction: result.verification_instruction,
     row_count: quality.row_count as number,
     chain_breaks: quality.chain_breaks as number,
     totals_match: paidIn === null || paidOut === null ? "not_found" : paidIn && paidOut ? "yes" : "no",

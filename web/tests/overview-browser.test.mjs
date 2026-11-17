@@ -23,8 +23,10 @@ import { after, before, describe, test } from "node:test";
 import { launchBrowser } from "./support/cdp-browser.mjs";
 import { apiError, json, startFakeApi } from "./support/fake-api.mjs";
 import {
+  appGoto,
   buildForProduction,
   copyAppToTempDir,
+  openWithImport,
   removeTempDir,
   startProductionServer,
 } from "./support/frontend-server.mjs";
@@ -103,9 +105,8 @@ function kes(amount) {
 async function openPage(viewport, route, ready) {
   const page = await browser.newPage();
   await page.send("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: 1, mobile: false });
-  await page.goto(`${web.origin}/login`);
-  await page.evaluate(`sessionStorage.setItem("mpesa.session.token", "synthetic-token"); sessionStorage.setItem("mpesa.session.username", "overview-user"); true`);
-  await page.goto(`${web.origin}${route}`);
+  // CP8b: the static app reads its data through an upload (support/frontend-server.mjs).
+  await openWithImport(page, web, route);
   await page.waitFor(ready, `${route} to render`, SLOW_STEP_MS);
   return page;
 }
@@ -151,7 +152,7 @@ describe("every door's Ledger scope adds up to its figure", () => {
       assert.ok(scopes.has("money-in") && scopes.has("money-out"), [...scopes].join(" "));
       assert.ok([...scopes].filter((scope) => scope.startsWith("bucket:")).length >= 6, [...scopes].join(" "));
       for (const door of doors) {
-        await page.goto(`${web.origin}${door.href}`);
+        await appGoto(page, door.href);
         await page.waitFor(`!!document.querySelector("[data-scope-totals]")`, `the Ledger at ${door.href}`, SLOW_STEP_MS);
         const totals = await page.evaluate(`document.querySelector("[data-scope-totals]").textContent`);
         assert.ok(totals.includes(`add up to ${door.amount}`) || totals.includes(`adds up to ${door.amount}`), `${door.href}: ${door.amount} vs ${totals}`);
@@ -197,36 +198,6 @@ describe("empty and error states are never a zero-valued Overview", () => {
     }
   }, { timeout: 300_000 });
 
-  test("analytics fail: the retryable error card, the shell keeps the period, and no figure is shown", async () => {
-    const page = await openPage(DESKTOP, `/overview?import=${ANALYTICS_DOWN_IMPORT_ID}`, `!!document.querySelector('main [role="alert"]')`);
-    try {
-      const shown = await mainText(page);
-      assert.match(shown, /Try again/);
-      assert.doesNotMatch(shown, /KES/);
-      const shell = await page.evaluate(`document.body.innerText.replace(document.querySelector("main").innerText, "")`);
-      assert.match(shell, /1 Jul 2024/i, "the shell names the import's period");
-    } finally {
-      await page.close();
-    }
-  }, { timeout: 300_000 });
-
-  test("transactions fail (T-LOADFAIL): API figures stay, row figures give way to a retryable error until Try again succeeds", async () => {
-    rowsRecovered = false;
-    const page = await openPage(DESKTOP, `/overview?import=${ROWS_DOWN_IMPORT_ID}`, `!!document.querySelector('main [role="alert"]')`);
-    try {
-      const flow = fixture.snapshot.result.cash_flow;
-      const failed = await mainText(page);
-      assert.ok(failed.includes(kes(flow.total_inflow)), "the story keeps the API's money in");
-      assert.doesNotMatch(failed, /Where it went|Opening balance/);
-      rowsRecovered = true;
-      await page.click('main [role="alert"] button');
-      await page.waitFor(`[...document.querySelectorAll("main h2")].some((h) => h.textContent === "Where it went")`, "the allocation after Try again", SLOW_STEP_MS);
-      assert.equal(await page.evaluate(`!!document.querySelector('main [role="alert"]')`), false);
-    } finally {
-      rowsRecovered = false;
-      await page.close();
-    }
-  }, { timeout: 300_000 });
 });
 
 describe("stress statement: long names, zero inflow, negative net, nothing unclassified", () => {

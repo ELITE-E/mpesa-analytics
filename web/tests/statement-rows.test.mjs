@@ -19,8 +19,11 @@ import { contractFixtures } from "./support/contract-fixtures.mjs";
 const { EVENT_TYPES, bucketOf, parseCompletionTime, toStatementRow } = await import("../src/lib/statement/rows.ts");
 
 const FIXTURES = contractFixtures();
+// The core's event types: the members of FinancialEvent in its taxonomy (CP8b: the old backend's
+// src/event_types.py is now mpesa_core/classification/taxonomy.py, which also holds other enums).
+const TAXONOMY = readFileSync(new URL("../../src/mpesa_core/classification/taxonomy.py", import.meta.url), "utf8");
 const BACKEND_EVENT_TYPES = [
-  ...readFileSync(new URL("../../src/event_types.py", import.meta.url), "utf8").matchAll(/^\s+([A-Z_]+) = "\1"$/gm),
+  ...TAXONOMY.split("class FinancialEvent")[1].split("\nclass ")[0].matchAll(/^\s+([A-Z_]+) = "\1"$/gm),
 ].map((match) => match[1]);
 
 /** The DR-3 bucket table (plan rev1 §1.3), one entry per event type and direction. */
