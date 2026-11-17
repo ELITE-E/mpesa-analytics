@@ -98,3 +98,7 @@ Enforced at CP8a-2. `tools/measure_bundle.py` measures the built runtime (every 
 ## Two ESLint versions (ADR 0014)
 
 The web app is linted by its own ESLint 9.39.5 because `eslint-config-next` 16.3.6 brings `eslint-plugin-react` 7.37.5, which crashes under ESLint 10. ESLint 9 is end-of-life. When `eslint-config-next` supports ESLint 10, move the web app onto the root's ESLint 10 and drop the second version.
+
+## Timing in tests
+
+A test that depends on how long something takes calibrates on the machine running it, never on a fixed duration measured once on the dev laptop. The browser timeout test failed on GitHub's runner for this reason: its hostile PDF, slow on the laptop, read in under a second there. It now measures the engine's own read time first and sets the timeout from it (`tests/browser/engine.test.js`, `calibrated_hostile_pdf`).
