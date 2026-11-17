@@ -20,6 +20,7 @@ Architecture decision records (ADRs) and logs. An ADR records one decision, why,
 | 0012 | v1 scope: "Remember on this device" stays, opt-in, with saving and merging | Accepted (CP7a), owner instruction |
 | 0013 | The architecture CSP holds for the browser engine (OQ-08) | Accepted (CP8a), measured in Chrome |
 | 0014 | Lint the web app with its own ESLint 9; the rest of the repo keeps ESLint 10 | Accepted (CP8b), owner decision |
+| 0015 | The web app is a static export, served with the architecture CSP plus per-page script hashes | Accepted (CP8b), owner instruction, measured in Chrome |
 
 ## Logs
 
@@ -28,6 +29,7 @@ Architecture decision records (ADRs) and logs. An ADR records one decision, why,
 | `behaviour-changes.md` | Every deliberate difference from the old behaviour |
 | `test-edits.md` | Every edit to an existing test, and guard changes made during review |
 | `cp8-notes.md` | Caveats to act on at CP8 |
+| `cp10-list.md` | Work agreed for CP10, with the tests it must bring |
 | `equivalence-results.md` | Counts from the owner's runs on real statements, and the open questions they answer |
 | `cleaning-behaviour.md` | The old cleaning step's rules, which `cleaning/` ports |
 | `classification-behaviour.md` | The old classifier's and entity step's rules, which `classification/` ports |

@@ -102,3 +102,7 @@ The web app is linted by its own ESLint 9.39.5 because `eslint-config-next` 16.3
 ## Timing in tests
 
 A test that depends on how long something takes calibrates on the machine running it, never on a fixed duration measured once on the dev laptop. The browser timeout test failed on GitHub's runner for this reason: its hostile PDF, slow on the laptop, read in under a second there. It now measures the engine's own read time first and sets the timeout from it (`tests/browser/engine.test.js`, `calibrated_hostile_pdf`).
+
+## Column calibration needs two values in each amount column (found CP8b)
+
+`extraction/columns.py` calibrates the paid in, withdrawn and balance columns by clustering where amounts print, and keeps a cluster only with at least `MINIMUM_AMOUNT_VALUES` (2) values. A statement with no money in, or only one money-in row, is refused as `LAYOUT_UNRECOGNIZED`. Three of the five edge-case scenarios hit this (`tools/equivalence/scenario_compare.py`: stress has 0 money-in rows, no-spending and savings 1). A real statement for a quiet period could too. Owner decision (2026-11-17): the rule stays; the refusal now has its own core code, `TOO_FEW_AMOUNTS`, and user message; relaxing it is on the CP10 list (`cp10-list.md`).

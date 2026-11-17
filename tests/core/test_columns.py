@@ -76,14 +76,26 @@ def test_line_without_a_full_receipt_and_date_is_not_an_anchor(printed, cells):
     assert_layout_unrecognized(printed.statement_of(printed.page_of(items)))
 
 
-def test_column_seen_only_once_cannot_calibrate(printed):
+def assert_too_few_amounts(statement_pages):
+    with pytest.raises(ExtractionError) as caught:
+        calibrate_columns(statement_pages)
+    assert caught.value.code is ErrorCode.TOO_FEW_AMOUNTS
+
+
+def test_column_seen_only_once_cannot_calibrate_and_says_too_few_amounts(printed):
     items = printed.calibrating_rows(count=2)
     items += printed.row_items(5, 200.0)
-    assert_layout_unrecognized(printed.statement_of(printed.page_of(items)))
+    assert_too_few_amounts(printed.statement_of(printed.page_of(items)))
 
 
-def test_column_never_seen_cannot_calibrate(printed):
+def test_column_never_seen_cannot_calibrate_and_says_too_few_amounts(printed):
     items = printed.row_items(1, 100.0) + printed.row_items(2, 110.0) + printed.row_items(3, 120.0)
+    assert_too_few_amounts(printed.statement_of(printed.page_of(items)))
+
+
+def test_rows_with_no_amount_at_all_stay_an_unrecognized_layout(printed):
+    cells = {"paid_in": None, "withdrawn": None, "balance": None}
+    items = [*printed.row_items(1, 100.0, cells=cells), *printed.row_items(2, 110.0, cells=cells)]
     assert_layout_unrecognized(printed.statement_of(printed.page_of(items)))
 
 

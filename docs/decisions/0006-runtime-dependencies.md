@@ -59,3 +59,9 @@ How it is held in place:
 ## Enforcement
 
 The wheel check fails if `mpesa_core` declares an undeclared runtime dependency. `measure_bundle.py` fails CI when the budget is exceeded. Enforced from CP8a-2, over the built runtime: 14,569,080 bytes gzip with pandas (budget 15,000,000), 6,886,551 without (budget 8,000,000).
+
+## Update (CP8b, 2026-11-17): the app counts too, and pytz is no longer shipped
+
+The budget now counts the web app as well as the runtime: the files a recorded first visit downloads in Chrome, while it reads one statement and opens every page (`tools/measure_app_download.mjs`, then `measure_bundle.py --app web/out --fetched`). With the app, the total was 15,110,039 bytes gzip, 110 KB over the budget, with pytz at 0.38 MB of it.
+
+pandas 3.0.2 does not need pytz: its own metadata requires only numpy, python-dateutil and, in the browser, tzdata. Pyodide 314.0.7's lock still lists pytz as a pandas dependency, so loading pandas downloaded it anyway. The runtime now ships Pyodide's lock with that one dependency removed and no pytz wheel (`tools/vendor.py` `lock_without_pytz`; every other byte of the lock is as pinned). Before the change, all 885 core tests, the analysis tests included, passed under Pyodide with pandas loaded from that lock and pytz not importable. pytz stays vendored for the Node test runner only. The budget was not raised.

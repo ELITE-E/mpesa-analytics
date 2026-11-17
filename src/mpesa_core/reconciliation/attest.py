@@ -19,6 +19,12 @@ AUTHENTICITY_ANCHORS = (
     re.compile(r"dial\s*\*334#", re.IGNORECASE),
     re.compile(r"Data\s+Protection\s+Act", re.IGNORECASE),
 )
+# A USSD instruction such as "dial *334#": the line holding it is the statement's own instruction.
+DIAL_INSTRUCTION = re.compile(r"dial\s*\*[\d*]+#", re.IGNORECASE)
+# A run of nine or more digits, spaces or hyphens between digits reads as a phone number, and an
+# at sign as an email: a line holding either is never given out.
+PHONE_LIKE = re.compile(r"\d(?:[\s-]*\d){8,}")
+EMAIL_LIKE = re.compile(r"@")
 # Eight capitals or digits touching no other letter or digit, so a slice of a longer code never
 # counts, such as part of a ten-character receipt number.
 TOKEN_CANDIDATE = re.compile(r"(?<![A-Za-z0-9])[A-Z0-9]{8}(?![A-Za-z0-9])")
@@ -48,6 +54,30 @@ def attest(statement_pages):
     if not any(anchor.search(text) for anchor in AUTHENTICITY_ANCHORS):
         raise AttestationError(AttestationCode.ANCHOR_MISSING)
     return _verification_token(text)
+
+
+def verification_instruction(statement_pages):
+    """Give the verification instruction page 1 prints, for the app to show as printed.
+
+    Args:
+        statement_pages: The statement's positioned text. Only page 1 is read.
+
+    Returns:
+        The first printed line on page 1 holding a "dial" USSD instruction, its runs of spaces
+        collapsed; None if page 1 prints none, or if that line looks like it holds a phone
+        number or an email, so personal data never leaves the core this way.
+
+    Side Effects:
+        None.
+    """
+    if not statement_pages["pages"]:
+        return None
+    for line in page_text(statement_pages["pages"][0]).splitlines():
+        if DIAL_INSTRUCTION.search(line):
+            if PHONE_LIKE.search(line) or EMAIL_LIKE.search(line):
+                return None
+            return " ".join(line.split())
+    return None
 
 
 def page_text(page):

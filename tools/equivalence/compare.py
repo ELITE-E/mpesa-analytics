@@ -196,6 +196,7 @@ PIPELINE_RESULT_KEYS = frozenset(
     {
         "schema_version",
         "verification_token",
+        "verification_instruction",
         "account_digest",
         "processed_at",
         "period",

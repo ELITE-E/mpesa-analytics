@@ -114,3 +114,13 @@ Old paths are in mpesa-parser; new paths are in this repo, under `src/mpesa_core
 | `tools/probes/pdf_signature_probe.mjs` | Yes or no: signature field, `/ByteRange` token. New (CP8a) |
 | `tools/measure_stage_timing.mjs`, `web/harness/stage_timing.*` | Per-stage milliseconds and memory in Chrome, cold and warm. New (CP8a-2) |
 | `tools/measure_bundle.py` | Now enforces the download budget on the built runtime in CI. Changed (CP8a-2) |
+| `tools/measure_bundle.py --app web/out --fetched` | The budget counts the app files a recorded first visit downloads (`tools/measure_app_download.mjs`). Changed (CP8b) |
+| The old repo's `tests/frontend_contract_fixtures.py` (scenario data only) | `tools/synth/scenarios.py` (the data), `tools/synth/scenario_ledger.py` (ledger rows, summary, totals, written from behaviour); the generator's `SCENARIO_FIXTURES` write `*.api.json`, and `*.pdf` and `*.model.json` where printable. New (CP8b, decision A) |
+| The old backend analytics on fixtures | `tools/record_scenario_reports.py`: the core's report on each scenario ledger, a recorded fixture (`*.report.json`). New (CP8b) |
+| — | `tools/equivalence/scenario_compare.py`: the core against each scenario's ledger, counts only. New (CP8b) |
+| `tools/browser/request_rule.js`, `ui_journey.js` | The request rule (GETs, plus prefetch HEADs to the app's pages) and the shared UI steps. New (CP8b) |
+| `reconciliation/attest.py` `verification_instruction` | Page 1's printed "dial" line for the app to show, as printed; None if absent or personal-looking. New (CP8b) |
+| The prototype frontend (`~/porting-web`) | `web/src/` and `web/tests/`; every file, unchanged or changed and why, in `docs/web-port-map.md`. Ported (CP8b) |
+| The prototype's HTTP API client (`lib/api.ts` over FastAPI) | `web/src/data/repo.ts` on the local engine, in memory; `lib/api.ts` re-exports it. Changed (CP8b) |
+| `web/scripts/postbuild.mjs`, `serve_static.mjs` | Per-page CSP hashes in `out/_headers`; the static server for tests (ADR 0015). New (CP8b) |
+| `tools/equivalence/ui_run.mjs` | The owner's real-statement check through the real UI; counts only, nothing written. New (CP8b) |

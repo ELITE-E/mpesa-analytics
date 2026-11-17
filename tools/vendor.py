@@ -99,8 +99,18 @@ GROUPS = {
 # What the browser loads, by published path under runtime/<version>/, from its vendored path.
 # Pyodide, the browser build of pdf.js, and only the packages the core loads: numpy and pandas,
 # with their dependencies, for the analysis extra. The core wheel is added at build time.
+# pandas 3 does not need pytz, but Pyodide's lock lists it as a pandas dependency, so loading
+# pandas would download it (0.38 MB gzip). It is vendored for the Node test runner, never shipped,
+# and the runtime's lock drops it from pandas's dependencies (CP8b; ADR 0006).
+NOT_SHIPPED = frozenset({"pyodide/pytz-2026.1.post1-py2.py3-none-any.whl"})
+LOCK = "pyodide/pyodide-lock.json"
+LOCK_PACKAGE = "pandas"
+LOCK_DROPPED_DEPENDENCY = "pytz"
 RUNTIME_SOURCES = {
-    rel: rel for group in ("pyodide-core", "numpy", "pandas", "pdfjs") for rel in GROUPS[group]
+    rel: rel
+    for group in ("pyodide-core", "numpy", "pandas", "pdfjs")
+    for rel in GROUPS[group]
+    if rel not in NOT_SHIPPED
 }
 
 PINS = dict(
@@ -292,6 +302,7 @@ def build_runtime(wheel_path, *, runtime_root=RUNTIME_ROOT, vendor=VENDOR):
         if sha256(content) != PINS[rel]:
             sys.exit(f"sha256 mismatch: {rel}")
         files[published] = content
+    files[LOCK] = lock_without_pytz(files[LOCK])
     wheel = f"core/{wheel_path.name}"
     files[wheel] = wheel_path.read_bytes()
     manifest = runtime_manifest(files, wheel)
@@ -305,6 +316,24 @@ def build_runtime(wheel_path, *, runtime_root=RUNTIME_ROOT, vendor=VENDOR):
     (runtime_root / version / RUNTIME_MANIFEST).write_bytes(manifest)
     (runtime_root / RUNTIME_POINTER).write_text(json.dumps({"version": version}) + "\n")
     return version
+
+
+def lock_without_pytz(content):
+    """Drop pytz from pandas's dependencies in Pyodide's lock, leaving the rest as it is.
+
+    Args:
+        content: The pinned ``pyodide-lock.json`` bytes.
+
+    Returns:
+        The lock as UTF-8 JSON bytes, pandas no longer depending on pytz.
+
+    Side Effects:
+        None.
+    """
+    lock = json.loads(content)
+    package = lock["packages"][LOCK_PACKAGE]
+    package["depends"] = [name for name in package["depends"] if name != LOCK_DROPPED_DEPENDENCY]
+    return json.dumps(lock).encode("utf-8")
 
 
 def runtime_manifest(files, wheel):

@@ -70,10 +70,20 @@ jobs:
         run: uv build --wheel --out-dir dist
       - name: Build and verify the browser runtime
         run: uv run python tools/vendor.py runtime --wheel dist/mpesa_core-0.0.0-py3-none-any.whl
-      - name: Bundle budget (15 MB gzip with pandas, 8 MB without)
-        run: uv run python tools/measure_bundle.py
+      - name: Build the web app (static export)
+        run: npm run build --prefix web
+      - name: Record what a first visit downloads from the app (real Chrome)
+        run: node tools/measure_app_download.mjs > "$RUNNER_TEMP/fetched.json"
+      - name: Bundle budget, runtime and app (15 MB gzip with pandas, 8 MB without)
+        run: uv run python tools/measure_bundle.py --app web/out --fetched "$RUNNER_TEMP/fetched.json"
       - name: Statement engine in real Chrome (system Chrome, no browser download)
         run: node --test --test-concurrency=1 tests/browser/*.test.js
+      - name: Web app unit tests
+        working-directory: web
+        run: node --import ./tests/support/register.mjs --test $(ls tests/*.test.mjs | grep -v -e '-browser\.test' -e 'static-export-csp' -e 'e2e-local')
+      - name: Web app in real Chrome (static export, CSP, the real UI)
+        working-directory: web
+        run: node --import ./tests/support/register.mjs --test --test-concurrency=1 tests/static-export-csp.test.mjs tests/e2e-local.test.mjs
       - name: Core tests under Pyodide, from the wheel
         run: node tools/run_pyodide_tests.mjs
       - name: Guard 8, wheel

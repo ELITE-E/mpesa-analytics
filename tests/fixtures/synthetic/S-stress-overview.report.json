@@ -1,0 +1,173 @@
+{
+ "engine": "mpesa_core analysis",
+ "report": {
+  "bills": {
+   "bill_spending": [
+    {
+     "amount": 9877.0,
+     "bill": "Kenya Power and Lighting Company Prepaid Tokens",
+     "period": {
+      "end": "2026-08-27",
+      "start": "2026-08-01"
+     }
+    }
+   ],
+   "recurring_bills": []
+  },
+  "cash_flow": {
+   "closing_balance": 8831.0,
+   "net_cash_flow": -71169.0,
+   "total_inflow": 0.0,
+   "total_outflow": 71169.0
+  },
+  "fees": {
+   "mpesa_fees": {
+    "fee_amount": 182.0,
+    "period": {
+     "end": "2026-08-27",
+     "start": "2026-08-01"
+    }
+   },
+   "total_fees": {
+    "period": {
+     "end": "2026-08-27",
+     "start": "2026-08-01"
+    },
+    "total_fees": 269.0
+   },
+   "transfer_charges": {
+    "period": {
+     "end": "2026-08-27",
+     "start": "2026-08-01"
+    },
+    "transfer_charge_amount": 105.0
+   }
+  },
+  "investments": {
+   "by_platform": [
+    {
+     "amount_invested": 12000.0,
+     "platform": "M-Shwari Lock Savings Account"
+    }
+   ],
+   "frequency": {
+    "dates": [
+     "2026-08-09"
+    ],
+    "frequency": 1,
+    "investment_transactions": 1
+   },
+   "monthly_investment": [
+    {
+     "investment_amount": 12000.0,
+     "month": "2026-08"
+    }
+   ],
+   "total_investment": {
+    "investment_amount": 12000.0,
+    "period": {
+     "end": "2026-08-27",
+     "start": "2026-08-01"
+    }
+   }
+  },
+  "spending": {
+   "largest_purchases": [
+    {
+     "amount": 24500.0,
+     "date": "2026-08-01 09:00:00",
+     "ranking": 1,
+     "recipient": "Mama Njeri Wholesale and Retail General Merchandise Supplies Limited Kariakor Market Branch",
+     "transaction": "SYNST01"
+    },
+    {
+     "amount": 9877.0,
+     "date": "2026-08-06 09:00:00",
+     "ranking": 2,
+     "recipient": "Kenya Power and Lighting Company Prepaid Tokens",
+     "transaction": "SYNST03"
+    },
+    {
+     "amount": 3100.0,
+     "date": "2026-08-27 09:00:00",
+     "ranking": 3,
+     "recipient": "Mama Njeri Wholesale and Retail General Merchandise Supplies Limited Kariakor Market Branch",
+     "transaction": "SYNST07"
+    }
+   ],
+   "merchant_usage_frequency": [
+    {
+     "merchant": "Mama Njeri Wholesale and Retail General Merchandise Supplies Limited Kariakor Market Branch",
+     "ranking": 1,
+     "transaction_count": 2
+    }
+   ],
+   "monthly_expenditure": [
+    {
+     "expenditure": 37477.0,
+     "month": "2026-08"
+    }
+   ],
+   "recurring_purchases": [],
+   "spending_by_entity": [
+    {
+     "amount": 27600.0,
+     "entity": "Mama Njeri Wholesale and Retail General Merchandise Supplies Limited Kariakor Market Branch"
+    },
+    {
+     "amount": 9877.0,
+     "entity": "Kenya Power and Lighting Company Prepaid Tokens"
+    }
+   ],
+   "top_recipients": [
+    {
+     "amount_received": 27600.0,
+     "ranking": 1,
+     "recipient": "Mama Njeri Wholesale and Retail General Merchandise Supplies Limited Kariakor Market Branch"
+    },
+    {
+     "amount_received": 9877.0,
+     "ranking": 2,
+     "recipient": "Kenya Power and Lighting Company Prepaid Tokens"
+    }
+   ]
+  },
+  "transfers": {
+   "by_recipient_count": [
+    {
+     "ranking": 1,
+     "recipient": "Wanjiru Akinyi Achieng Nyambura Chepkoech Muthoni Kamau-Odhiambo",
+     "transaction_count": 1
+    }
+   ],
+   "largest_transfers": [
+    {
+     "amount": 15000.0,
+     "date": "2026-08-03",
+     "ranking": 1,
+     "recipient": "Wanjiru Akinyi Achieng Nyambura Chepkoech Muthoni Kamau-Odhiambo"
+    }
+   ],
+   "monthly_transfer_amounts": [
+    {
+     "month": "2026-08",
+     "transfer_amount": 15000.0
+    }
+   ],
+   "total_received": {
+    "period": {
+     "end": "2026-08-27",
+     "start": "2026-08-01"
+    },
+    "total_received": 0
+   },
+   "total_transfers": {
+    "period": {
+     "end": "2026-08-27",
+     "start": "2026-08-01"
+    },
+    "total_transfer_amount": 15000.0
+   }
+  }
+ }
+}

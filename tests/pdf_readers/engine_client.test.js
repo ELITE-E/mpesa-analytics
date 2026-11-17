@@ -264,3 +264,55 @@ test("warm_up asks the started worker to load the analysis runtime ahead of time
   );
   engine.close();
 });
+
+/**
+ * A worker that becomes ready only when the test releases it, like a cold Pyodide start, and
+ * answers runs as answering_worker does.
+ *
+ * @returns {{worker: object, release: Function}} The fake worker and its release.
+ */
+function slow_starting_worker() {
+  let release = null;
+  const worker = fake_worker((message, reply) => {
+    if (message.type === "start") release = () => reply({ type: "ready", timings: {} });
+    if (message.type === "run") {
+      reply({
+        type: "run_done",
+        request_id: message.request_id,
+        ok: true,
+        pipeline_result_json: "{}",
+        timings: {},
+      });
+    }
+  });
+  return { worker, release: () => release() };
+}
+
+test("cancel while the runtime is still starting ends the run with CANCELLED; the PDF never reaches the worker (CP8b)", async () => {
+  const slow = slow_starting_worker();
+  const engine = create_statement_engine({
+    create_worker: () => slow.worker,
+    runtime_url: RUNTIME_URL,
+  });
+  const outcome = engine.run({ pdf_bytes: new Uint8Array([0x25, 0x50]) });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  engine.cancel();
+  slow.release();
+  assert.deepEqual(await outcome, { ok: false, failure: { code: "CANCELLED", stage: "engine" } });
+  assert.deepEqual(
+    slow.worker.posted.map((message) => message.type),
+    ["start"],
+  );
+  engine.close();
+});
+
+test("a cancel with no run in progress does not cancel the next statement (CP8b)", async () => {
+  const engine = create_statement_engine({
+    create_worker: answering_worker,
+    runtime_url: RUNTIME_URL,
+  });
+  engine.cancel();
+  const outcome = await engine.run({ pdf_bytes: new Uint8Array([0x25]) });
+  assert.equal(outcome.ok, true);
+  engine.close();
+});

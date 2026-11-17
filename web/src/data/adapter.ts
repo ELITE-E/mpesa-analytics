@@ -25,6 +25,7 @@ type CoreTransaction = {
 /** The parts of the core's PipelineResult the UI reads. */
 export type PipelineResult = {
   verification_token: string;
+  verification_instruction: string | null;
   processed_at: string | null;
   period: { start: string | null; end: string | null };
   transactions: CoreTransaction[];
@@ -32,8 +33,8 @@ export type PipelineResult = {
   quality: { unclassified_rows: number } & Record<string, unknown>;
 };
 
-/** The import plan's counts (mpesa_core.reconciliation.import_plan). */
-export type ImportPlan = { counts: { insert: number; link: number; preserve: number } };
+/** The import plan's counts (mpesa_core.contracts.ImportPlanCounts). */
+export type ImportPlan = { counts: { new: number; matched: number; collided: number } };
 
 /** Room for each import's rows in the id space: more than the 300-page limit could print. */
 const IDS_PER_IMPORT = 1_000_000;
@@ -83,9 +84,9 @@ export function toImportSummary(importId: number, result: PipelineResult, plan: 
     period_end: result.period.end ?? "",
     status: "completed",
     transaction_count: result.transactions.length,
-    previously_imported_transaction_count: plan.counts.link,
+    previously_imported_transaction_count: plan.counts.matched,
     unclassified_transaction_count: result.quality.unclassified_rows,
-    observation_counts: plan.counts.preserve ? { COLLISION: plan.counts.preserve } : {},
+    observation_counts: plan.counts.collided ? { COLLISION: plan.counts.collided } : {},
   };
 }
 

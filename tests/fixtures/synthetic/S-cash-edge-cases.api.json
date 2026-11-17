@@ -1,0 +1,246 @@
+{
+ "name": "S-cash-edge-cases",
+ "printed_receipts": [
+  "ZZCA010000",
+  "ZZCA020000",
+  "ZZCA020000",
+  "ZZCA030000",
+  "ZZCA030000",
+  "ZZCA040000",
+  "ZZCA040000",
+  "ZZCA050000",
+  "ZZCA060000"
+ ],
+ "problems": [],
+ "rows": [
+  {
+   "balance": 31000.0,
+   "cash_flow_direction": "INFLOW",
+   "completion_time": "2026-07-01 08:00:00",
+   "details": "Funds received from 2547*****000 - Synthetic Employer",
+   "economic_meaning": "INFLOW",
+   "entity": "Synthetic Employer",
+   "event_type": "TRANSFER_IN",
+   "id": 1,
+   "paid_in": 30000.0,
+   "paid_out": 0.0,
+   "receipt_no": "SYNCA01",
+   "total_cost": 0.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 26000.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-07-02 09:00:00",
+   "details": "Withdrawal at Agent Till 104552 - JUJA RD AGENCIES",
+   "economic_meaning": "ASSET_TRANSFER",
+   "entity": "Juja Rd Agencies",
+   "event_type": "WITHDRAWAL",
+   "id": 2,
+   "paid_in": 0.0,
+   "paid_out": 5000.0,
+   "receipt_no": "SYNCA02",
+   "total_cost": 67.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 25933.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-07-02 09:00:00",
+   "details": "Withdrawal Charge",
+   "economic_meaning": "FEE",
+   "entity": "NO_ENTITY_IDENTIFIED",
+   "event_type": "FEE",
+   "id": 3,
+   "paid_in": 0.0,
+   "paid_out": 67.0,
+   "receipt_no": "SYNCA02",
+   "total_cost": 0.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 23933.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-07-05 10:00:00",
+   "details": "Withdrawal at Agent Till 555010 - KARIAKOR MARKET WHOLESALE AND RETAIL M-PESA AGENCY SERVICES LIMITED BRANCH NUMBER TWO",
+   "economic_meaning": "ASSET_TRANSFER",
+   "entity": "Kariakor Market Wholesale and Retail M-Pesa Agency Services Limited Branch Number Two",
+   "event_type": "WITHDRAWAL",
+   "id": 4,
+   "paid_in": 0.0,
+   "paid_out": 2000.0,
+   "receipt_no": "SYNCA03",
+   "total_cost": 29.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 23904.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-07-05 10:00:00",
+   "details": "Withdrawal Charge",
+   "economic_meaning": "FEE",
+   "entity": "NO_ENTITY_IDENTIFIED",
+   "event_type": "FEE",
+   "id": 5,
+   "paid_in": 0.0,
+   "paid_out": 29.0,
+   "receipt_no": "SYNCA03",
+   "total_cost": 0.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 18904.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-07-09 11:00:00",
+   "details": "Withdrawal at Agent Till 104552 - JUJA RD AGENCIES",
+   "economic_meaning": "ASSET_TRANSFER",
+   "entity": "Juja Rd Agencies",
+   "event_type": "WITHDRAWAL",
+   "id": 6,
+   "paid_in": 0.0,
+   "paid_out": 5000.0,
+   "receipt_no": "SYNCA04",
+   "total_cost": 67.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 18837.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-07-09 11:00:00",
+   "details": "Withdrawal Charge",
+   "economic_meaning": "FEE",
+   "entity": "NO_ENTITY_IDENTIFIED",
+   "event_type": "FEE",
+   "id": 7,
+   "paid_in": 0.0,
+   "paid_out": 67.0,
+   "receipt_no": "SYNCA04",
+   "total_cost": 0.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 17837.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-07-12 12:00:00",
+   "details": "Withdrawal at Agent Till 777001",
+   "economic_meaning": "ASSET_TRANSFER",
+   "entity": "NO_ENTITY_IDENTIFIED",
+   "event_type": "WITHDRAWAL",
+   "id": 8,
+   "paid_in": 0.0,
+   "paid_out": 1000.0,
+   "receipt_no": "SYNCA05",
+   "total_cost": 0.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 20837.0,
+   "cash_flow_direction": "INFLOW",
+   "completion_time": "2026-07-15 13:00:00",
+   "details": "Deposit of Funds at Agent Till 104552 - JUJA RD AGENCIES",
+   "economic_meaning": "INFLOW",
+   "entity": "Juja Rd Agencies",
+   "event_type": "DEPOSIT",
+   "id": 9,
+   "paid_in": 3000.0,
+   "paid_out": 0.0,
+   "receipt_no": "SYNCA06",
+   "total_cost": 0.0,
+   "transaction_status": "Completed"
+  }
+ ],
+ "snapshot": {
+  "computed_at": "2026-10-22T09:00:00+00:00",
+  "contract_version": "1.0",
+  "import_id": 1,
+  "result": {
+   "bills": {
+    "bill_spending": [],
+    "recurring_bills": []
+   },
+   "cash_flow": {
+    "closing_balance": 20837.0,
+    "net_cash_flow": 19837.0,
+    "total_inflow": 33000.0,
+    "total_outflow": 13163.0
+   },
+   "fees": {
+    "mpesa_fees": {
+     "fee_amount": 0,
+     "period": {
+      "end": "2026-07-15",
+      "start": "2026-07-01"
+     }
+    },
+    "total_fees": {
+     "period": {
+      "end": "2026-07-15",
+      "start": "2026-07-01"
+     },
+     "total_fees": 163.0
+    },
+    "transfer_charges": {
+     "period": {
+      "end": "2026-07-15",
+      "start": "2026-07-01"
+     },
+     "transfer_charge_amount": 0
+    }
+   },
+   "investments": {
+    "by_platform": [],
+    "frequency": {
+     "dates": [],
+     "frequency": 0,
+     "investment_transactions": 0
+    },
+    "monthly_investment": [],
+    "total_investment": {
+     "investment_amount": 0,
+     "period": {
+      "end": "2026-07-15",
+      "start": "2026-07-01"
+     }
+    }
+   },
+   "spending": {
+    "largest_purchases": [],
+    "merchant_usage_frequency": [],
+    "monthly_expenditure": [],
+    "recurring_purchases": [],
+    "spending_by_entity": [],
+    "top_recipients": []
+   },
+   "transfers": {
+    "by_recipient_count": [],
+    "largest_transfers": [],
+    "monthly_transfer_amounts": [],
+    "total_received": {
+     "period": {
+      "end": "2026-07-15",
+      "start": "2026-07-01"
+     },
+     "total_received": 30000.0
+    },
+    "total_transfers": {
+     "period": {
+      "end": "2026-07-15",
+      "start": "2026-07-01"
+     },
+     "total_transfer_amount": 0
+    }
+   }
+  }
+ },
+ "summary": {
+  "id": 1,
+  "imported_at": "2026-10-22T09:00:00+00:00",
+  "observation_counts": {},
+  "period_end": "2026-07-15",
+  "period_start": "2026-07-01",
+  "previously_imported_transaction_count": 0,
+  "status": "completed",
+  "transaction_count": 9,
+  "unclassified_transaction_count": 0
+ }
+}

@@ -1,0 +1,267 @@
+{
+ "name": "S-stress-overview",
+ "printed_receipts": [
+  "ZZST010000",
+  "ZZST020000",
+  "ZZST020000",
+  "ZZST030000",
+  "ZZST030000",
+  "ZZST040000",
+  "ZZST050000",
+  "ZZST050000",
+  "ZZST060000",
+  "ZZST070000"
+ ],
+ "problems": [],
+ "rows": [
+  {
+   "balance": 55500.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-08-01 09:00:00",
+   "details": "Merchant Payment to 552211 - Mama Njeri Wholesale and Retail General Merchandise Supplies Limited Kariakor Market Branch",
+   "economic_meaning": "CONSUMPTION",
+   "entity": "Mama Njeri Wholesale and Retail General Merchandise Supplies Limited Kariakor Market Branch",
+   "event_type": "MERCHANT_PAYMENT",
+   "id": 1,
+   "paid_in": 0.0,
+   "paid_out": 24500.0,
+   "receipt_no": "SYNST01",
+   "total_cost": 24500.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 40500.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-08-03 09:00:00",
+   "details": "Customer Transfer to 2547*****000 - Wanjiru Akinyi Achieng Nyambura Chepkoech Muthoni Kamau-Odhiambo",
+   "economic_meaning": "NOT_DETERMINABLE",
+   "entity": "Wanjiru Akinyi Achieng Nyambura Chepkoech Muthoni Kamau-Odhiambo",
+   "event_type": "TRANSFER_OUT",
+   "id": 2,
+   "paid_in": 0.0,
+   "paid_out": 15000.0,
+   "receipt_no": "SYNST02",
+   "total_cost": 15105.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 40395.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-08-03 09:01:00",
+   "details": "Customer Transfer of Funds Charge",
+   "economic_meaning": "FEE",
+   "entity": "NO_ENTITY_IDENTIFIED",
+   "event_type": "FEE",
+   "id": 3,
+   "paid_in": 0.0,
+   "paid_out": 105.0,
+   "receipt_no": "SYNST02",
+   "total_cost": 0.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 30595.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-08-06 09:00:00",
+   "details": "Pay Bill to 888880 - Kenya Power and Lighting Company Prepaid Tokens",
+   "economic_meaning": "CONSUMPTION",
+   "entity": "Kenya Power and Lighting Company Prepaid Tokens",
+   "event_type": "BILL_PAYMENT",
+   "id": 4,
+   "paid_in": 0.0,
+   "paid_out": 9800.0,
+   "receipt_no": "SYNST03",
+   "total_cost": 9877.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 30518.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-08-06 09:01:00",
+   "details": "Pay Bill Charge",
+   "economic_meaning": "FEE",
+   "entity": "NO_ENTITY_IDENTIFIED",
+   "event_type": "FEE",
+   "id": 5,
+   "paid_in": 0.0,
+   "paid_out": 77.0,
+   "receipt_no": "SYNST03",
+   "total_cost": 0.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 18518.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-08-09 09:00:00",
+   "details": "Transfer to M-Shwari Lock Savings Account",
+   "economic_meaning": "INVESTMENT",
+   "entity": "M-Shwari Lock Savings Account",
+   "event_type": "INVESTMENT",
+   "id": 6,
+   "paid_in": 0.0,
+   "paid_out": 12000.0,
+   "receipt_no": "SYNST04",
+   "total_cost": 0.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 12518.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-08-14 09:00:00",
+   "details": "Customer Withdrawal At Agent Till 198421 - Kwality Stores Agent",
+   "economic_meaning": "ASSET_TRANSFER",
+   "entity": "Kwality Stores Agent",
+   "event_type": "WITHDRAWAL",
+   "id": 7,
+   "paid_in": 0.0,
+   "paid_out": 6000.0,
+   "receipt_no": "SYNST05",
+   "total_cost": 87.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 12431.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-08-14 09:01:00",
+   "details": "Withdrawal Charge",
+   "economic_meaning": "FEE",
+   "entity": "NO_ENTITY_IDENTIFIED",
+   "event_type": "FEE",
+   "id": 8,
+   "paid_in": 0.0,
+   "paid_out": 87.0,
+   "receipt_no": "SYNST05",
+   "total_cost": 0.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 11931.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-08-20 09:00:00",
+   "details": "Airtime Purchase",
+   "economic_meaning": "CONSUMPTION",
+   "entity": "Safaricom Airtime",
+   "event_type": "AIRTIME_PURCHASE",
+   "id": 9,
+   "paid_in": 0.0,
+   "paid_out": 500.0,
+   "receipt_no": "SYNST06",
+   "total_cost": 500.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 8831.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-08-27 09:00:00",
+   "details": "Merchant Payment to 552211 - Mama Njeri Wholesale and Retail General Merchandise Supplies Limited Kariakor Market Branch",
+   "economic_meaning": "CONSUMPTION",
+   "entity": "Mama Njeri Wholesale and Retail General Merchandise Supplies Limited Kariakor Market Branch",
+   "event_type": "MERCHANT_PAYMENT",
+   "id": 10,
+   "paid_in": 0.0,
+   "paid_out": 3100.0,
+   "receipt_no": "SYNST07",
+   "total_cost": 3100.0,
+   "transaction_status": "Completed"
+  }
+ ],
+ "snapshot": {
+  "computed_at": "2026-10-22T09:00:00+00:00",
+  "contract_version": "1.0",
+  "import_id": 1,
+  "result": {
+   "bills": {
+    "bill_spending": [],
+    "recurring_bills": []
+   },
+   "cash_flow": {
+    "closing_balance": 8831.0,
+    "net_cash_flow": -71169.0,
+    "total_inflow": 0,
+    "total_outflow": 71169.0
+   },
+   "fees": {
+    "mpesa_fees": {
+     "fee_amount": 182.0,
+     "period": {
+      "end": "2026-08-27",
+      "start": "2026-08-01"
+     }
+    },
+    "total_fees": {
+     "period": {
+      "end": "2026-08-27",
+      "start": "2026-08-01"
+     },
+     "total_fees": 269.0
+    },
+    "transfer_charges": {
+     "period": {
+      "end": "2026-08-27",
+      "start": "2026-08-01"
+     },
+     "transfer_charge_amount": 105.0
+    }
+   },
+   "investments": {
+    "by_platform": [],
+    "frequency": {
+     "dates": [],
+     "frequency": 0,
+     "investment_transactions": 0
+    },
+    "monthly_investment": [],
+    "total_investment": {
+     "investment_amount": 12000.0,
+     "period": {
+      "end": "2026-08-27",
+      "start": "2026-08-01"
+     }
+    }
+   },
+   "spending": {
+    "largest_purchases": [],
+    "merchant_usage_frequency": [],
+    "monthly_expenditure": [
+     {
+      "expenditure": 37477.0,
+      "month": "2026-08"
+     }
+    ],
+    "recurring_purchases": [],
+    "spending_by_entity": [],
+    "top_recipients": []
+   },
+   "transfers": {
+    "by_recipient_count": [],
+    "largest_transfers": [],
+    "monthly_transfer_amounts": [],
+    "total_received": {
+     "period": {
+      "end": "2026-08-27",
+      "start": "2026-08-01"
+     },
+     "total_received": 0
+    },
+    "total_transfers": {
+     "period": {
+      "end": "2026-08-27",
+      "start": "2026-08-01"
+     },
+     "total_transfer_amount": 15000.0
+    }
+   }
+  }
+ },
+ "summary": {
+  "id": 1,
+  "imported_at": "2026-10-22T09:00:00+00:00",
+  "observation_counts": {},
+  "period_end": "2026-08-27",
+  "period_start": "2026-08-01",
+  "previously_imported_transaction_count": 0,
+  "status": "completed",
+  "transaction_count": 10,
+  "unclassified_transaction_count": 0
+ }
+}

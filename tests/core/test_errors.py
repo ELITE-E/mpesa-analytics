@@ -22,6 +22,8 @@ EXPECTED_CODES = {
     "TOO_LARGE",
     "TOO_MANY_PAGES",
     "TIMEOUT",
+    # CP8b: some amount columns found, others printed fewer than twice.
+    "TOO_FEW_AMOUNTS",
 }
 
 

@@ -12,7 +12,7 @@ from mpesa_core.cleaning.canonicalize import canonicalize_rows
 from mpesa_core.contracts import SCHEMA_VERSION
 from mpesa_core.extraction.rows import build_rows
 from mpesa_core.reconciliation.account import account_digest
-from mpesa_core.reconciliation.attest import attest
+from mpesa_core.reconciliation.attest import attest, verification_instruction
 from mpesa_core.reconciliation.reconcile import measure_balances, measure_unclassified, reconcile
 
 COMPLETION_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -57,6 +57,7 @@ def run(statement_pages, *, processed_at=None):
     return {
         "schema_version": SCHEMA_VERSION,
         "verification_token": verification_token,
+        "verification_instruction": verification_instruction(statement_pages),
         "account_digest": digest,
         "processed_at": processed_at,
         "period": measure_period(transactions),

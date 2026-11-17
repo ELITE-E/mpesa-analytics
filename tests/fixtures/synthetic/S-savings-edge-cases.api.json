@@ -1,0 +1,221 @@
+{
+ "name": "S-savings-edge-cases",
+ "printed_receipts": [
+  "ZZSA010000",
+  "ZZSA020000",
+  "ZZSA030000",
+  "ZZSA040000",
+  "ZZSA050000",
+  "ZZSA060000",
+  "ZZSA070000"
+ ],
+ "problems": [],
+ "rows": [
+  {
+   "balance": 22000.0,
+   "cash_flow_direction": "INFLOW",
+   "completion_time": "2026-08-03 09:00:00",
+   "details": "Funds received from 2547*****000 - Synthetic Employer",
+   "economic_meaning": "INFLOW",
+   "entity": "Synthetic Employer",
+   "event_type": "TRANSFER_IN",
+   "id": 1,
+   "paid_in": 20000.0,
+   "paid_out": 0.0,
+   "receipt_no": "SYNSA01",
+   "total_cost": 0.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 19000.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-08-05 10:00:00",
+   "details": "Unit Trust Invest to 4105050 - MALI SAFARICOM UNIT TRUST",
+   "economic_meaning": "INVESTMENT",
+   "entity": "Mali Safaricom Unit Trust",
+   "event_type": "INVESTMENT",
+   "id": 2,
+   "paid_in": 0.0,
+   "paid_out": 3000.0,
+   "receipt_no": "SYNSA02",
+   "total_cost": 0.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 16500.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-08-20 10:00:00",
+   "details": "Unit Trust Invest to 999001 - Mali Safaricom Unit Trust Balanced Growth and Income Fund Class B Accumulation Units",
+   "economic_meaning": "INVESTMENT",
+   "entity": "Mali Safaricom Unit Trust Balanced Growth and Income Fund Class B Accumulation Units",
+   "event_type": "INVESTMENT",
+   "id": 3,
+   "paid_in": 0.0,
+   "paid_out": 2500.0,
+   "receipt_no": "SYNSA03",
+   "total_cost": 0.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 13500.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-09-05 10:00:00",
+   "details": "Unit Trust Invest to 4105050 - MALI SAFARICOM UNIT TRUST",
+   "economic_meaning": "INVESTMENT",
+   "entity": "Mali Safaricom Unit Trust",
+   "event_type": "INVESTMENT",
+   "id": 4,
+   "paid_in": 0.0,
+   "paid_out": 3000.0,
+   "receipt_no": "SYNSA04",
+   "total_cost": 0.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 12500.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-09-12 11:00:00",
+   "details": "Unit Trust Invest to 999002",
+   "economic_meaning": "INVESTMENT",
+   "entity": "NO_ENTITY_IDENTIFIED",
+   "event_type": "INVESTMENT",
+   "id": 5,
+   "paid_in": 0.0,
+   "paid_out": 1000.0,
+   "receipt_no": "SYNSA05",
+   "total_cost": 0.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 8500.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-09-15 12:00:00",
+   "details": "Pay Bill to 303030 - STANBIC MONEY MARKET FUND",
+   "economic_meaning": "CONSUMPTION",
+   "entity": "Stanbic Money Market Fund",
+   "event_type": "BILL_PAYMENT",
+   "id": 6,
+   "paid_in": 0.0,
+   "paid_out": 4000.0,
+   "receipt_no": "SYNSA06",
+   "total_cost": 4000.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 7000.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-09-20 13:00:00",
+   "details": "M-Shwari Lock Savings Deposit",
+   "economic_meaning": "UNKNOWN",
+   "entity": "M-Shwari Lock Savings",
+   "event_type": "UNCLASSIFIED",
+   "id": 7,
+   "paid_in": 0.0,
+   "paid_out": 1500.0,
+   "receipt_no": "SYNSA07",
+   "total_cost": 1500.0,
+   "transaction_status": "Completed"
+  }
+ ],
+ "snapshot": {
+  "computed_at": "2026-10-22T09:00:00+00:00",
+  "contract_version": "1.0",
+  "import_id": 1,
+  "result": {
+   "bills": {
+    "bill_spending": [],
+    "recurring_bills": []
+   },
+   "cash_flow": {
+    "closing_balance": 7000.0,
+    "net_cash_flow": 5000.0,
+    "total_inflow": 20000.0,
+    "total_outflow": 15000.0
+   },
+   "fees": {
+    "mpesa_fees": {
+     "fee_amount": 0,
+     "period": {
+      "end": "2026-09-20",
+      "start": "2026-08-03"
+     }
+    },
+    "total_fees": {
+     "period": {
+      "end": "2026-09-20",
+      "start": "2026-08-03"
+     },
+     "total_fees": 0
+    },
+    "transfer_charges": {
+     "period": {
+      "end": "2026-09-20",
+      "start": "2026-08-03"
+     },
+     "transfer_charge_amount": 0
+    }
+   },
+   "investments": {
+    "by_platform": [],
+    "frequency": {
+     "dates": [],
+     "frequency": 0,
+     "investment_transactions": 0
+    },
+    "monthly_investment": [],
+    "total_investment": {
+     "investment_amount": 9500.0,
+     "period": {
+      "end": "2026-09-20",
+      "start": "2026-08-03"
+     }
+    }
+   },
+   "spending": {
+    "largest_purchases": [],
+    "merchant_usage_frequency": [],
+    "monthly_expenditure": [
+     {
+      "expenditure": 4000.0,
+      "month": "2026-08"
+     }
+    ],
+    "recurring_purchases": [],
+    "spending_by_entity": [],
+    "top_recipients": []
+   },
+   "transfers": {
+    "by_recipient_count": [],
+    "largest_transfers": [],
+    "monthly_transfer_amounts": [],
+    "total_received": {
+     "period": {
+      "end": "2026-09-20",
+      "start": "2026-08-03"
+     },
+     "total_received": 20000.0
+    },
+    "total_transfers": {
+     "period": {
+      "end": "2026-09-20",
+      "start": "2026-08-03"
+     },
+     "total_transfer_amount": 0
+    }
+   }
+  }
+ },
+ "summary": {
+  "id": 1,
+  "imported_at": "2026-10-22T09:00:00+00:00",
+  "observation_counts": {
+   "unrecognized_event_type": 1
+  },
+  "period_end": "2026-09-20",
+  "period_start": "2026-08-03",
+  "previously_imported_transaction_count": 0,
+  "status": "completed",
+  "transaction_count": 7,
+  "unclassified_transaction_count": 1
+ }
+}

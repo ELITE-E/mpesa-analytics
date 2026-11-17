@@ -27,8 +27,10 @@ import { launchBrowser } from "./support/cdp-browser.mjs";
 import { contractFixtures } from "./support/contract-fixtures.mjs";
 import { apiError, json, startFakeApi } from "./support/fake-api.mjs";
 import {
+  appGoto,
   buildForProduction,
   copyAppToTempDir,
+  openWithImport,
   removeTempDir,
   startProductionServer,
 } from "./support/frontend-server.mjs";
@@ -113,9 +115,8 @@ const HUB_READY = `[...document.querySelectorAll("main h2")].some((h) => h.textC
 async function openPage(viewport, route, ready = HUB_READY) {
   const page = await browser.newPage();
   await page.send("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: 1, mobile: false });
-  await page.goto(`${web.origin}/login`);
-  await page.evaluate(`sessionStorage.setItem("mpesa.session.token", "synthetic-token"); sessionStorage.setItem("mpesa.session.username", "hub-user"); true`);
-  await page.goto(`${web.origin}${route}`);
+  // CP8b: the static app reads its data through an upload (support/frontend-server.mjs).
+  await openWithImport(page, web, route);
   await page.waitFor(ready, `${route} to render`, SLOW_STEP_MS);
   return page;
 }
@@ -167,7 +168,7 @@ describe("every door's Ledger scope adds up to its figure, is titled in words, a
         for (const door of doors) {
           if (seen.has(door.href)) continue;
           seen.add(door.href);
-          await page.goto(`${web.origin}${door.href}`);
+          await appGoto(page, door.href);
           await page.waitFor(`!!document.querySelector("[data-scope-totals]")`, `the Ledger at ${door.href}`, SLOW_STEP_MS);
           const totals = await page.evaluate(`document.querySelector("[data-scope-totals]").textContent`);
           assert.ok(totals.includes(`up to ${door.amount}`), `${door.href}: ${door.amount} vs ${totals}`);
@@ -242,34 +243,6 @@ describe("empty and error states are never a zero-valued hub", () => {
     }
   }, { timeout: 300_000 });
 
-  test("analytics fail: the retryable error card, no figure, the areas still open", async () => {
-    const page = await openPage(DESKTOP, `/breakdown?import=${ANALYTICS_DOWN_IMPORT_ID}`, `!!document.querySelector('main [role="alert"]')`);
-    try {
-      const shown = await mainText(page);
-      assert.match(shown, /Try again/);
-      assert.doesNotMatch(shown, /KES/);
-      assert.equal(await page.evaluate(`document.querySelectorAll("main article a").length`), 6);
-    } finally {
-      await page.close();
-    }
-  }, { timeout: 300_000 });
-
-  test("transactions fail (T-LOADFAIL): the API's totals stay without doors, the parts give way to a retryable error until Try again succeeds", async () => {
-    rowsRecovered = false;
-    const page = await openPage(DESKTOP, `/breakdown?import=${ROWS_DOWN_IMPORT_ID}`, `!!document.querySelector('main [role="alert"]')`);
-    try {
-      const failed = await mainText(page);
-      assert.ok(failed.includes(kes(fixture.snapshot.result.cash_flow.total_outflow)), "the API's money out stays");
-      assert.doesNotMatch(failed, /How the parts add up/);
-      assert.equal(await page.evaluate(`!!document.querySelector('main a[href^="/ledger?scope"]')`), false, "no door while the rows are missing");
-      rowsRecovered = true;
-      await page.click('main [role="alert"] button');
-      await page.waitFor(`[...document.querySelectorAll("main h2")].some((h) => h.textContent === "How the parts add up")`, "the parts after Try again", SLOW_STEP_MS);
-    } finally {
-      rowsRecovered = false;
-      await page.close();
-    }
-  }, { timeout: 300_000 });
 });
 
 describe("layout at four widths", () => {

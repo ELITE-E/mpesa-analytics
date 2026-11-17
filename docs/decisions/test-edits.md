@@ -302,3 +302,76 @@ Lint changes for ADR 0014: the root `eslint.config.mjs` ignores the web app (`we
 | Test | Old assertion | New assertion | Reason |
 |---|---|---|---|
 | `tests/browser/engine.test.js`, `a hostile PDF times out by terminating the worker, and a fresh one serves the next run` | A fixed 2,000,000-operator PDF must take over 4 s in the Node reader (a precondition), then the engine, with a 1 s timeout, returns TIMEOUT within 4 s | The PDF is calibrated in the browser engine itself: read once, made heavier (up to 12,000,000 operators) until this machine takes at least 2 s, then the engine, with a timeout of a quarter of that read time, returns TIMEOUT at the engine stage in under three quarters of it; the next statement still runs on a fresh worker | Failed on GitHub's runner: the fixed PDF read in under a second there, so the precondition at line 170 never timed out and the engine was not reached. It had been calibrated only on the dev laptop (about 10 s). The test now proves the same thing on any machine, and measures the engine it tests rather than the Node build |
+
+CP8b, owner instruction (2026-11-17): the app keeps no verification code of its own. The core reads page 1's printed "dial" instruction into `PipelineResult.verification_instruction` (None when absent or when the line looks like it holds a phone number or an email), and the statement checks card shows it as printed, or "Use the verification instruction printed on your statement." New tests were written first: `tests/core/test_verification_instruction.py` and two in `test_pipeline.py`.
+
+| Test | Old assertion | New assertion | Reason |
+|---|---|---|---|
+| `test_pipeline.py` `RESULT_FIELDS` and `composed()`, `tests/synth/test_pipeline_fixtures.py` `composed()`, `test_compare.py` `TOP_LEVEL_KEYS` | No `verification_instruction` key | The key is present; `composed()` calls `verification_instruction(pages)` | The new result field; `compare.py`'s `PIPELINE_RESULT_KEYS` names it so its diagnostics print the key, never its value |
+| `web/tests/honest-copy.test.mjs`, the passing statement's card | Shows `Verify with Safaricom: dial ${SAFARICOM_VERIFY_CODE}` | Shows the statement's own printed instruction; a new test shows the fallback sentence and no `*NNN#` when it is null; a new test checks no dial code is kept in the copy or the card | Owner instruction: remove the constant |
+| `web/tests/honest-copy.test.mjs`, the data layer's checks | No `verification_instruction` | `verification_instruction` from the pipeline result | Same |
+| `web/tests/ingest-claims.test.mjs`, welcome, upload and loaded summary | "Private to your account"; "The PDF and its password are never stored"; "has been imported and saved to your account." | "Private on this device"; "The PDF, its password and its transactions never leave this device"; "has been read on this device. Nothing was sent anywhere or stored." | CP8b item 5: the copy says what the app does; same no-unsupported-claims check |
+| `web/tests/app-shell.test.mjs`, desktop app bar and footer | A "Sign in" button; footer says "Private to your account" | "Private on this device" and no "Sign in" button; footer says "Private on this device" | CP8b items 3 and 5: there is no account |
+| `web/tests/story-navigation.test.mjs`, desktop story tabs | Keeps the "Sign in" account control | Says "Private on this device", no "Sign in" | Same |
+| `web/tests/story-navigation.test.mjs`, Breakdown hub links and current tab | Links carry `?import=7` from the query | Plain routes (`/ledger`, `/breakdown/spending`, …; current tab `/breakdown`) | A static export cannot read the query on the server; every page shows the session's latest statement until ledger switching (CP9). The same links are still checked, in the same order |
+
+| Deleted test | Why | Now covered by |
+|---|---|---|
+| `web/tests/story-navigation.test.mjs` "getImportOrLatest": loads the requested import, loads the most recent, null without imports, rejects another user's import | They faked the HTTP API (`fetch` to `/api/v1/imports…`), which no longer exists | `data-layer.test.mjs` "the repo keeps imports in memory and answers the UI's calls from them" (latest, none, unknown id) |
+| `web/tests/browser-csp.test.mjs` (A to F) and `web/tests/frontend-security-headers.test.mjs` (FRONTEND-SEC-01 to 04), with `tests/support/csp.mjs` and `tests/support/test-api.mjs` that only they used | They tested the prototype's server: a per-request nonce CSP from `proxy.ts`, Google Fonts, the login form and the API origin, none of which exists in the static export | `web/tests/static-export-csp.test.mjs` (every route in real Chrome under its hashed CSP, 0 violations, 0 foreign requests) and the real-UI test (`web/tests/e2e-local.test.mjs`) |
+
+| Test | Old assertion | New assertion | Reason |
+|---|---|---|---|
+| `web/tests/data-layer.test.mjs`, "the import summary is built from…" | `previously_imported_transaction_count: plan.counts.link`, `observation_counts` from `plan.counts.preserve` | `0` and `{}` against an empty session; a new test pins the plan's counts to the core's names (`new`, `matched`, `collided`) and counts matched and collided rows from them | The old assertion read the same wrong field names as the adapter, so `undefined` equalled `undefined` and it passed while the real summary screen crashed (found by the real-UI test, `e2e-local.test.mjs`). The adapter now reads `matched` and `collided` |
+
+New engine tests (CP8b, seen red first): `tests/pdf_readers/engine_client.test.js` "cancel while the runtime is still starting…" (red: the cancel was lost and the statement was read anyway) and "a cancel with no run in progress does not cancel the next statement" (passed at once: with no pending run `cancel()` was already a no-op; it pins that).
+
+| Test | Old assertion | New assertion | Reason |
+|---|---|---|---|
+| `web/tests/e2e-local.test.mjs`, last test | Every request in every scenario was a GET | Every request kept the request rule (`tools/browser/request_rule.js`): a GET to the app's origin, or a HEAD to one of the app's own pages, never with a body | Owner decision 2026-11-17: Next's link prefetch sends a same-origin HEAD before its GET; it carries no data. `tests/browser/request_rule.test.js` pins what still fails (other origins, POST and the like, a body, a HEAD to a non-page) |
+
+| Test | Old assertion | New assertion | Reason |
+|---|---|---|---|
+| `tests/guards/test_vendor_runtime.py` `LOADED_PACKAGES` | The runtime ships numpy, pandas, python_dateutil, pytz and six | It ships numpy, pandas, python_dateutil and six, and never pytz; a new test checks the runtime's lock is Pyodide's with only pytz dropped from pandas's dependencies | Owner decision 2026-11-17 (ADR 0006 update): pandas 3 does not need pytz; all 885 core tests passed under Pyodide without it; the download is 0.38 MB smaller and within budget |
+| `tests/guards/test_bundle_budget.py`, the analysis files | The pytz wheel is an analysis file | It is not listed: it is no longer shipped | Same |
+
+| Test | Old assertion | New assertion | Reason |
+|---|---|---|---|
+| `tests/synth/test_fixtures.py`, `test_manifest_lists_exactly_the_committed_outputs` | The manifest lists exactly the generated statements' three outputs each | The same, plus each contract scenario's outputs (`SCENARIO_FIXTURES`: its `.api.json`, and its `.pdf` and `.model.json` when it can be printed) | CP8b, owner decision A: the frontend's contract scenarios are generated fixtures too; still an exact list, nothing unlisted |
+| `tests/synth/test_fixtures.py`, `test_manifest_records_each_recorded_file_with_its_source_and_engine` | Every recorded entry is a pdf.js recording of a generated statement | The same checks on the `.items.json` entries; every other recorded entry must be a scenario's `.report.json` | CP8b: the core's reports on the scenarios are recorded fixtures too (`tools/record_scenario_reports.py`, `test_scenario_reports.py`); `record_items.mjs` now keeps entries it does not own |
+| `web/tests/statement-rows.test.mjs`, the backend's event types | Read from the old backend's `src/event_types.py` | Read from the core's `src/mpesa_core/classification/taxonomy.py`, the members of `FinancialEvent` only (that file also holds other enums) | The file moved in the port; the assertion (the frontend's event types equal the core's) is unchanged and passes |
+
+| Test | Old assertion | New assertion | Reason |
+|---|---|---|---|
+| `tests/core/test_columns.py`, a column seen only once / never seen cannot calibrate | `LAYOUT_UNRECOGNIZED` | `TOO_FEW_AMOUNTS` (renamed "…and says too few amounts"); a new test keeps `LAYOUT_UNRECOGNIZED` when no amount prints at all | Owner decision 2026-11-17: this refusal gets its own core code and user message ("too few paid-in or paid-out entries"); the rule itself is unchanged (CP10 list) |
+| `tests/core/test_errors.py`, `EXPECTED_CODES` | Eight extraction codes | Nine: `TOO_FEW_AMOUNTS` added | Same |
+| `tests/pdf_readers/engine_bridge.test.js`, core codes kept as `core_code`; `web/tests/data-layer.test.mjs`, the covered core codes | Seven core codes | `TOO_FEW_AMOUNTS` too; a new web test checks its own message, which is not the layout one | Same |
+
+CP8b owner decision (1): the seven `web/tests/statement-data.test.mjs` tests faked the HTTP API and asserted the request paths, a seam that no longer exists. Each is replaced at the data layer's seam (`src/data/repo.ts`), with a stand-in engine answering from the contract scenarios (`web/tests/support/scenario-engine.mjs`). None was retired: every behaviour still exists. The replacements passed when first run, because they pin behaviour the app already has; each was then checked by breaking that behaviour on purpose (no integrity check; wrong analytics; no null for an empty session), and the matching tests failed.
+
+| Old test | New test | What changed |
+|---|---|---|
+| loads the requested import, then its analytics, and nothing else | loads the requested import with its analytics, and asks the engine nothing more | Same result; "nothing else" is now one engine run (the upload) instead of two request paths |
+| without an import, loads the latest import and its analytics | without an import, loads the latest import and its analytics | Same; two uploads, the second is the latest |
+| is null, with no further request, when the user has no imports | is null, asking the engine nothing, when this session holds no statement | Same; no engine run instead of no request |
+| rejects with the API's error for an import that is not the user's | rejects with the data layer's error for an import this session does not hold | `import_not_found` instead of the API's 404 `not_found` |
+| loads every row of the import once | loads every row of the import once | Every row, unique ids, equal to `getAllTransactions`, instead of one page request |
+| rejects like H2 when the rows don't match the summary (H-4) | rejects like H2 when the rows don't match the summary (H-4) | Same rejection; the summary's count is off by one instead of a short page |
+| rejects like H2 when a row moves money both ways (H-5) | rejects like H2 when a row moves money both ways (H-5) | Same rejection; the stand-in engine returns the row |
+
+| Test | Old assertion | New assertion | Reason |
+|---|---|---|---|
+| `web/tests/static-export-csp.test.mjs`, `ROUTES` and the page files | Routes end in `/` and each is a folder's `index.html` | Routes without the slash, each its `.html` page (the home page `index.html`) | ADR 0015 update: `trailingSlash: false`, keeping the prototype's URLs so its browser tests run unedited; same checks on the same 14 routes |
+
+CP8b owner decision (2): the prototype's ten browser test files run on the static export. Their server helper (`web/tests/support/frontend-server.mjs`) was swapped: it serves `web/out` with its CSP, swaps the engine's worker for a stand-in that reads the import a test names from the test's fake API (through the same origin, so the CSP holds), and adds `openWithImport` and `appGoto`. In each file, `openPage` now reads the import in through `/upload` instead of signing in, and each door is followed with the app's router instead of a full page load, which would forget the in-memory session. Assertions were not changed. Running them found one real defect, Next's built-in 404 page breaking the CSP with inline styles; it now has its own page (`src/app/not-found.tsx`), with a test. Only tests whose behaviour no longer exists were deleted:
+
+| Deleted test | Why its behaviour no longer exists | Still covered by |
+|---|---|---|
+| `app-shell-browser`, "shell controls on the six pages" (24: six pages, four widths) | Each asserts exactly one visible account button, or opens `/login`: there is no sign-in (CP8b item 3) | `app-shell.test.mjs` (the shell, its tabs and the "Private on this device" label); `static-export-csp.test.mjs` (every route loads) |
+| `app-shell-browser`, "sign in and sign out with the visible account button" (2) | No sign-in | `no-login.test.mjs` |
+| `app-shell-browser`, "desktop bar fits with the statement chip" (8) | Each asserts the account control fits beside the chip; there is no account control | `story-navigation.test.mjs` (the desktop bar's statement chip) |
+| `app-shell-browser`, "failed analytics don't cost the shell its period" (2), "failed transactions keep the import, its period and its ribbon" (1) | They make the server's analytics or transactions request fail (503); the data is in memory and cannot fail to load after an import | `e2e-local.test.mjs` (engine failures reach /recovery) |
+| `app-shell-browser`, "upload → processing → recovery → Try Again → analysis summary" (2); `recovery-retry-browser.test.mjs` (2, file deleted) | They wait for the server's error codes (`server_busy`, `statement_password_invalid`) on /recovery; the engine's own codes are shown now | `upload-flow-local.test.mjs` (a retryable failure keeps the file and offers Try again; any other forgets it); `e2e-local.test.mjs` (each failure's message) |
+| "analytics fail" and "transactions fail (T-LOADFAIL)" in each area file: cash, fees, hub, money-in, overview, people, savings, spending (16) | Same: an import's analytics and rows are in memory once read, so they cannot fail to load | `statement-data.test.mjs` (rows that fail H-4 or H-5 are rejected) |
+
+Kept and still failing, as findings (owner's rule: a failing assertion is a finding, not an edit): the tests that expect a link to carry the fake API's import id (`?import=5`), or a story link to carry `?import=`. The static app numbers the session's statements from 1 and shows the latest until ledger switching (CP9), so these wait for CP9.

@@ -75,6 +75,7 @@ for (const coreCode of [
   "DOMAIN_ROW",
   "DATE_UNREADABLE",
   "ANALYSIS_FAILED",
+  "TOO_FEW_AMOUNTS",
 ]) {
   test(`core ${coreCode} is LAYOUT_UNRECOGNIZED, keeping the core code and position`, () => {
     assert.deepEqual(core_failure({ code: coreCode, row_index: 3 }), {

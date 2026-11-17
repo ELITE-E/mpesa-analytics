@@ -28,6 +28,8 @@ const CORE_LAYOUT_CODES = new Set([
   "DOMAIN_ROW",
   "DATE_UNREADABLE",
   "ANALYSIS_FAILED",
+  // Too few money-in or money-out entries to place the amount columns (CP8b).
+  "TOO_FEW_AMOUNTS",
 ]);
 
 /**

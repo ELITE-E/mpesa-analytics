@@ -6,6 +6,8 @@ import { DESKTOP_LIMITS } from "./limits.js";
 
 const DEFAULT_START_TIMEOUT_MS = 120_000;
 const READER_DEADLINE_FACTOR = 2;
+// What a cancelled run reports.
+const CANCELLED = Object.freeze({ code: "CANCELLED", stage: "engine" });
 
 /**
  * Create a statement engine around a module worker.
@@ -31,6 +33,8 @@ export function create_statement_engine({
     started: null,
     nextRequestId: 1,
     pending: null,
+    // Set while a run waits for the runtime to start, so a cancel then ends it at once.
+    starting: null,
     restarts: 0,
     warmed: null,
   };
@@ -39,7 +43,10 @@ export function create_statement_engine({
     ready: () => ensure_started(state, settings),
     run: (request) => run_statement(state, settings, request),
     warm_up: () => warm_up(state, settings),
-    cancel: () => fail_pending(state, { code: "CANCELLED", stage: "engine" }),
+    cancel: () => {
+      state.starting?.cancel();
+      fail_pending(state, CANCELLED);
+    },
     close: () => stop_worker(state),
   };
 }
@@ -115,7 +122,14 @@ function start_worker(state, settings) {
  *   or `{ok: false, failure}`.
  */
 async function run_statement(state, settings, request) {
-  const started = await ensure_started(state, settings);
+  // A cancel before the runtime is ready ends the run at once and the PDF is never posted; the
+  // worker goes on starting, so the next statement still finds it warm.
+  const cancelled = new Promise((resolve) => {
+    state.starting = { cancel: () => resolve(null) };
+  });
+  const started = await Promise.race([ensure_started(state, settings), cancelled]);
+  state.starting = null;
+  if (started === null) return { ok: false, failure: CANCELLED };
   if (!started.ok) {
     // The next run tries a fresh worker rather than reporting this failure forever.
     stop_worker(state);

@@ -19,7 +19,8 @@ globalThis.window = { location: new URL("https://app.test/") };
 
 const SRC = join(import.meta.dirname, "../src");
 const { StatementChecksCard } = await import("../src/components/analysis-summary/statement-checks-card.tsx");
-const { checks: checksCopy, SAFARICOM_VERIFY_CODE } = await import("../src/content/analysis-summary.ts");
+const analysisSummaryCopy = await import("../src/content/analysis-summary.ts");
+const { checks: checksCopy } = analysisSummaryCopy;
 const repo = await import("../src/data/repo.ts");
 
 /**
@@ -48,8 +49,12 @@ function text_of(html) {
   return html.replace(/<[^>]*>/g, " ").replace(/&#x27;/g, "'").replace(/\s+/g, " ").trim();
 }
 
+const INSTRUCTION = "To verify this statement, dial *123# and enter the code";
+const FALLBACK = "Use the verification instruction printed on your statement.";
+
 const CHECKS = {
   verification_token: "QX7" + "M2KP9",
+  verification_instruction: INSTRUCTION,
   row_count: 40,
   chain_breaks: 0,
   totals_match: "yes",
@@ -78,10 +83,25 @@ test("the welcome, upload and header copy say the statement stays on this device
 test("a statement that passes the checks shows its code, how to verify it, and the honest wording", () => {
   const text = text_of(renderToString(createElement(StatementChecksCard, { checks: CHECKS })));
   assert.match(text, new RegExp(CHECKS.verification_token));
-  assert.match(text, new RegExp(`Verify with Safaricom: dial \\${SAFARICOM_VERIFY_CODE}`));
+  assert.ok(text.includes(INSTRUCTION), "the instruction as the statement prints it");
   assert.match(text, /passes consistency checks, not yet verified with Safaricom/);
   assert.equal(/genuine|authentic/i.test(text), false);
   assert.equal(text.replace("not yet verified with Safaricom", "").includes("verified"), false);
+});
+
+test("a statement whose instruction cannot be read shows the fallback sentence, never a guessed code", () => {
+  const text = text_of(
+    renderToString(createElement(StatementChecksCard, { checks: { ...CHECKS, verification_instruction: null } })),
+  );
+  assert.ok(text.includes(FALLBACK));
+  assert.equal(/\*\d+#/.test(text), false, "no dial code the app assumes");
+});
+
+test("the app keeps no verification code of its own", () => {
+  assert.equal("SAFARICOM_VERIFY_CODE" in analysisSummaryCopy, false);
+  assert.equal(JSON.stringify(checksCopy).match(/\*\d+#/), null);
+  const card = readFileSync(join(SRC, "components/analysis-summary/statement-checks-card.tsx"), "utf8");
+  assert.equal(/\*\d+#/.test(card), false);
 });
 
 test("rows that do not chain, the totals check and the uncategorised share are shown", () => {
@@ -120,6 +140,7 @@ test("the data layer gives each statement's checks from the core's data quality"
   const quality = chained.pipeline_result.quality;
   assert.deepEqual(checks, {
     verification_token: chained.pipeline_result.verification_token,
+    verification_instruction: chained.pipeline_result.verification_instruction,
     row_count: quality.row_count,
     chain_breaks: quality.chain_breaks,
     totals_match:

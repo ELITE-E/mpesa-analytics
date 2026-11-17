@@ -1,0 +1,203 @@
+{
+ "name": "F3-invalid-timestamps",
+ "printed_receipts": [
+  "ZZTS000010",
+  "ZZTS000020",
+  "ZZTS000030",
+  "ZZTS000040",
+  "ZZTS000050",
+  "ZZTS000060"
+ ],
+ "problems": [],
+ "rows": [
+  {
+   "balance": 1000.0,
+   "cash_flow_direction": "INFLOW",
+   "completion_time": "2026-07-04 10:00:00",
+   "details": "Funds received",
+   "economic_meaning": "INFLOW",
+   "entity": "Sender",
+   "event_type": "TRANSFER_IN",
+   "id": 1,
+   "paid_in": 1000.0,
+   "paid_out": 0.0,
+   "receipt_no": "ZZTS000010",
+   "total_cost": 0.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 990.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-07-04T11:00:00",
+   "details": "Merchant Payment",
+   "economic_meaning": "CONSUMPTION",
+   "entity": "Till",
+   "event_type": "MERCHANT_PAYMENT",
+   "id": 2,
+   "paid_in": 0.0,
+   "paid_out": 10.0,
+   "receipt_no": "ZZTS000020",
+   "total_cost": 10.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 980.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "04/07/2026 12:00",
+   "details": "Merchant Payment",
+   "economic_meaning": "CONSUMPTION",
+   "entity": "Till",
+   "event_type": "MERCHANT_PAYMENT",
+   "id": 3,
+   "paid_in": 0.0,
+   "paid_out": 10.0,
+   "receipt_no": "ZZTS000030",
+   "total_cost": 10.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 970.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "",
+   "details": "Merchant Payment",
+   "economic_meaning": "CONSUMPTION",
+   "entity": "Till",
+   "event_type": "MERCHANT_PAYMENT",
+   "id": 4,
+   "paid_in": 0.0,
+   "paid_out": 10.0,
+   "receipt_no": "ZZTS000040",
+   "total_cost": 10.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 960.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "2026-13-45 99:99:99",
+   "details": "Merchant Payment",
+   "economic_meaning": "CONSUMPTION",
+   "entity": "Till",
+   "event_type": "MERCHANT_PAYMENT",
+   "id": 5,
+   "paid_in": 0.0,
+   "paid_out": 10.0,
+   "receipt_no": "ZZTS000050",
+   "total_cost": 10.0,
+   "transaction_status": "Completed"
+  },
+  {
+   "balance": 950.0,
+   "cash_flow_direction": "OUTFLOW",
+   "completion_time": "not a timestamp",
+   "details": "Merchant Payment",
+   "economic_meaning": "CONSUMPTION",
+   "entity": "Till",
+   "event_type": "MERCHANT_PAYMENT",
+   "id": 6,
+   "paid_in": 0.0,
+   "paid_out": 10.0,
+   "receipt_no": "ZZTS000060",
+   "total_cost": 10.0,
+   "transaction_status": "Completed"
+  }
+ ],
+ "snapshot": {
+  "computed_at": "2026-10-22T09:00:00+00:00",
+  "contract_version": "1.0",
+  "import_id": 3,
+  "result": {
+   "bills": {
+    "bill_spending": [],
+    "recurring_bills": []
+   },
+   "cash_flow": {
+    "closing_balance": 950.0,
+    "net_cash_flow": 950.0,
+    "total_inflow": 1000.0,
+    "total_outflow": 50.0
+   },
+   "fees": {
+    "mpesa_fees": {
+     "fee_amount": 0,
+     "period": {
+      "end": "not a time",
+      "start": "2026-07-04"
+     }
+    },
+    "total_fees": {
+     "period": {
+      "end": "not a time",
+      "start": "2026-07-04"
+     },
+     "total_fees": 0
+    },
+    "transfer_charges": {
+     "period": {
+      "end": "not a time",
+      "start": "2026-07-04"
+     },
+     "transfer_charge_amount": 0
+    }
+   },
+   "investments": {
+    "by_platform": [],
+    "frequency": {
+     "dates": [],
+     "frequency": 0,
+     "investment_transactions": 0
+    },
+    "monthly_investment": [],
+    "total_investment": {
+     "investment_amount": 0,
+     "period": {
+      "end": "not a time",
+      "start": "2026-07-04"
+     }
+    }
+   },
+   "spending": {
+    "largest_purchases": [],
+    "merchant_usage_frequency": [],
+    "monthly_expenditure": [
+     {
+      "expenditure": 50.0,
+      "month": "2026-07"
+     }
+    ],
+    "recurring_purchases": [],
+    "spending_by_entity": [],
+    "top_recipients": []
+   },
+   "transfers": {
+    "by_recipient_count": [],
+    "largest_transfers": [],
+    "monthly_transfer_amounts": [],
+    "total_received": {
+     "period": {
+      "end": "not a time",
+      "start": "2026-07-04"
+     },
+     "total_received": 1000.0
+    },
+    "total_transfers": {
+     "period": {
+      "end": "not a time",
+      "start": "2026-07-04"
+     },
+     "total_transfer_amount": 0
+    }
+   }
+  }
+ },
+ "summary": {
+  "id": 3,
+  "imported_at": "2026-10-22T09:00:00+00:00",
+  "observation_counts": {},
+  "period_end": "not a time",
+  "period_start": "2026-07-04",
+  "previously_imported_transaction_count": 0,
+  "status": "completed",
+  "transaction_count": 6,
+  "unclassified_transaction_count": 0
+ }
+}

@@ -1301,6 +1301,7 @@ TOP_LEVEL_KEYS = (
     "report",
     "schema_version",
     "transactions",
+    "verification_instruction",
     "verification_token",
 )
 ROW_FIELDS = (

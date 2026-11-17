@@ -191,6 +191,8 @@ class PipelineResult(TypedDict):
 
     schema_version: int
     verification_token: str
+    # Page 1's printed "dial" instruction, as printed; None if absent or it looks personal.
+    verification_instruction: str | None
     account_digest: str | None
     processed_at: str | None
     period: Period

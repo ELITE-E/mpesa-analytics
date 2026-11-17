@@ -21,7 +21,9 @@ In the app, everything below runs inside one module worker, never on the page's 
 - **A statement:** the page hands the worker the PDF's bytes (transferred, not copied) and, if needed, the password. Step 1 runs in the worker; the password is used there once and forgotten. The statement pages go to Python as one JSON string, `bridge.py` `run_json` runs steps 2 to 8, and the result comes back as one JSON string.
 - **pandas:** the first time a run reaches step 6, `run_json` answers `ANALYSIS_RUNTIME_MISSING`; the worker loads pandas (timed apart as `pandas_load_ms`) and runs again. A statement that stops earlier never loads it.
 - **Failures:** one code per failure (`NOT_A_PDF`, `PASSWORD_REQUIRED`, `PASSWORD_INCORRECT`, `CORRUPT_PDF`, `TOO_LARGE`, `TOO_MANY_PAGES`, `TIMEOUT`, `LAYOUT_UNRECOGNIZED`, or `ENGINE_FAILED`), a stage, and for core failures the core's code and row position. On `TIMEOUT` the page terminates the worker and starts a fresh one.
+- **Cancel:** "Stop reading" ends the run at once, even while the runtime is still starting (the PDF is then never posted), and terminates a worker that is reading.
 - **Try it:** `node web/harness/serve.js` and open the printed URL; it shows counts and codes only.
+- **In the app:** build it (`npm run build` in `web/`, after the runtime), then `node web/scripts/serve_static.mjs` and open the printed URL. `/upload` hands the file and password to `web/src/data/repo.ts`, which runs the engine and keeps the result in memory for this session only; `/processing` shows each page read; every other screen reads from that session (ADR 0015).
 
 ## 1. PDF to statement pages: `extract_statement_pages`
 
@@ -77,7 +79,7 @@ In the app, everything below runs inside one module worker, never on the page's 
 ## 8. The result: `pipeline.run`
 
 - **File:** `src/mpesa_core/pipeline.py`.
-- **Out:** a `PipelineResult` (`contracts.py`): `verification_token`, `account_digest` (the SHA-256 of page 1's mobile number in one canonical form, or None with `quality.account_number_unreadable`; in memory only, the store must never persist it), `processed_at` (only if the caller passed a time), `period` (from `measure_period`), `balances`, `transactions`, `report`, `quality`, `diagnostics`. Plain JSON values only, so it can be stored if the user opts in to "Remember on this device" (ADR 0012).
+- **Out:** a `PipelineResult` (`contracts.py`): `verification_token`, `verification_instruction` (page 1's printed "dial" line, as printed, or None; the app shows it, or a fallback sentence, and never a code of its own), `account_digest` (the SHA-256 of page 1's mobile number in one canonical form, or None with `quality.account_number_unreadable`; in memory only, the store must never persist it), `processed_at` (only if the caller passed a time), `period` (from `measure_period`), `balances`, `transactions`, `report`, `quality`, `diagnostics`. Plain JSON values only, so it can be stored if the user opts in to "Remember on this device" (ADR 0012).
 
 ## 9. Remembering it: `plan_statement_import`
 

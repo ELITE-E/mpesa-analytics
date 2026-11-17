@@ -104,14 +104,14 @@ describe("ingest screens make no unsupported claims", () => {
   test("welcome screen", async () => {
     const text = await renderText(WelcomePage());
     assertNoBannedClaims(text, "/");
-    assert.match(text, /Private to your account/i);
+    assert.match(text, /Private on this device/i);
   });
 
   test("upload screen", async () => {
     const text = await renderText(UploadPage());
     assertNoBannedClaims(text, "/upload");
-    // The verified storage claim (C-06, C-24) is kept.
-    assert.match(text, /The PDF and its password are never stored/);
+    // The storage claim (C-06, C-24) is kept, now for a statement read on this device (CP8b).
+    assert.match(text, /The PDF, its password and its transactions never leave this device/);
   });
 
   test("processing screen", async () => {
@@ -140,7 +140,7 @@ describe("ingest screens make no unsupported claims", () => {
     });
     const text = await renderText(createElement("div", null, hero, snapshot));
     assertNoBannedClaims(text, "/analysis-summary (loaded)");
-    assert.match(description, /has been imported and saved to your account\./);
+    assert.match(description, /has been read on this device\. Nothing was sent anywhere or stored\./);
   });
 });
 

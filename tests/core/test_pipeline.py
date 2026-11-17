@@ -24,7 +24,7 @@ from mpesa_core.errors import (
 )
 from mpesa_core.extraction.rows import build_rows
 from mpesa_core.reconciliation.account import account_digest
-from mpesa_core.reconciliation.attest import attest
+from mpesa_core.reconciliation.attest import attest, verification_instruction
 from mpesa_core.reconciliation.reconcile import measure_balances, measure_unclassified, reconcile
 
 MONEY_IN = {"paid_in": "10.00", "withdrawn": None}
@@ -32,6 +32,7 @@ JSON_TYPES = (str, int, float, bool, type(None), list, dict)
 RESULT_FIELDS = {
     "schema_version",
     "verification_token",
+    "verification_instruction",
     "account_digest",
     "processed_at",
     "period",
@@ -58,6 +59,7 @@ def composed(statement_pages, processed_at=None):
     return {
         "schema_version": SCHEMA_VERSION,
         "verification_token": token,
+        "verification_instruction": verification_instruction(statement_pages),
         "account_digest": digest,
         "processed_at": processed_at,
         "period": pipeline.measure_period(transactions),
@@ -244,3 +246,14 @@ def test_an_unreadable_mobile_number_gives_no_digest_and_a_quality_flag(printed)
     pipeline_result = pipeline.run(attestable_statement(printed))
     assert pipeline_result["account_digest"] is None
     assert pipeline_result["quality"]["account_number_unreadable"] is True
+
+
+def test_result_carries_page_one_verification_instruction_as_printed(printed):
+    instruction = "To verify this M-PESA statement, dial *334# and enter the code"
+    footer = footer_items(printed, text=instruction)
+    pipeline_result = pipeline.run(attestable_statement(printed, footer=footer))
+    assert pipeline_result["verification_instruction"] == instruction
+
+
+def test_result_without_a_dial_line_carries_no_verification_instruction(printed):
+    assert pipeline.run(attestable_statement(printed))["verification_instruction"] is None

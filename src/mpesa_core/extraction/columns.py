@@ -75,7 +75,8 @@ def calibrate_columns(statement_pages):
 
     Raises:
         ExtractionError: ``LAYOUT_UNRECOGNIZED`` if there is no anchor row, a printed header row
-            has its labels out of order, or a column cannot be calibrated.
+            has its labels out of order, or a column cannot be calibrated; ``TOO_FEW_AMOUNTS``
+            if an amount column was printed fewer than twice.
 
     Side Effects:
         None.
@@ -304,8 +305,10 @@ def _amount_positions(other_cells, status):
         The right edges of paid in, withdrawn and balance.
 
     Raises:
-        ExtractionError: ``LAYOUT_UNRECOGNIZED`` unless exactly three positions each hold at least
-            two values.
+        ExtractionError: ``TOO_FEW_AMOUNTS`` if fewer than three positions hold at least two
+            values but at least one does: a column printed once or never, such as a statement
+            with one or no money-in entries. ``LAYOUT_UNRECOGNIZED`` if none does, or more than
+            three do.
 
     Side Effects:
         None.
@@ -319,6 +322,8 @@ def _amount_positions(other_cells, status):
     clusters = [
         cluster for cluster in _cluster(right_edges) if len(cluster) >= MINIMUM_AMOUNT_VALUES
     ]
+    if 0 < len(clusters) < AMOUNT_COLUMN_COUNT:
+        raise ExtractionError(ErrorCode.TOO_FEW_AMOUNTS)
     if len(clusters) != AMOUNT_COLUMN_COUNT:
         raise ExtractionError(ErrorCode.LAYOUT_UNRECOGNIZED)
     return tuple(_middle(cluster) for cluster in clusters)

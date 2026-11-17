@@ -215,6 +215,136 @@ path = "F-CHAIN-BREAK.expected.json"
 seed = 1015
 sha256 = "557c63cb0eab7eaf21636f8fe608d7aaf2896d3bc92bf61388a12f7d7fcb56d1"
 
+[[fixture]]
+path = "F1-worked-example.api.json"
+seed = 2001
+sha256 = "5dffc770a9a09469ffd7b5f1c49de0360c0e068163074545fc681e93245136ac"
+
+[[fixture]]
+path = "F1-worked-example.pdf"
+seed = 2001
+sha256 = "13625bcc8a95b895664ede32aae576f860020fe71f22a0d55aa575a72ea79ecd"
+
+[[fixture]]
+path = "F1-worked-example.model.json"
+seed = 2001
+sha256 = "fea3ccb437e8cd68d8a1c9c9b3ab322ae6857478f22bf0a277f2c4d938f40933"
+
+[[fixture]]
+path = "F2-tied-timestamps.api.json"
+seed = 2002
+sha256 = "da68c80f87d01e9f354a482702eae26ef2248c1b157f7a0ac3bb4bb61a6d1485"
+
+[[fixture]]
+path = "F2-tied-timestamps.pdf"
+seed = 2002
+sha256 = "13aff9f171fec2745d066ed9a1dcd0c192150f8b305e9d7eff7f7bf41cbfd874"
+
+[[fixture]]
+path = "F2-tied-timestamps.model.json"
+seed = 2002
+sha256 = "954c642c12ae97ec194bb43fe97533627194a7de81939194e7e2d4258dbae204"
+
+[[fixture]]
+path = "F3-invalid-timestamps.api.json"
+seed = 2003
+sha256 = "b15191787fc58302d1ab86d1ab8ea0f76b40408da836456e1eb60fea7f35f62a"
+
+[[fixture]]
+path = "F4-paginated-2345.api.json"
+seed = 2004
+sha256 = "76c635f2e2bc1ca975f7436e1c0634b62b0d16643fa625ff9a3b5646e49645bd"
+
+[[fixture]]
+path = "F5-prototype-converted.api.json"
+seed = 2005
+sha256 = "b5eaa9915800021338692c5d1d0dbd0b92cfb08233bc144f05a3a4b77ba132fe"
+
+[[fixture]]
+path = "F5-prototype-converted.pdf"
+seed = 2005
+sha256 = "bb2861d636c8f29afb9ddd5bd280e3f0c1e0889ba2945d41af9d17d23f7a9405"
+
+[[fixture]]
+path = "F5-prototype-converted.model.json"
+seed = 2005
+sha256 = "dc93c84e553519cfd4be50a6639137298c8c6e131ea11dbfa8af00799163df2d"
+
+[[fixture]]
+path = "S-stress-overview.api.json"
+seed = 2006
+sha256 = "47341efc5280cec75c1b1ef39d3c451669bcad0f2668a69e5ef70453ec5f6542"
+
+[[fixture]]
+path = "S-stress-overview.pdf"
+seed = 2006
+sha256 = "68ea6d136dc41c465fc9ea49bed8da5159047ca5f155f6c1db323b8a81d0a1b1"
+
+[[fixture]]
+path = "S-stress-overview.model.json"
+seed = 2006
+sha256 = "7ca4497d9d9a74d862a04109e25fd7a2af4f72fdd9861df0602f0eb3d2a27207"
+
+[[fixture]]
+path = "S-no-spending.api.json"
+seed = 2007
+sha256 = "3bbdf9b3e4cc9e45f3125811fd567faa23569917afd01ec8e299245c2a632a2f"
+
+[[fixture]]
+path = "S-no-spending.pdf"
+seed = 2007
+sha256 = "3beed08fd0fade76c82fcd97b472b17888dd432cbba37fa0e1c05d35b6999f14"
+
+[[fixture]]
+path = "S-no-spending.model.json"
+seed = 2007
+sha256 = "2d3a36c3751e5831867553cebbef44cf7963f4f60b2e1de0fedf2e5e08ca239e"
+
+[[fixture]]
+path = "S-people-edge-cases.api.json"
+seed = 2008
+sha256 = "04cde85667ed1790de2e3cefe713bd5aa18f2c5f5f71e41fe4a493ec001292bb"
+
+[[fixture]]
+path = "S-people-edge-cases.pdf"
+seed = 2008
+sha256 = "5f0e2185c9b5f0901984b3888eee5a6d0e8a2b956ad82e53173e43893b54a733"
+
+[[fixture]]
+path = "S-people-edge-cases.model.json"
+seed = 2008
+sha256 = "4b8b95cae542f55aa56aa5ea78cd15f8a0d4d6dc5885cf7c3645fee6fa69300a"
+
+[[fixture]]
+path = "S-savings-edge-cases.api.json"
+seed = 2009
+sha256 = "ee155f351b574fd52289ec0facfe743d08ad87bd9f7d5e9f048c1ee4bb6d2b5e"
+
+[[fixture]]
+path = "S-savings-edge-cases.pdf"
+seed = 2009
+sha256 = "2c4c0a2080b8782b07bc9085a73d23c247cb4383fb5317fd80a678afa5c8f3c9"
+
+[[fixture]]
+path = "S-savings-edge-cases.model.json"
+seed = 2009
+sha256 = "da7b80c0bd804cac23035d62d489a1cf06a1dc7f131825a5f1d73d74d8187608"
+
+[[fixture]]
+path = "S-cash-edge-cases.api.json"
+seed = 2010
+sha256 = "8997e614c537eca9de6628572880e63a60755dcb556de9fd648742ba10b5a07f"
+
+[[fixture]]
+path = "S-cash-edge-cases.pdf"
+seed = 2010
+sha256 = "c6b9d302e5b34b7ff68199a1397a7afac5715182f52414fdac6eb8d6feff479a"
+
+[[fixture]]
+path = "S-cash-edge-cases.model.json"
+seed = 2010
+sha256 = "0fd500b731904328a9ee075b703073541f795bbc144b79eb3cee51d3cdb4d8a9"
+
 [[recorded]]
 path = "F-GOLDEN.items.json"
 source = "F-GOLDEN.pdf"
@@ -312,3 +442,45 @@ source = "F-CHAIN-BREAK.pdf"
 source_sha256 = "0f3be3a59e7d2d51128ed3fcf53785d6655dc44720ea1ad153ea10397930177a"
 engine = "pdfjs 6.4.299"
 sha256 = "41cc6727ecca1dbe88b9b06e5ead253af0427c3fc1e822b2042d14bf86e0db9a"
+
+[[recorded]]
+path = "F5-prototype-converted.report.json"
+source = "F5-prototype-converted.api.json"
+source_sha256 = "b5eaa9915800021338692c5d1d0dbd0b92cfb08233bc144f05a3a4b77ba132fe"
+engine = "mpesa_core analysis"
+sha256 = "4c871cd8fe61e628f0ad8bc0b419ecb8fc00923d4d2b2a4aec3623fb0291d476"
+
+[[recorded]]
+path = "S-stress-overview.report.json"
+source = "S-stress-overview.api.json"
+source_sha256 = "47341efc5280cec75c1b1ef39d3c451669bcad0f2668a69e5ef70453ec5f6542"
+engine = "mpesa_core analysis"
+sha256 = "48752f9512a4524fc8d08976c952cbb0eac1dba607fdaafb3733f7c27150118b"
+
+[[recorded]]
+path = "S-no-spending.report.json"
+source = "S-no-spending.api.json"
+source_sha256 = "3bbdf9b3e4cc9e45f3125811fd567faa23569917afd01ec8e299245c2a632a2f"
+engine = "mpesa_core analysis"
+sha256 = "cf8035e06b5078aab3a54b02166552beddf1f4022f70244076fc955d42bb0ae1"
+
+[[recorded]]
+path = "S-people-edge-cases.report.json"
+source = "S-people-edge-cases.api.json"
+source_sha256 = "04cde85667ed1790de2e3cefe713bd5aa18f2c5f5f71e41fe4a493ec001292bb"
+engine = "mpesa_core analysis"
+sha256 = "f38d83701e5b31e928d7ec986e0a6cd20dc4067e8fef4324bb79d4feb7de8f52"
+
+[[recorded]]
+path = "S-savings-edge-cases.report.json"
+source = "S-savings-edge-cases.api.json"
+source_sha256 = "ee155f351b574fd52289ec0facfe743d08ad87bd9f7d5e9f048c1ee4bb6d2b5e"
+engine = "mpesa_core analysis"
+sha256 = "f564bc556b8cf5d3147beb3fce6d3c4bacf4ae092553b52c2fb1ce4b7db29941"
+
+[[recorded]]
+path = "S-cash-edge-cases.report.json"
+source = "S-cash-edge-cases.api.json"
+source_sha256 = "8997e614c537eca9de6628572880e63a60755dcb556de9fd648742ba10b5a07f"
+engine = "mpesa_core analysis"
+sha256 = "1749fd89dfef78b8e992b791ad468916870abc9aa57cac04af4c89b008ab0bd4"

@@ -17,20 +17,30 @@ const WEB = join(import.meta.dirname, "..");
 const OUT = join(WEB, "out");
 const ROUTES = [
   "/",
-  "/upload/",
-  "/processing/",
-  "/recovery/",
-  "/analysis-summary/",
-  "/overview/",
-  "/ledger/",
-  "/breakdown/",
-  "/breakdown/spending/",
-  "/breakdown/people/",
-  "/breakdown/money-in/",
-  "/breakdown/cash/",
-  "/breakdown/savings/",
-  "/breakdown/fees/",
+  "/upload",
+  "/processing",
+  "/recovery",
+  "/analysis-summary",
+  "/overview",
+  "/ledger",
+  "/breakdown",
+  "/breakdown/spending",
+  "/breakdown/people",
+  "/breakdown/money-in",
+  "/breakdown/cash",
+  "/breakdown/savings",
+  "/breakdown/fees",
 ];
+
+/**
+ * The built page file for a route: index.html for the home page, else the route's .html file.
+ *
+ * @param {string} route The route.
+ * @returns {string} The file's path.
+ */
+function page_file(route) {
+  return join(OUT, route === "/" ? "index.html" : `${route}.html`);
+}
 const INLINE_SCRIPT = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g;
 
 let server;
@@ -49,11 +59,11 @@ after(async () => {
 /**
  * The built HTML file for a route.
  *
- * @param {string} route The route, ending in "/".
+ * @param {string} route The route.
  * @returns {string} The page's HTML.
  */
 function html_of(route) {
-  return readFileSync(join(OUT, route, "index.html"), "utf8");
+  return readFileSync(page_file(route), "utf8");
 }
 
 /**
@@ -68,7 +78,7 @@ function script_sources(csp) {
 }
 
 test("the app is a static export with a page for every route", () => {
-  for (const route of ROUTES) assert.ok(existsSync(join(OUT, route, "index.html")), route);
+  for (const route of ROUTES) assert.ok(existsSync(page_file(route)), route);
 });
 
 test("no server code is left: no proxy, no next/server, no headers()", () => {
@@ -166,4 +176,22 @@ test("the CSP check fails when an inline script is not covered", () => {
   const planted = html_of("/").replace("</body>", "<script>planted()</script></body>");
   assert.equal(uncovered_inline_scripts(planted, csp), 1);
   assert.ok(readdirSync(OUT).length > 0);
+});
+
+test("an unknown address gets the 404 page under its CSP with no violation (found by the prototype's browser tests)", async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const consoleLines = [];
+  page.on("console", (message) => consoleLines.push(message.text()));
+  await context.addInitScript(() => {
+    window.__cspViolations = 0;
+    document.addEventListener("securitypolicyviolation", () => {
+      window.__cspViolations += 1;
+    });
+  });
+  const response = await page.goto(`${server.origin}/no-such-page`, { waitUntil: "networkidle" });
+  assert.equal(response.status(), 404);
+  assert.equal(await page.evaluate(() => window.__cspViolations ?? 0), 0);
+  assert.deepEqual(consoleLines.filter((line) => /Content Security Policy/i.test(line)), []);
+  await context.close();
 });

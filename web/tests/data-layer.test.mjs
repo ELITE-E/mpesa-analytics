@@ -63,10 +63,19 @@ test("the import summary is built from the pipeline result, quality and the impo
     period_end: result.period.end,
     status: "completed",
     transaction_count: result.transactions.length,
-    previously_imported_transaction_count: plan.counts.link,
+    previously_imported_transaction_count: 0,
     unclassified_transaction_count: result.quality.unclassified_rows,
-    observation_counts: plan.counts.preserve ? { COLLISION: plan.counts.preserve } : {},
+    observation_counts: {},
   });
+});
+
+test("the plan's counts use the core's names, and rows matched or collided are counted from them", () => {
+  const { pipeline_result: result, plan } = fixtures["F-GOLDEN"];
+  // mpesa_core.contracts.ImportPlanCounts; against an empty session every row is new.
+  assert.deepEqual(plan.counts, { new: result.transactions.length, matched: 0, collided: 0 });
+  const summary = toImportSummary(3, result, { ...plan, counts: { new: 1, matched: 4, collided: 2 } });
+  assert.equal(summary.previously_imported_transaction_count, 4);
+  assert.deepEqual(summary.observation_counts, { COLLISION: 2 });
 });
 
 test("a created import holds the summary, the report as analytics, and the verification token", () => {
@@ -123,9 +132,18 @@ test("the engine's codes and the core's codes are all covered", () => {
     "DOMAIN_ROW",
     "DATE_UNREADABLE",
     "ANALYSIS_FAILED",
+    "TOO_FEW_AMOUNTS",
   ]) {
     assert.ok(CORE_CODES.includes(code), code);
   }
+});
+
+test("too few money-in or money-out entries to find the columns has its own message (CP8b)", () => {
+  const sparse = toApiError({ code: "LAYOUT_UNRECOGNIZED", stage: "core", core_code: "TOO_FEW_AMOUNTS" });
+  assert.equal(sparse.code, "TOO_FEW_AMOUNTS");
+  assert.match(sparse.message, /too few/i);
+  assert.match(sparse.message, /paid-in|money-in|money in/i);
+  assert.notEqual(sparse.message, messageFor("LAYOUT_UNRECOGNIZED"));
 });
 
 test("an engine failure becomes an ApiError with the most specific code and its message", () => {
