@@ -6,13 +6,16 @@ docs/decisions/analysis-behaviour.md.
 """
 
 
-def analyze_transactions(rows, period=None):
+def analyze_transactions(rows, period=None, *, closing_balance=None):
     """Build the report for classified transactions.
 
     Args:
         rows: ``ClassifiedRow`` records in print order.
         period: Tuple of start and end, as datetimes or dates. By default, or if either is None,
             the period runs from the earliest to the latest readable completion time.
+        closing_balance: The statement's closing balance by print order (``measure_balances``,
+            D-06), which the report then gives as ``cash_flow.closing_balance`` (behaviour-changes
+            T-4). None, the default, falls back to the balance of the latest completion time.
 
     Returns:
         The report: a dict of plain JSON values with the sections ``cash_flow``, ``spending``,
@@ -32,7 +35,7 @@ def analyze_transactions(rows, period=None):
     from mpesa_core.errors import AnalysisCode, AnalysisError
 
     try:
-        return build_report(rows, period)
+        return build_report(rows, period, closing_balance=closing_balance)
     except (TypeError, ValueError) as error:
         row_index = first_unreadable_date(rows)
         if row_index is None:

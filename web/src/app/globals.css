@@ -1,0 +1,235 @@
+@import "tailwindcss";
+/* Bar widths are classes, not style attributes (src/lib/bar-width.ts, CSP style-src 'self'). */
+@source inline("w-[{0..100}%]");
+
+/*
+ * Sovereign Ledger — the Google Stitch design system.
+ * Colours, fonts and radii are copied from stitch-export/ so that class
+ * names in the Stitch HTML (bg-surface, font-label, rounded-xl, …) can be
+ * used unchanged.
+ */
+@theme {
+  /*
+   * Neutrals, primary, secondary and tertiary follow DESIGN.md's written spec
+   * (2026-11, user decision) rather than its generated token list: slate
+   * canvas #f8fafc, surfaces #ffffff and #f1f5f9, ink #0f172a, muted slate,
+   * borders #e2e8f0/#cbd5e1, contrast surface #0f172a, emerald #065f46
+   * (interactive #047857) and amber #d97706 (deep #b45309). Steps the spec
+   * doesn't name are interpolated on the same slate scale. Muted text is
+   * #475569 rather than the spec's #64748b, which falls below WCAG AA for
+   * small text on #f1f5f9.
+   */
+  --color-surface: #f8fafc;
+  --color-surface-dim: #cbd5e1;
+  --color-surface-bright: #f8fafc;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f1f5f9;
+  --color-surface-container: #eaeff5;
+  --color-surface-container-high: #e2e8f0;
+  --color-surface-container-highest: #d9e0e8;
+  --color-surface-variant: #d9e0e8;
+  --color-surface-tint: #047857;
+  --color-on-surface: #0f172a;
+  --color-on-surface-variant: #475569;
+  --color-inverse-surface: #0f172a;
+  --color-inverse-on-surface: #f1f5f9;
+  --color-background: #f8fafc;
+  --color-on-background: #0f172a;
+  --color-outline: #64748b;
+  --color-outline-variant: #cbd5e1;
+
+  --color-primary: #065f46;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #047857;
+  --color-on-primary-container: #8bd6b7;
+  --color-primary-fixed: #a6f2d1;
+  --color-primary-fixed-dim: #8bd6b6;
+  --color-on-primary-fixed: #002116;
+  --color-on-primary-fixed-variant: #00513b;
+  --color-inverse-primary: #8bd6b6;
+
+  --color-secondary: #334155;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #e2e8f0;
+  --color-on-secondary-container: #475569;
+  --color-secondary-fixed: #dae2fd;
+  --color-secondary-fixed-dim: #bec6e0;
+  --color-on-secondary-fixed: #131b2e;
+  --color-on-secondary-fixed-variant: #3f465c;
+
+  --color-tertiary: #b45309;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #d97706;
+  --color-on-tertiary-container: #ffb87e;
+  --color-tertiary-fixed: #ffdcc3;
+  --color-tertiary-fixed-dim: #ffb77d;
+  --color-on-tertiary-fixed: #2f1500;
+  --color-on-tertiary-fixed-variant: #6e3900;
+
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+
+  /* Stitch's roundness scale is tighter than Tailwind's default. */
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+  /* DESIGN.md "Shapes": fully rounded, only for status dots, indicator badges, bars and round icons; cards use xl (8px), controls and badges lg (4px). */
+  --radius-pill: 9999px;
+
+  /*
+   * DESIGN.md "Elevation & Depth": cards rest on a 1px hairline border with
+   * the Level 1 ambient shadow (slate-tinted), not on shadow alone.
+   */
+  --shadow-sm: 0 1px 3px 0 rgb(15 23 42 / 0.04), 0 1px 2px -1px rgb(15 23 42 / 0.02);
+  --color-hairline: #e2e8f0;
+  --color-hairline-strong: #cbd5e1;
+  /* DESIGN.md "Tariff & Excise Pill". */
+  --color-tariff: #fef3c7;
+  --color-tariff-border: #fde68a;
+
+  /*
+   * Sovereign Ledger spacing and type scale (DESIGN.md). Later Stitch screens
+   * (Overview onwards) use these as utilities: gap-space-md, text-headline-sm,
+   * font-label-caps, …
+   */
+  --spacing-space-2xs: 0.125rem;
+  --spacing-space-xs: 0.25rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-md: 0.75rem;
+  --spacing-space-base: 1rem;
+  --spacing-space-lg: 1.25rem;
+  --spacing-space-xl: 1.5rem;
+  --spacing-space-2xl: 2rem;
+  --spacing-space-3xl: 3rem;
+  --spacing-margin-mobile: 1rem;
+
+  --text-headline-xl-mobile: 28px;
+  --text-headline-xl-mobile--line-height: 36px;
+  --text-headline-xl-mobile--letter-spacing: -0.02em;
+  --text-headline-xl-mobile--font-weight: 700;
+
+  --text-headline-lg-mobile: 22px;
+  --text-headline-lg-mobile--line-height: 30px;
+  --text-headline-lg-mobile--letter-spacing: -0.015em;
+  --text-headline-lg-mobile--font-weight: 600;
+  --text-headline-md: 20px;
+  --text-headline-md--line-height: 28px;
+  --text-headline-md--letter-spacing: -0.015em;
+  --text-headline-md--font-weight: 600;
+  /*
+   * Reading sizes raised above Stitch's (2026-11, user decision): its 10-12px
+   * labels and body text read too small on phones and desktops. Stitch had
+   * headline-sm 16/24, body-md 14/20, body-sm 12/18, label-numeric-md 14/20,
+   * label-numeric-sm 12/16, label-caps 10/14.
+   */
+  --text-headline-sm: 18px;
+  --text-headline-sm--line-height: 26px;
+  --text-headline-sm--letter-spacing: -0.01em;
+  --text-headline-sm--font-weight: 600;
+  --text-body-md: 16px;
+  --text-body-md--line-height: 24px;
+  --text-body-md--letter-spacing: 0em;
+  --text-body-md--font-weight: 400;
+  --text-body-sm: 14px;
+  --text-body-sm--line-height: 20px;
+  --text-body-sm--letter-spacing: 0.005em;
+  --text-body-sm--font-weight: 400;
+  --text-label-numeric-lg: 24px;
+  --text-label-numeric-lg--line-height: 32px;
+  --text-label-numeric-lg--letter-spacing: -0.02em;
+  --text-label-numeric-lg--font-weight: 600;
+  --text-label-numeric-md: 16px;
+  --text-label-numeric-md--line-height: 22px;
+  --text-label-numeric-md--letter-spacing: -0.01em;
+  --text-label-numeric-md--font-weight: 500;
+  --text-label-numeric-sm: 14px;
+  --text-label-numeric-sm--line-height: 20px;
+  --text-label-numeric-sm--letter-spacing: 0em;
+  --text-label-numeric-sm--font-weight: 500;
+  --text-label-caps: 11px;
+  --text-label-caps--line-height: 16px;
+  --text-label-caps--letter-spacing: 0.08em;
+  --text-label-caps--font-weight: 600;
+}
+
+/* Font families are loaded with next/font in app/layout.tsx. */
+@theme inline {
+  --font-headline: var(--font-plus-jakarta-sans);
+  --font-display: var(--font-plus-jakarta-sans);
+  --font-body: var(--font-inter);
+  --font-label: var(--font-jetbrains-mono);
+
+  /* Per-token families, matching the type scale above. */
+  --font-headline-xl-mobile: var(--font-plus-jakarta-sans);
+  --font-headline-lg-mobile: var(--font-plus-jakarta-sans);
+  --font-headline-md: var(--font-plus-jakarta-sans);
+  --font-headline-sm: var(--font-plus-jakarta-sans);
+  --font-body-md: var(--font-inter);
+  --font-body-sm: var(--font-inter);
+  --font-label-numeric-lg: var(--font-jetbrains-mono);
+  --font-label-numeric-md: var(--font-jetbrains-mono);
+  --font-label-numeric-sm: var(--font-jetbrains-mono);
+  --font-label-caps: var(--font-jetbrains-mono);
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@layer base {
+  html,
+  body {
+    width: 100vw;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    min-height: max(884px, 100dvh);
+    overscroll-behavior: none;
+  }
+
+  ::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/*
+ * DESIGN.md "Transaction Chips & Receipt Badges". The M-Pesa receipt code in
+ * a micro-badge, and a charge flagged inline in an amber tariff pill. Both
+ * are semibold rather than the spec's bold: JetBrains Mono 700 isn't loaded.
+ */
+@utility receipt-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.0625rem 0.375rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-hairline);
+  background-color: var(--color-surface-container-low);
+  color: #1e293b;
+  font-family: var(--font-label);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+@utility charge-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.375rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-tariff-border);
+  background-color: var(--color-tariff);
+  color: var(--color-tertiary);
+  font-family: var(--font-label);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+}

@@ -439,3 +439,10 @@ def test_the_tied_fixture_shares_its_latest_completion_time_between_rows():
     times = Counter(row["completion_time"] for row in tied_ledger()["rows"])
     assert times[max(times)] >= 2
     assert len(times) < len(tied_ledger()["rows"]) / 2
+
+
+def test_the_tied_fixture_ties_more_than_sixteen_rows_at_its_latest_time():
+    # numpy sorts up to 16 items by insertion, which keeps ties in order on every platform, so a
+    # tie group must be larger to show a platform difference.
+    times = Counter(row["completion_time"] for row in tied_ledger()["rows"])
+    assert times[max(times)] > 16

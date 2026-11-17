@@ -7,6 +7,7 @@ the tie-breaker, so input order cannot pass for it. Runs under CPython and Pyodi
 
 from analysis_rows import fake_receipt, row
 
+from mpesa_core.analysis import analyze_transactions
 from mpesa_core.analysis.cash_flow import calculate_closing_balance
 from mpesa_core.analysis.frame import prepared_frame
 from mpesa_core.analysis.spending import calculate_largest_purchases, get_top_spending_recipients
@@ -68,3 +69,14 @@ def test_closing_balance_on_a_tied_latest_time_takes_the_largest_receipt_number(
         for position in range(TIED_COUNT)
     ]
     assert calculate_closing_balance(prepared_frame(rows)) == 90.0
+
+
+def test_a_closing_balance_given_by_the_caller_is_the_reports_closing_balance():
+    rows = [row(1, "TRANSFER_OUT", 10.0, balance=70.0, entity="Example Person 12")]
+    report = analyze_transactions(rows, closing_balance=12.5)
+    assert report["cash_flow"]["closing_balance"] == 12.5
+
+
+def test_without_a_given_closing_balance_the_report_falls_back_to_the_latest_time():
+    rows = [row(1, "TRANSFER_OUT", 10.0, balance=70.0, entity="Example Person 12")]
+    assert analyze_transactions(rows)["cash_flow"]["closing_balance"] == 70.0

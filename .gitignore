@@ -26,3 +26,6 @@ dist/
 build/
 web/public/vendor/
 web/public/runtime/
+web/src/components/icon-paths.ts
+web/.next/
+web/out/

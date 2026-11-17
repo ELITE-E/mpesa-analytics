@@ -78,3 +78,37 @@ def test_pre_commit_runs_tools_through_the_launcher(tool):
     hooks = (REPO / ".pre-commit-config.yaml").read_text(encoding="utf-8")
     assert f"tools/guards/run_node_tool.py {tool}" in hooks
     assert f"node_modules/.bin/{tool}" not in hooks
+
+
+# ADR 0014: the web app is linted by its own ESLint 9 from web/; the repo's ESLint 10 uses one
+# explicit config for everything else.
+
+
+def test_web_eslint_runs_from_web_with_no_node_on_path():
+    completed = run_without_node_on_path("web-eslint", "--version")
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert completed.stdout.strip().startswith("v9.")
+
+
+def test_pre_commit_and_ci_lint_the_web_app_with_its_own_eslint():
+    hooks = (REPO / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    ci = (REPO / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    assert "tools/guards/run_node_tool.py web-eslint ." in hooks
+    assert "npm ci --prefix web" in ci
+    assert "run_node_tool.py web-eslint ." in ci
+
+
+def test_the_root_eslint_always_uses_its_own_config():
+    hooks = (REPO / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    ci = (REPO / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    assert "run_node_tool.py eslint --config eslint.config.mjs ." in hooks
+    assert "eslint --config eslint.config.mjs ." in ci
+
+
+def test_the_two_eslint_configs_split_web_between_them():
+    root = (REPO / "eslint.config.mjs").read_text(encoding="utf-8")
+    web = (REPO / "web/eslint.config.mjs").read_text(encoding="utf-8")
+    for owned_by_web in ('"web/src/**"', '"web/tests/**"', '"web/eslint.config.mjs"'):
+        assert owned_by_web in root, owned_by_web
+    for owned_by_root in ('"harness/**"', '"probe/**"', '"scripts/**"'):
+        assert owned_by_root in web, owned_by_root

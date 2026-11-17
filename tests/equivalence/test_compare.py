@@ -1600,7 +1600,10 @@ def test_an_old_report_whose_sort_values_differ_still_fails(tmp_path, tied_state
         report["spending"]["largest_purchases"][0]["amount"] += 1.0
 
     completed = compare_tied(tmp_path, tied_statement, swap_untied)
-    assert counts_of(completed)["report_paths_tie_order_only"] == "0"
+    counts = counts_of(completed)
+    # The changed amount is never tie order. (F-TIED's closing balance may still count as tie
+    # order: the old rule and print order pick different rows at its tied latest time, T-4.)
+    assert not any(label.startswith("report_tie_order_only spending.") for label in counts)
     assert gates_of(completed)["report_paths_equal"] == "FAIL"
 
 

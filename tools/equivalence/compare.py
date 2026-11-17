@@ -299,7 +299,10 @@ def main():
             node_pages = None if args.pdf is None else _extract_statement_pages(args.pdf)
         assembly = assemble_rows(statement_pages)
         new_classified = classify_transactions(canonicalize_rows(assembly["rows"]))[0]
-        new_report = analyze_transactions(new_classified)
+        orientation = reconcile(statement_pages, assembly["rows"])["chain_orientation"]
+        # The same print-order closing balance as pipeline.run (behaviour-changes T-4).
+        closing = measure_balances(assembly["rows"], orientation)["closing_balance"]
+        new_report = analyze_transactions(new_classified, closing_balance=closing)
     except CompareError as error:
         print(f"compare: ERROR ({error.code})")
         return CANNOT_RUN

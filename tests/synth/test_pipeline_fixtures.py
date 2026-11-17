@@ -41,15 +41,16 @@ def composed(statement_pages):
         **measure_unclassified(transactions),
         "account_number_unreadable": digest is None,
     }
+    balances = measure_balances(rows, quality["chain_orientation"])
     return {
         "schema_version": SCHEMA_VERSION,
         "verification_token": token,
         "account_digest": digest,
         "processed_at": None,
         "period": pipeline.measure_period(transactions),
-        "balances": measure_balances(rows, quality["chain_orientation"]),
+        "balances": balances,
         "transactions": transactions,
-        "report": analyze_transactions(transactions),
+        "report": analyze_transactions(transactions, closing_balance=balances["closing_balance"]),
         "quality": quality,
         "diagnostics": diagnostics,
     }
@@ -135,3 +136,12 @@ def test_the_result_carries_the_digest_of_the_invented_number(name):
     expected = hashlib.sha256(INVENTED_CANONICAL_PHONE.encode("ascii")).hexdigest()
     assert pipeline_result["account_digest"] == expected
     assert pipeline_result["quality"]["account_number_unreadable"] is False
+
+
+@pytest.mark.parametrize("name", WITH_ROWS)
+def test_the_reports_closing_balance_follows_print_order_like_balances(name):
+    # CP8a-3 item 6 (behaviour-changes T-4): one rule for both closing balances.
+    pipeline_result = pipeline.run(pages_of(name))
+    closing = pipeline_result["balances"]["closing_balance"]
+    assert closing is not None
+    assert pipeline_result["report"]["cash_flow"]["closing_balance"] == closing

@@ -48,22 +48,22 @@ def composed(statement_pages, processed_at=None):
     token = attest(statement_pages)
     rows = build_rows(statement_pages)
     transactions, diagnostics = classify_transactions(canonicalize_rows(rows))
-    report = analyze_transactions(transactions)
     digest = account_digest(statement_pages)
     quality = {
         **reconcile(statement_pages, rows),
         **measure_unclassified(transactions),
         "account_number_unreadable": digest is None,
     }
+    balances = measure_balances(rows, quality["chain_orientation"])
     return {
         "schema_version": SCHEMA_VERSION,
         "verification_token": token,
         "account_digest": digest,
         "processed_at": processed_at,
         "period": pipeline.measure_period(transactions),
-        "balances": measure_balances(rows, quality["chain_orientation"]),
+        "balances": balances,
         "transactions": transactions,
-        "report": report,
+        "report": analyze_transactions(transactions, closing_balance=balances["closing_balance"]),
         "quality": quality,
         "diagnostics": diagnostics,
     }

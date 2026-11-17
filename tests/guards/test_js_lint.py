@@ -118,5 +118,10 @@ def test_prettier_accepts_formatted_code(tmp_path):
 
 
 def test_real_repo_eslint_is_clean():
-    completed = subprocess.run([str(ESLINT), "."], cwd=REPO, capture_output=True, text=True)
+    completed = subprocess.run(
+        [str(ESLINT), "--config", "eslint.config.mjs", "."],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+    )
     assert completed.returncode == 0, completed.stdout[:2000]

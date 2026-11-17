@@ -71,10 +71,11 @@ export function configure_reader({ pdfjsLib, workerSrc }) {
  * @param {number} [limits.byteLimit] Largest input, in bytes.
  * @param {number} [limits.pageLimit] Most pages.
  * @param {number} [limits.timeoutMs] Longest extraction, in milliseconds.
+ * @param {Function} [onPage] Called after each page with its number and the page count.
  * @returns {Promise<object>} The statement pages.
  * @throws {ExtractionError} With a code, whatever goes wrong.
  */
-export async function extract_statement_pages(pdfBytes, password, limits = {}) {
+export async function extract_statement_pages(pdfBytes, password, limits = {}, onPage) {
   const byteLimit = limits.byteLimit ?? DEFAULT_BYTE_LIMIT;
   const pageLimit = limits.pageLimit ?? DEFAULT_PAGE_LIMIT;
   const timeoutMs = limits.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -94,7 +95,8 @@ export async function extract_statement_pages(pdfBytes, password, limits = {}) {
     timer = setTimeout(() => reject(new ExtractionError("TIMEOUT")), timeoutMs);
   });
   try {
-    return await Promise.race([read_all_pages(loadingTask, pageLimit, deadline), timedOut]);
+    const reading = read_all_pages(loadingTask, { pageLimit, deadline, onPage });
+    return await Promise.race([reading, timedOut]);
   } catch (error) {
     throw to_extraction_error(error);
   } finally {
@@ -126,18 +128,21 @@ function check_input(pdfBytes, byteLimit) {
  * Side effects: asks pdf.js for each page, and releases each one.
  *
  * @param {object} loadingTask The pdf.js loading task.
- * @param {number} pageLimit Most pages.
- * @param {number} deadline Time to give up, in milliseconds since the epoch.
+ * @param {object} reading How to read.
+ * @param {number} reading.pageLimit Most pages.
+ * @param {number} reading.deadline Time to give up, in milliseconds since the epoch.
+ * @param {Function} [reading.onPage] Called after each page with its number and the page count.
  * @returns {Promise<object>} The statement pages.
  * @throws {ExtractionError} TOO_MANY_PAGES or TIMEOUT.
  */
-async function read_all_pages(loadingTask, pageLimit, deadline) {
+async function read_all_pages(loadingTask, { pageLimit, deadline, onPage }) {
   const documentProxy = await loadingTask.promise;
   check_deadline(deadline);
   if (documentProxy.numPages > pageLimit) throw new ExtractionError("TOO_MANY_PAGES");
   const pages = [];
   for (let number = 1; number <= documentProxy.numPages; number++) {
     pages.push(await read_page(documentProxy, number));
+    onPage?.(number, documentProxy.numPages);
     check_deadline(deadline);
   }
   return { schema_version: SCHEMA_VERSION, engine: `pdfjs ${reader.version}`, pages };

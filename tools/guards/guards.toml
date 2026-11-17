@@ -7,7 +7,7 @@ prune_names = [
   ".venv", ".vscode", ".cache", ".ruff_cache", "node_modules", "__pycache__",
   ".pytest_cache", ".import_linter_cache", "dist", "build",
 ]
-prune_paths = ["web/public/vendor", "web/public/runtime"]
+prune_paths = ["web/public/vendor", "web/public/runtime", "web/.next", "web/out"]
 
 [patterns]
 # Fully matched against the token with spaces, plus signs and hyphens removed.
@@ -31,7 +31,11 @@ risky_suffixes = [
 risky_allow = ["tests/fixtures/synthetic/*.csv", "tests/fixtures/synthetic/*.xlsx"]
 json_allow_dirs = ["tests/fixtures/synthetic/"]
 # Exact paths.
-json_allow = ["package.json", "package-lock.json", "web/package.json", "web/package-lock.json"]
+json_allow = [
+  "package.json", "package-lock.json", "web/package.json", "web/package-lock.json",
+  # The Next.js app's TypeScript config (CP8b).
+  "web/tsconfig.json",
+]
 
 [names]
 # Enforced by check_banned_names.py; eslint.config.mjs keeps the same lists for JS and TS.

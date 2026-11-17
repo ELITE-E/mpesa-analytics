@@ -10,3 +10,9 @@ web/public/runtime/
 .venv/
 # Byte-pinned by the fixture provenance guard; reformatting would break regeneration.
 tests/fixtures/synthetic/
+# The ported Next.js prototype keeps its own formatting (CP8b, docs/web-port-map.md); build output is generated.
+web/src/
+web/tests/
+web/.next/
+web/out/
+web/next-env.d.ts

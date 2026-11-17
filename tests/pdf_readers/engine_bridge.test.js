@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   ENGINE_FAILURE_CODES,
   core_failure,
+  plan_import,
   reader_failure,
   run_pipeline,
 } from "../../pdf_reader/bridge.js";
@@ -171,4 +172,32 @@ test("a failure after pandas loaded still reports the load time", async () => {
   const outcome = await run_pipeline(core, PAGES_TEXT, null);
   assert.equal(outcome.failure.core_code, "DATE_UNREADABLE");
   assert.equal(outcome.pandas_load_ms, 12.5);
+});
+
+test("plan_import asks the core for the import plan with JSON text in and out (CP8b)", () => {
+  const seen = [];
+  const core = {
+    plan_json(requestText) {
+      seen.push(requestText);
+      return JSON.stringify({ actions: [], counts: { insert: 0, link: 0, preserve: 0 } });
+    },
+  };
+  const pipelineResult = { transactions: [{ receipt_no: "A" }] };
+  const outcome = plan_import(core, JSON.stringify(pipelineResult), "[]");
+  assert.equal(outcome.ok, true);
+  assert.equal(typeof outcome.plan_json, "string");
+  assert.deepEqual(JSON.parse(seen[0]), {
+    incoming_rows: pipelineResult.transactions,
+    existing_transactions: [],
+  });
+});
+
+test("a plan the core refuses is ENGINE_FAILED and its message is dropped", () => {
+  const core = {
+    plan_json() {
+      throw new Error("ImportPlanError ... Example Person 12");
+    },
+  };
+  const outcome = plan_import(core, JSON.stringify({ transactions: [] }), "[]");
+  assert.deepEqual(outcome, { ok: false, failure: { code: "ENGINE_FAILED", stage: "core" } });
 });

@@ -20,6 +20,7 @@ const scratch = mkdtempSync(join(tmpdir(), "f-tied-"));
 let browserReport;
 let cpythonReport;
 let transactions;
+let browserBalances;
 
 before(async () => {
   const python = join(REPO, ".venv/bin/python");
@@ -40,6 +41,7 @@ before(async () => {
     const browserResult = JSON.parse(outcome.pipeline_result_json);
     browserReport = browserResult.report;
     transactions = browserResult.transactions;
+    browserBalances = browserResult.balances;
     const [envelope] = run_in_cpython([
       { statement_pages_json: outcome.statement_pages_json, processed_at: PROCESSED_AT },
     ]);
@@ -67,7 +69,9 @@ test("the tied fixture really ties every ordering it is meant to test", () => {
   assert.ok(has_repeat(spending.largest_purchases.map((entry) => entry.amount)));
   assert.ok(has_repeat(spending.top_recipients.map((entry) => entry.amount_received)));
   const times = transactions.map((transaction) => transaction.completion_time).sort();
-  assert.equal(times.at(-1), times.at(-2), "latest completion time is shared");
+  const latestGroup = times.filter((time) => time === times.at(-1)).length;
+  // numpy sorts 16 items or fewer by insertion, which keeps ties in order everywhere.
+  assert.ok(latestGroup > 16, `latest completion time shared by ${latestGroup} rows`);
 });
 
 test("largest purchases are the same, in the same order, in the browser and CPython", () => {
@@ -79,6 +83,10 @@ test("largest purchases are the same, in the same order, in the browser and CPyt
 
 test("top recipients are the same, in the same order, in the browser and CPython", () => {
   assert.deepEqual(browserReport.spending.top_recipients, cpythonReport.spending.top_recipients);
+});
+
+test("the report's closing balance is the print-order closing balance (T-4)", () => {
+  assert.equal(browserReport.cash_flow.closing_balance, browserBalances.closing_balance);
 });
 
 test("the closing balance on a tied latest time is the same in the browser and CPython", () => {

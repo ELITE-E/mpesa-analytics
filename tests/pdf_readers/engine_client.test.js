@@ -174,3 +174,93 @@ test("one run may set its own timeout, and the outcome counts worker restarts", 
   assert.equal(next.timings.worker_restarts, 1);
   engine.close();
 });
+
+test("a run hands the session's transactions to the worker for the import plan (CP8b)", async () => {
+  const workers = [];
+  const engine = create_statement_engine({
+    create_worker: () => workers[workers.push(answering_worker()) - 1],
+    runtime_url: RUNTIME_URL,
+  });
+  await engine.run({ pdf_bytes: new Uint8Array(8), existing_transactions_json: "[]" });
+  const runMessage = workers[0].posted.find((message) => message.type === "run");
+  assert.equal(runMessage.existing_transactions_json, "[]");
+  engine.close();
+});
+
+test("progress the worker reports reaches the run's progress callback (CP8b)", async () => {
+  const engine = create_statement_engine({
+    create_worker: () =>
+      fake_worker((message, reply) => {
+        if (message.type === "start") reply({ type: "ready", timings: {} });
+        if (message.type === "run") {
+          reply({
+            type: "progress",
+            request_id: message.request_id,
+            stage: "reading",
+            page: 1,
+            page_count: 2,
+          });
+          reply({ type: "progress", request_id: message.request_id, stage: "core" });
+          reply({
+            type: "run_done",
+            request_id: message.request_id,
+            ok: true,
+            pipeline_result_json: "{}",
+            timings: {},
+          });
+        }
+      }),
+    runtime_url: RUNTIME_URL,
+  });
+  const seen = [];
+  const outcome = await engine.run({
+    pdf_bytes: new Uint8Array(8),
+    on_progress: (step) => seen.push(step),
+  });
+  assert.equal(outcome.ok, true);
+  assert.deepEqual(seen, [{ stage: "reading", page: 1, page_count: 2 }, { stage: "core" }]);
+  engine.close();
+});
+
+test("cancel ends a run with CANCELLED, terminates the worker and starts a fresh one (CP8b)", async () => {
+  const workers = [];
+  let stuck = true;
+  const engine = create_statement_engine({
+    create_worker: () => workers[workers.push(stuck ? stuck_worker() : answering_worker()) - 1],
+    runtime_url: RUNTIME_URL,
+  });
+  await engine.ready();
+  stuck = false;
+  const running = engine.run({ pdf_bytes: new Uint8Array(8) });
+  await new Promise((resolve) => setImmediate(resolve));
+  engine.cancel();
+  assert.deepEqual(await running, { ok: false, failure: { code: "CANCELLED", stage: "engine" } });
+  assert.equal(workers[0].terminated, true);
+  assert.equal(workers.length, 2);
+  assert.equal((await engine.run({ pdf_bytes: new Uint8Array(8) })).ok, true);
+  engine.close();
+});
+
+test("warm_up asks the started worker to load the analysis runtime ahead of time (CP8b)", async () => {
+  const workers = [];
+  const engine = create_statement_engine({
+    create_worker: () =>
+      workers[
+        workers.push(
+          fake_worker((message, reply) => {
+            if (message.type === "start") reply({ type: "ready", timings: {} });
+            if (message.type === "warm_up")
+              reply({ type: "warmed", timings: { pandas_load_ms: 5 } });
+          }),
+        ) - 1
+      ],
+    runtime_url: RUNTIME_URL,
+  });
+  const warmed = await engine.warm_up();
+  assert.deepEqual(warmed, { ok: true, timings: { pandas_load_ms: 5 } });
+  assert.deepEqual(
+    workers[0].posted.map((message) => message.type),
+    ["start", "warm_up"],
+  );
+  engine.close();
+});
