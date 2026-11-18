@@ -154,7 +154,11 @@ def test_analysis_error_without_a_row_states_its_code_only():
 
 
 def test_every_analysis_code_exists():
-    assert {code.name for code in AnalysisCode} == {"DATE_UNREADABLE", "ANALYSIS_FAILED"}
+    assert {code.name for code in AnalysisCode} == {
+        "DATE_UNREADABLE",
+        "ANALYSIS_FAILED",
+        "MERGE_REQUEST_INVALID",
+    }
 
 
 def test_analysis_error_is_a_core_error():

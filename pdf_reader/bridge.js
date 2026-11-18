@@ -121,6 +121,55 @@ export function plan_import(core, pipelineResultJson, existingTransactionsJson) 
 }
 
 /**
+ * Call one of the browser store's core functions (CP9b, ADR 0017): plan an import, validate a
+ * plan, or analyze a ledger across its statements, through `mpesa_core.bridge.call_json`. Loads
+ * pandas once if the merged analysis asks for it.
+ *
+ * Side effects: calls the core, and may load the analysis runtime once.
+ *
+ * @param {object} core The loaded core.
+ * @param {Function} core.call_json mpesa_core.bridge.call_json: a function name and JSON text in,
+ *   an envelope as JSON text out.
+ * @param {Function} core.load_analysis_runtime Loads pandas.
+ * @param {string} functionName `plan_statement_import`, `validate_import_plan` or `analyze_merged`.
+ * @param {string} requestText The function's request, as JSON text.
+ * @returns {Promise<object>} The core's envelope: `{ok: true, answer}`, or `{ok: false, error:
+ *   {code, row_index}}` with the core's code, or ENGINE_FAILED when the core threw (its message,
+ *   which may quote a row, is dropped) or pandas could not be loaded.
+ */
+export async function call_store_core(core, functionName, requestText) {
+  let envelope = call_store_function(core, functionName, requestText);
+  if (envelope?.error?.code === ANALYSIS_RUNTIME_MISSING) {
+    envelope =
+      (await load_quietly(core)) === null
+        ? null
+        : call_store_function(core, functionName, requestText);
+  }
+  if (envelope === null || envelope.error?.code === ANALYSIS_RUNTIME_MISSING) {
+    return { ok: false, error: { code: "ENGINE_FAILED", row_index: null } };
+  }
+  return envelope;
+}
+
+/**
+ * Call one store function once and read its envelope.
+ *
+ * Side effects: runs the core.
+ *
+ * @param {object} core The loaded core.
+ * @param {string} functionName The function.
+ * @param {string} requestText Its request.
+ * @returns {object|null} The envelope, or null if the core threw.
+ */
+function call_store_function(core, functionName, requestText) {
+  try {
+    return JSON.parse(core.call_json(functionName, requestText));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Turn a PDF reader failure into the engine's failure.
  *
  * Side effects: none.

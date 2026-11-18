@@ -28,6 +28,7 @@ class AnalysisCode(Enum):
 
     DATE_UNREADABLE = "DATE_UNREADABLE"
     ANALYSIS_FAILED = "ANALYSIS_FAILED"
+    MERGE_REQUEST_INVALID = "MERGE_REQUEST_INVALID"
 
 
 class AttestationCode(Enum):

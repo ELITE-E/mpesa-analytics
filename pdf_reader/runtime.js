@@ -67,8 +67,8 @@ export class RuntimeLoadError extends Error {
  *
  * @param {string} runtimeUrl Same-origin URL of the runtime, ending in `<version>/`; the version
  *   is the start of the manifest's SHA-256.
- * @returns {Promise<object>} The pdf.js module and worker URL, the core (`run_json`,
- *   `load_analysis_runtime`, `wasm_memory_bytes`), the Pyodide instance (for measurement tools)
+ * @returns {Promise<object>} The pdf.js module and worker URL, the core (`run_json`, `plan_json`,
+ *   `call_json`, `load_analysis_runtime`, `wasm_memory_bytes`), the Pyodide instance (for measurement tools)
  *   and the load timings in milliseconds: verification, pdf.js import, Pyodide start, wheel
  *   install (with importing the bridge) and the total.
  * @throws {RuntimeIntegrityError} If the manifest or a file does not match.
@@ -103,6 +103,7 @@ async function load_absolute_runtime(runtimeUrl) {
   const coreBridge = pyodide.pyimport("mpesa_core.bridge");
   const runJson = coreBridge.run_json;
   const planJson = coreBridge.plan_statement_import_json;
+  const callJson = coreBridge.call_json;
   const wheelInstalledAt = performance.now();
   return {
     pdfjsLib,
@@ -111,6 +112,7 @@ async function load_absolute_runtime(runtimeUrl) {
     pyodide,
     core: {
       plan_json: (requestText) => planJson(requestText),
+      call_json: (functionName, requestText) => callJson(functionName, requestText),
       run_json: (statementPagesText, processedAt) =>
         runJson(statementPagesText, processedAt ?? undefined),
       load_analysis_runtime: () => load_analysis_runtime(pyodide, runtimeUrl, manifest),

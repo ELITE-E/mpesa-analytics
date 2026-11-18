@@ -11,6 +11,7 @@ By default the app remembers nothing: a statement is read in your browser, shown
 - **Saved transactions on a device someone else uses.** Every saved ledger is encrypted (AES-GCM with a 256-bit key). Without the passphrase, the browser's storage holds only scrambled bytes, the protection settings (salt and iteration count) and your hint, if you set one.
 - **Copies of the browser's files.** Someone who copies the browser profile, or reads it with developer tools, gets the same scrambled bytes. Guessing the passphrase is slowed down on purpose: each guess costs 600,000 rounds of PBKDF2-SHA256.
 - **Changes made outside the app.** If saved data is changed, cut short or moved, the app notices, says so, and shows nothing from it. It never shows part of a damaged ledger.
+- **Statements from different accounts.** Each account's statements go into their own locked ledger and are never compared with another account's. A statement whose account cannot be read is kept only if you choose the ledger it belongs to.
 - **Things that are never saved at all.** The PDF itself, its password, the statement's verification code, the account digest, your mobile number, your name and your email address are never written to storage, locked or not. The app refuses to save anything that carries them.
 
 ## What the lock does not protect
@@ -26,6 +27,7 @@ By default the app remembers nothing: a statement is read in your browser, shown
 ## What leaks even when locked
 
 - That this device remembers M-PESA data, and roughly how much (the size of each saved ledger).
+- How many different accounts are remembered: one ledger each. Which account a ledger belongs to is hidden: its name is a keyed hash of the account that cannot be worked out without the passphrase (ADR 0017).
 - How many times each ledger has been saved (its version counter).
 - The hint, if you set one.
 

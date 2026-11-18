@@ -8,15 +8,18 @@ import { findForbiddenContent } from "@/persistence/forbidden-content";
 import { checkHint, checkPassphrase } from "@/persistence/passphrase-policy";
 import {
   associatedDataFor,
-  deriveVaultKey,
+  computeLedgerId,
+  deriveVaultKeys,
   isSealedBlob,
   openBlob,
   randomSalt,
   sealBlob,
+  type VaultKeys,
 } from "@/persistence/vault-crypto";
 import {
   compareAndPutLedger,
   deleteVaultDatabase,
+  listLedgerRecordIds,
   openVaultDatabase,
   readLedgerRecord,
   readMeta,
@@ -119,7 +122,7 @@ export class Vault {
   readonly #lockListeners = new Set<(reason: LockReason) => void>();
   #database: IDBDatabase | null = null;
   #remember: boolean;
-  #key: CryptoKey | null = null;
+  #keys: VaultKeys | null = null;
   #heldLedgers = new Map<string, LedgerRead>();
   #idleTimer: unknown = null;
   #hintToShow: string | null = null;
@@ -172,7 +175,7 @@ export class Vault {
     return {
       mode: this.#mode,
       remember: this.#remember,
-      locked: this.#key === null,
+      locked: this.#keys === null,
       heldLedgers: this.#heldLedgers.size,
       storageProblem: this.#storageProblem,
     };
@@ -199,9 +202,9 @@ export class Vault {
     const database = await this.#connectionOrMemoryOnly();
     await this.#storageManager?.persist();
     const salt = randomSalt(this.#crypto);
-    const key = await deriveVaultKey(this.#crypto, passphrase, salt, this.#iterations);
+    const keys = await deriveVaultKeys(this.#crypto, passphrase, salt, this.#iterations);
     const keyCheckText = new TextEncoder().encode(KEY_CHECK_TEXT);
-    const keyCheck = await sealBlob(this.#crypto, key, keyCheckText, associatedDataFor(KEY_CHECK_BINDING));
+    const keyCheck = await sealBlob(this.#crypto, keys.encryption, keyCheckText, associatedDataFor(KEY_CHECK_BINDING));
     const meta: VaultMeta = {
       schema_version: SCHEMA_VERSION,
       kdf: { name: "PBKDF2", hash: "SHA-256", iterations: this.#iterations },
@@ -216,7 +219,7 @@ export class Vault {
       throw this.#writeFailure(error);
     }
     this.#remember = true;
-    this.#becomeUnlocked(key);
+    this.#becomeUnlocked(keys);
   }
 
   /**
@@ -229,15 +232,15 @@ export class Vault {
    */
   async unlock(passphrase: string): Promise<void> {
     const meta = await this.#readUsableMeta();
-    const key = await deriveVaultKey(this.#crypto, passphrase, meta.salt, meta.kdf.iterations);
+    const keys = await deriveVaultKeys(this.#crypto, passphrase, meta.salt, meta.kdf.iterations);
     try {
-      await openBlob(this.#crypto, key, meta.key_check, associatedDataFor(KEY_CHECK_BINDING));
+      await openBlob(this.#crypto, keys.encryption, meta.key_check, associatedDataFor(KEY_CHECK_BINDING));
     } catch (error) {
       this.#hintToShow = meta.hint;
       throw new VaultError("WRONG_PASSPHRASE", { cause: error });
     }
     this.#hintToShow = null;
-    this.#becomeUnlocked(key);
+    this.#becomeUnlocked(keys);
   }
 
   /**
@@ -264,7 +267,7 @@ export class Vault {
    * Side effects: replaces the idle timer.
    */
   noteActivity(): void {
-    if (this.#key !== null) this.#restartIdleTimer();
+    if (this.#keys !== null) this.#restartIdleTimer();
   }
 
   /**
@@ -276,6 +279,32 @@ export class Vault {
   onLock(listener: (reason: LockReason) => void): () => void {
     this.#lockListeners.add(listener);
     return () => this.#lockListeners.delete(listener);
+  }
+
+  /**
+   * The ledger id for an account: HMAC(ledger-id key, account digest), computed while unlocked.
+   * The digest is used for this and never kept or stored; the id is the only account marker.
+   *
+   * @param accountDigest The pipeline result's account digest.
+   * @returns 64 lowercase hex characters. Side effects: none.
+   * @throws {VaultError} LOCKED, or ACCOUNT_DIGEST_INVALID for an empty or non-text digest.
+   */
+  async ledgerIdFor(accountDigest: string): Promise<string> {
+    const keys = this.#requireKeys();
+    if (typeof accountDigest !== "string" || accountDigest === "") throw new VaultError("ACCOUNT_DIGEST_INVALID");
+    return computeLedgerId(this.#crypto, keys.ledgerId, accountDigest);
+  }
+
+  /**
+   * The ids of every ledger saved on this device, while unlocked.
+   *
+   * @returns The ids; none when remember is off or storage cannot be used. Side effects: none.
+   * @throws {VaultError} LOCKED.
+   */
+  async listLedgerIds(): Promise<string[]> {
+    this.#requireKeys();
+    if (!this.#remember || this.#mode === "memory_only") return [];
+    return listLedgerRecordIds(await this.#connection());
   }
 
   /**
@@ -505,17 +534,27 @@ export class Vault {
    * @throws {VaultError} LOCKED.
    */
   #requireKey(): CryptoKey {
-    if (this.#key === null) throw new VaultError("LOCKED");
-    return this.#key;
+    return this.#requireKeys().encryption;
   }
 
   /**
-   * Hold the key and start the idle timer.
+   * Both keys, or LOCKED.
    *
-   * @param key The derived key. Side effects: starts the idle timer.
+   * @returns The keys. Side effects: none.
+   * @throws {VaultError} LOCKED.
    */
-  #becomeUnlocked(key: CryptoKey): void {
-    this.#key = key;
+  #requireKeys(): VaultKeys {
+    if (this.#keys === null) throw new VaultError("LOCKED");
+    return this.#keys;
+  }
+
+  /**
+   * Hold the keys and start the idle timer.
+   *
+   * @param keys The derived keys. Side effects: starts the idle timer.
+   */
+  #becomeUnlocked(keys: VaultKeys): void {
+    this.#keys = keys;
     this.#restartIdleTimer();
   }
 
@@ -546,7 +585,7 @@ export class Vault {
    */
   #dropSecrets(reason: LockReason): void {
     this.#stopIdleTimer();
-    this.#key = null;
+    this.#keys = null;
     this.#heldLedgers = new Map();
     for (const listener of this.#lockListeners) listener(reason);
   }

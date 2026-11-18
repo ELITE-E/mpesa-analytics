@@ -316,3 +316,67 @@ test("a cancel with no run in progress does not cancel the next statement (CP8b)
   assert.equal(outcome.ok, true);
   engine.close();
 });
+
+/**
+ * A worker that starts and answers each core call with the envelope `answer` gives.
+ *
+ * @param {Function} answer Called with the call message; returns the envelope, or null to stay silent.
+ * @returns {object} The fake worker.
+ */
+function calling_worker(answer) {
+  return fake_worker((message, reply) => {
+    if (message.type === "start") reply({ type: "ready", timings: {} });
+    if (message.type === "core_call") {
+      const envelope = answer(message);
+      if (envelope) reply({ type: "core_done", request_id: message.request_id, envelope });
+    }
+  });
+}
+
+test("call_core posts the function and JSON text and resolves with the core's envelope (CP9b)", async () => {
+  const worker = calling_worker(() => ({ ok: true, answer: { valid: true } }));
+  const engine = create_statement_engine({ create_worker: () => worker, runtime_url: RUNTIME_URL });
+  const envelope = await engine.call_core("validate_import_plan", '{"plan":1}');
+  assert.deepEqual(envelope, { ok: true, answer: { valid: true } });
+  const posted = worker.posted.find((message) => message.type === "core_call");
+  assert.equal(posted.function_name, "validate_import_plan");
+  assert.equal(posted.request_text, '{"plan":1}');
+});
+
+test("several core calls in flight each get their own answer", async () => {
+  const worker = calling_worker((message) => ({ ok: true, answer: message.function_name }));
+  const engine = create_statement_engine({ create_worker: () => worker, runtime_url: RUNTIME_URL });
+  const answers = await Promise.all([
+    engine.call_core("plan_statement_import", "{}"),
+    engine.call_core("analyze_merged", "{}"),
+  ]);
+  assert.deepEqual(
+    answers.map((envelope) => envelope.answer),
+    ["plan_statement_import", "analyze_merged"],
+  );
+});
+
+test("a core call while the runtime cannot load is ENGINE_FAILED", async () => {
+  const worker = fake_worker((message, reply) => {
+    if (message.type === "start")
+      reply({ type: "start_failed", failure: { code: "ENGINE_FAILED", stage: "runtime" } });
+  });
+  const engine = create_statement_engine({ create_worker: () => worker, runtime_url: RUNTIME_URL });
+  assert.deepEqual(await engine.call_core("plan_statement_import", "{}"), {
+    ok: false,
+    error: { code: "ENGINE_FAILED", row_index: null },
+  });
+});
+
+test("a core call that never answers times out", async () => {
+  const worker = calling_worker(() => null);
+  const engine = create_statement_engine({
+    create_worker: () => worker,
+    runtime_url: RUNTIME_URL,
+    timeout_ms: 30,
+  });
+  assert.deepEqual(await engine.call_core("analyze_merged", "{}"), {
+    ok: false,
+    error: { code: "TIMEOUT", row_index: null },
+  });
+});

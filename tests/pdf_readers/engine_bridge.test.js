@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import {
   ENGINE_FAILURE_CODES,
+  call_store_core,
   core_failure,
   plan_import,
   reader_failure,
@@ -201,4 +202,68 @@ test("a plan the core refuses is ENGINE_FAILED and its message is dropped", () =
   };
   const outcome = plan_import(core, JSON.stringify({ transactions: [] }), "[]");
   assert.deepEqual(outcome, { ok: false, failure: { code: "ENGINE_FAILED", stage: "core" } });
+});
+
+/**
+ * A fake core whose call_json answers from a list of envelopes, counting pandas loads.
+ *
+ * @param {Array<object|Error>} answers What each call returns (an Error is thrown instead).
+ * @returns {object} The fake core and its call record.
+ */
+function fake_store_core(answers) {
+  const calls = { made: [], analysisLoads: 0 };
+  return {
+    calls,
+    call_json(functionName, requestText) {
+      calls.made.push([functionName, requestText]);
+      const answer = answers[calls.made.length - 1];
+      if (answer instanceof Error) throw answer;
+      return JSON.stringify(answer);
+    },
+    async load_analysis_runtime() {
+      calls.analysisLoads += 1;
+      return 5;
+    },
+  };
+}
+
+test("call_store_core passes the function name and JSON text and returns the core's envelope (CP9b)", async () => {
+  const core = fake_store_core([{ ok: true, answer: { valid: true } }]);
+  const envelope = await call_store_core(core, "validate_import_plan", '{"plan":1}');
+  assert.deepEqual(envelope, { ok: true, answer: { valid: true } });
+  assert.deepEqual(core.calls.made, [["validate_import_plan", '{"plan":1}']]);
+  assert.equal(core.calls.analysisLoads, 0);
+});
+
+test("call_store_core loads pandas when the merged analysis asks, then calls again", async () => {
+  const missing = { ok: false, error: { code: "ANALYSIS_RUNTIME_MISSING", row_index: null } };
+  const core = fake_store_core([missing, { ok: true, answer: { closing_balance: 1 } }]);
+  const envelope = await call_store_core(core, "analyze_merged", "{}");
+  assert.deepEqual(envelope, { ok: true, answer: { closing_balance: 1 } });
+  assert.equal(core.calls.analysisLoads, 1);
+  assert.equal(core.calls.made.length, 2);
+});
+
+test("call_store_core keeps the core's own refusal code and row", async () => {
+  const refusal = { ok: false, error: { code: "PRESERVE_NOT_COLLISION", row_index: 1 } };
+  assert.deepEqual(
+    await call_store_core(fake_store_core([refusal]), "validate_import_plan", "{}"),
+    refusal,
+  );
+});
+
+test("call_store_core turns a core that throws into ENGINE_FAILED and drops its message", async () => {
+  const core = fake_store_core([new Error("Traceback ... " + "ZZ" + "REC00001")]);
+  const envelope = await call_store_core(core, "plan_statement_import", "{}");
+  assert.deepEqual(envelope, { ok: false, error: { code: "ENGINE_FAILED", row_index: null } });
+});
+
+test("call_store_core gives up if pandas is still missing after loading it", async () => {
+  const missing = { ok: false, error: { code: "ANALYSIS_RUNTIME_MISSING", row_index: null } };
+  const envelope = await call_store_core(
+    fake_store_core([missing, missing]),
+    "analyze_merged",
+    "{}",
+  );
+  assert.deepEqual(envelope, { ok: false, error: { code: "ENGINE_FAILED", row_index: null } });
 });

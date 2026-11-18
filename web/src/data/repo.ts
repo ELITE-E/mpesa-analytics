@@ -1,20 +1,33 @@
 // The UI's data layer (CP8b item 2): the same exports the old API client had, answered by the
-// statement engine in this browser (pdf_reader/), with an in-memory session. Nothing is stored:
-// a reload forgets every statement. The PDF's bytes and its password go to the engine's worker
-// and nowhere else.
+// statement engine in this browser (pdf_reader/). By default the session is in memory only and a
+// reload forgets every statement. With "Remember on this device" on (CP9b, ADR 0017), statements
+// are merged into the account's encrypted ledger and the reads below answer from that ledger.
+// The PDF's bytes and its password go to the engine's worker and nowhere else.
 
 import { create_statement_engine } from "../../../pdf_reader/engine_client.js";
 import { DESKTOP_LIMITS } from "../../../pdf_reader/limits.js";
 import {
   toAnalyticsSnapshot,
   toCreatedImport,
+  toTransaction,
   toTransactions,
+  type CoreTransaction,
   type ImportPlan,
   type PipelineResult,
 } from "@/data/adapter";
 import { ApiError } from "@/data/api-error";
 import { apiErrorFor, toApiError } from "@/data/messages";
-import type { AnalyticsSnapshot, CreatedImport, ImportSummary, Transaction } from "@/data/types";
+import type { AnalyticsResult, AnalyticsSnapshot, CreatedImport, ImportSummary, Transaction, TransactionPage } from "@/data/types";
+import {
+  snapshotsOf,
+  statementTransactions,
+  type Ledger,
+  type StoredStatement,
+} from "@/persistence/ledger";
+import type { LedgerStore } from "@/persistence/store";
+import { storeCoreFrom, type CoreEnvelope, type StoreCore } from "@/persistence/store-core";
+import { StoreError } from "@/persistence/store-errors";
+import { VaultError } from "@/persistence/vault-errors";
 
 export { ApiError } from "@/data/api-error";
 export type {
@@ -53,6 +66,8 @@ export type StatementEngine = {
   warm_up?(): Promise<unknown>;
   /** Stop the run in progress: the engine terminates its worker. */
   cancel?(): void;
+  /** Call one of the browser store's core functions (CP9b): JSON text in, the core's envelope out. */
+  call_core?(functionName: string, requestText: string): Promise<CoreEnvelope>;
 };
 
 /** One statement read in this session. */
@@ -80,6 +95,8 @@ export type StatementChecks = {
 
 const session = { imports: [] as SessionImport[], nextId: 1 };
 let engine: StatementEngine | null = null;
+/** The store behind "Remember on this device", while it is on; null means memory only. */
+let rememberedStore: LedgerStore | null = null;
 let warmedUp: Promise<unknown> | null = null;
 /** Set by cancelUpload; read when the upload hands its bytes to the engine. */
 let cancelRequested = false;
@@ -113,7 +130,46 @@ export async function uploadStatement(
   if (!outcome.ok || !outcome.pipeline_result_json || !outcome.plan_json) {
     throw outcome.failure ? toApiError(outcome.failure) : apiErrorFor("unexpected_error");
   }
-  return keep(JSON.parse(outcome.pipeline_result_json), JSON.parse(outcome.plan_json));
+  const result: PipelineResult = JSON.parse(outcome.pipeline_result_json);
+  const remembered = await rememberInLedger(result);
+  return remembered ?? keep(result, JSON.parse(outcome.plan_json));
+}
+
+/**
+ * Turn "Remember on this device" on with an unlocked store, or off with null. While on, uploads
+ * are merged into the account's ledger and the reads answer from the ledger on screen.
+ *
+ * @param store The store, or null for memory only.
+ */
+export function rememberOnThisDevice(store: LedgerStore | null) {
+  rememberedStore = store;
+}
+
+/**
+ * The store's core in this browser: plan, validate and merged analysis, answered by the statement
+ * engine's worker, which already holds the core (ADR 0017).
+ *
+ * @returns The store core.
+ */
+export function storeCoreForThisBrowser(): StoreCore {
+  return storeCoreFrom(async (functionName, requestText) => {
+    const statementEngine = currentEngine();
+    if (!statementEngine.call_core) return { ok: false, error: { code: "ENGINE_FAILED", row_index: null } };
+    return statementEngine.call_core(functionName, requestText);
+  });
+}
+
+/**
+ * One page of a statement's transactions, in print order (the old API's paging).
+ *
+ * @param importId Its id.
+ * @param page `limit` and `offset`.
+ * @returns The page and the total.
+ * @throws {ApiError} "import_not_found".
+ */
+export async function getTransactions(importId: number, page: { limit: number; offset: number }): Promise<TransactionPage> {
+  const all = await getAllTransactions(importId);
+  return { items: all.slice(page.offset, page.offset + page.limit), total: all.length, limit: page.limit, offset: page.offset };
 }
 
 /**
@@ -143,6 +199,10 @@ export function warmUp(): Promise<unknown> {
  * @returns The page of summaries.
  */
 export async function listImports(limit = 50): Promise<{ items: ImportSummary[] }> {
+  const ledger = rememberedLedger();
+  if (ledger !== undefined) {
+    return { items: [...(ledger?.statements ?? [])].reverse().slice(0, limit).map(toLedgerImportSummary) };
+  }
   return { items: [...session.imports].reverse().slice(0, limit).map((held) => held.created.import) };
 }
 
@@ -154,6 +214,8 @@ export async function listImports(limit = 50): Promise<{ items: ImportSummary[] 
  * @throws {ApiError} "import_not_found" if no statement in this session has that id.
  */
 export async function getImport(importId: number): Promise<ImportSummary> {
+  const ledger = rememberedLedger();
+  if (ledger !== undefined) return toLedgerImportSummary(rememberedStatement(ledger, importId));
   return held(importId).created.import;
 }
 
@@ -178,6 +240,12 @@ export async function getImportOrLatest(importId: number | null): Promise<Import
  * @throws {ApiError} "import_not_found".
  */
 export async function getAnalytics(importId: number): Promise<AnalyticsSnapshot> {
+  const ledger = rememberedLedger();
+  if (ledger !== undefined) {
+    const snapshot = snapshotsOf(rememberedLedgerOrMissing(ledger), rememberedStatement(ledger, importId).id).at(-1);
+    if (!snapshot) throw apiErrorFor("import_not_found");
+    return { import_id: importId, contract_version: snapshot.contract_version, computed_at: snapshot.computed_at, result: snapshot.result as AnalyticsResult };
+  }
   return held(importId).snapshot;
 }
 
@@ -190,6 +258,13 @@ export async function getAnalytics(importId: number): Promise<AnalyticsSnapshot>
  * @throws {ApiError} "import_not_found".
  */
 export async function getAllTransactions(importId: number): Promise<Transaction[]> {
+  const ledger = rememberedLedger();
+  if (ledger !== undefined) {
+    const statement = rememberedStatement(ledger, importId);
+    return statementTransactions(rememberedLedgerOrMissing(ledger), statement.id).map((stored) =>
+      toTransaction(stored as unknown as CoreTransaction, stored.id),
+    );
+  }
   return held(importId).transactions;
 }
 
@@ -202,6 +277,8 @@ export async function getAllTransactions(importId: number): Promise<Transaction[
  * @throws {ApiError} "import_not_found".
  */
 export async function getStatementChecks(importId: number): Promise<StatementChecks> {
+  const ledger = rememberedLedger();
+  if (ledger !== undefined) return toLedgerChecks(rememberedStatement(ledger, importId));
   return held(importId).checks;
 }
 
@@ -229,6 +306,113 @@ export function useEngineForTests(replacement: StatementEngine) {
   warmedUp = null;
   session.imports = [];
   session.nextId = 1;
+}
+
+/**
+ * Merge a read statement into its account's ledger, when remembering.
+ *
+ * @param result The pipeline result.
+ * @returns What the upload answers with, or null when the statement stays in memory (remember off,
+ *   storage unavailable, or an account that cannot be read).
+ * @throws {ApiError} "save_failed" (status 503) when the merge or the write fails; nothing is saved.
+ */
+async function rememberInLedger(result: PipelineResult): Promise<CreatedImport | null> {
+  if (rememberedStore === null || !rememberedStore.isActive()) return null;
+  let outcome;
+  try {
+    outcome = await rememberedStore.rememberStatement({
+      pipelineResult: result,
+      importedAt: result.processed_at ?? new Date().toISOString(),
+    });
+  } catch (error) {
+    if (error instanceof VaultError || error instanceof StoreError) throw new ApiError(503, "save_failed", error.message);
+    throw error;
+  }
+  if (!outcome.saved) return null;
+  const ledger = rememberedStore.currentLedger() as Ledger;
+  return {
+    import: toLedgerImportSummary(rememberedStatement(ledger, outcome.statementId)),
+    analytics: result.report,
+    verification_token: result.verification_token,
+  };
+}
+
+/**
+ * The ledger the reads answer from while remembering.
+ *
+ * @returns The ledger on screen (null before any is shown), or undefined when not remembering, so
+ *   the reads use the in-memory session.
+ */
+function rememberedLedger(): Ledger | null | undefined {
+  if (rememberedStore === null || !rememberedStore.isActive()) return undefined;
+  return rememberedStore.currentLedger();
+}
+
+/**
+ * The ledger, or "import_not_found" when none is on screen.
+ *
+ * @param ledger The ledger on screen, or null.
+ * @returns The ledger.
+ * @throws {ApiError} "import_not_found".
+ */
+function rememberedLedgerOrMissing(ledger: Ledger | null): Ledger {
+  if (ledger === null) throw apiErrorFor("import_not_found");
+  return ledger;
+}
+
+/**
+ * A remembered statement by id.
+ *
+ * @param ledger The ledger on screen, or null.
+ * @param importId The statement's id in the ledger.
+ * @returns The statement.
+ * @throws {ApiError} "import_not_found".
+ */
+function rememberedStatement(ledger: Ledger | null, importId: number): StoredStatement {
+  const statement = rememberedLedgerOrMissing(ledger).statements.find((candidate) => candidate.id === importId);
+  if (!statement) throw apiErrorFor("import_not_found");
+  return statement;
+}
+
+/**
+ * A remembered statement as the UI's import summary.
+ *
+ * @param statement The stored statement.
+ * @returns The summary: rows linked to an earlier statement count as previously imported, and
+ *   collisions as observations.
+ */
+function toLedgerImportSummary(statement: StoredStatement): ImportSummary {
+  return {
+    id: statement.id,
+    imported_at: statement.imported_at,
+    period_start: statement.period.start ?? "",
+    period_end: statement.period.end ?? "",
+    status: "completed",
+    transaction_count: statement.row_count,
+    previously_imported_transaction_count: statement.counts.matched,
+    unclassified_transaction_count: statement.quality?.unclassified_rows ?? 0,
+    observation_counts: statement.counts.collided ? { COLLISION: statement.counts.collided } : {},
+  };
+}
+
+/**
+ * A remembered statement's checks. The verification code is never stored, so it is empty; the
+ * printed instruction is kept.
+ *
+ * @param statement The stored statement.
+ * @returns The checks.
+ */
+function toLedgerChecks(statement: StoredStatement): StatementChecks {
+  const quality = statement.quality;
+  return {
+    verification_token: "",
+    verification_instruction: statement.verification_instruction,
+    row_count: statement.row_count,
+    chain_breaks: quality?.chain_breaks ?? 0,
+    totals_match: quality?.totals_match ?? "not_found",
+    unclassified_rows: quality?.unclassified_rows ?? 0,
+    unclassified_share: quality?.unclassified_share ?? 0,
+  };
 }
 
 /**
@@ -312,6 +496,7 @@ function startBrowserEngine(): StatementEngine {
   return {
     run: async (request) => (await started).run(request),
     warm_up: async () => (await started).warm_up(),
+    call_core: async (functionName, requestText) => (await started).call_core(functionName, requestText),
     cancel: () => {
       void started.then((browserEngine) => browserEngine.cancel());
     },

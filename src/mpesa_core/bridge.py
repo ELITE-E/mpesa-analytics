@@ -7,11 +7,19 @@ repeated in a message.
 import json
 
 from mpesa_core import pipeline
-from mpesa_core.errors import CoreError, DomainRowError, ImportPlanCode, ImportPlanError
+from mpesa_core.errors import (
+    AnalysisCode,
+    AnalysisError,
+    CoreError,
+    DomainRowError,
+    ImportPlanCode,
+    ImportPlanError,
+)
 from mpesa_core.reconciliation.import_plan import plan_statement_import, validate_import_plan
 
 PLAN_REQUEST_FIELDS = {"incoming_rows", "existing_transactions"}
 VALIDATE_REQUEST_FIELDS = {*PLAN_REQUEST_FIELDS, "plan"}
+MERGED_REQUEST_FIELDS = {"transactions", "statements"}
 REQUEST_INVALID = "REQUEST_INVALID"
 # A row error names a position, not a code.
 DOMAIN_ROW = "DOMAIN_ROW"
@@ -172,3 +180,79 @@ def _read_request(request_text, fields):
     if not is_valid:
         raise ImportPlanError(ImportPlanCode.REQUEST_INVALID)
     return request
+
+
+def analyze_merged_json(request_text):
+    """Report on a ledger's transactions across its statements (ADR 0017), for the browser store.
+
+    Args:
+        request_text: JSON text of an object holding exactly ``transactions`` (the ledger's
+            transactions) and ``statements`` (their descriptions in import order), each a list.
+
+    Returns:
+        JSON text of ``pipeline.analyze_merged``'s answer: period, closing balance and report.
+
+    Raises:
+        AnalysisError: ``MERGE_REQUEST_INVALID`` for text that is not such a request, or as
+            ``analyze_merged`` raises. The parse error, which may quote the text, stays in
+            ``__cause__``.
+
+    Side Effects:
+        Imports pandas on first use.
+    """
+    try:
+        request = json.loads(request_text)
+    except (TypeError, ValueError) as error:
+        raise AnalysisError(AnalysisCode.MERGE_REQUEST_INVALID) from error
+    is_valid = (
+        isinstance(request, dict)
+        and set(request) == MERGED_REQUEST_FIELDS
+        and all(isinstance(request[name], list) for name in MERGED_REQUEST_FIELDS)
+    )
+    if not is_valid:
+        raise AnalysisError(AnalysisCode.MERGE_REQUEST_INVALID)
+    return json.dumps(pipeline.analyze_merged(request["transactions"], request["statements"]))
+
+
+def call_json(function_name, request_text):
+    """Call one of the store's core functions and answer in an envelope, for the browser worker.
+
+    Every failure the core raises becomes a code and at most a row position, so no message or
+    traceback crosses into JavaScript (ADR 0004).
+
+    Args:
+        function_name: ``plan_statement_import``, ``validate_import_plan`` or ``analyze_merged``.
+        request_text: The function's JSON request text.
+
+    Returns:
+        JSON text of ``{"ok": true, "answer": ...}`` or ``{"ok": false, "error": {"code": ...,
+        "row_index": ...}}``: the core error's code, ``REQUEST_INVALID`` for an unknown function,
+        or ``ANALYSIS_RUNTIME_MISSING`` when pandas is not loaded yet (the caller loads it and
+        calls again).
+
+    Raises:
+        ModuleNotFoundError: If a module other than pandas or its dependencies is missing.
+
+    Side Effects:
+        Imports pandas when the function needs it.
+    """
+    function = STORE_FUNCTIONS.get(function_name)
+    if function is None:
+        return _error_envelope(REQUEST_INVALID)
+    try:
+        answer_text = function(request_text)
+    except CoreError as error:
+        return _error_envelope(error.code.value, getattr(error, "row_index", None))
+    except ModuleNotFoundError as error:
+        if error.name not in ANALYSIS_PACKAGES:
+            raise
+        return _error_envelope(ANALYSIS_RUNTIME_MISSING)
+    return json.dumps({"ok": True, "answer": json.loads(answer_text)})
+
+
+# The functions the browser store may call through ``call_json``.
+STORE_FUNCTIONS = {
+    "plan_statement_import": plan_statement_import_json,
+    "validate_import_plan": validate_import_plan_json,
+    "analyze_merged": analyze_merged_json,
+}
