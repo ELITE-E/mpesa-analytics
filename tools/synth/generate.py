@@ -107,6 +107,9 @@ class StatementOptions:
     # meet many ties (the tie-order tests, CP8a-3).
     tied_values: bool = False
     variant: LayoutVariant = field(default_factory=LayoutVariant)
+    # Which invented account holder page 1 prints: 0 for every committed fixture, so their bytes
+    # stay as they are; another number gives another account (CP9c, the different-account test).
+    identity: int = 0
 
 
 # Cycled across the pairs, so the fixture holds both print orders.
@@ -168,6 +171,8 @@ COMMITTED_FIXTURES = {
 ON_DEMAND_FIXTURES = {
     "F-LARGE": (1005, StatementOptions(name="F-LARGE", row_count=5700)),
     "F-TIED": (1012, StatementOptions(name="F-TIED", row_count=300, tied_values=True)),
+    # Another invented account holder: the store must open it as a separate ledger (CP9c).
+    "F-OTHER-ACCOUNT": (1013, StatementOptions(name="F-OTHER-ACCOUNT", row_count=20, identity=1)),
 }
 
 
@@ -288,7 +293,9 @@ def build_outputs(seed, options):
     )
     if options.chain_break_count:
         fake_rows = plant_chain_breaks(fake_rows, options.chain_break_count)
-    summary_lines = _summary_lines(fake_rows, options.wrong_summary_totals)
+    summary_lines = _summary_lines(
+        fake_rows, options.wrong_summary_totals, identity=options.identity
+    )
     pages, placed = lay_out_statement(
         [_printed_columns(row) for row in fake_rows],
         summary_lines,
@@ -427,7 +434,28 @@ def _printed_columns(fake_row):
     }
 
 
-def _summary_lines(fake_rows, wrong_totals=()):
+def _identity_lines(identity):
+    """The invented account holder's lines for page 1.
+
+    Args:
+        identity: 0 for the committed fixtures' holder; another number for another holder.
+
+    Returns:
+        Name, mobile number (in the fake range) and email lines.
+
+    Side Effects:
+        None.
+    """
+    if identity == 0:
+        return IDENTITY_LINES
+    return (
+        ("Customer Name:", f"Example Person {identity:02d}"),
+        ("Mobile Number:", "07000000" + f"{identity:02d}"),
+        ("Email Address:", f"example.person{identity:02d}@example.invalid"),
+    )
+
+
+def _summary_lines(fake_rows, wrong_totals=(), *, identity=0):
     """Compute the page 1 lines from the generated rows, separately from the ledger.
 
     An invented name, phone and email come first, as on a real statement, then the summary block:
@@ -437,6 +465,7 @@ def _summary_lines(fake_rows, wrong_totals=()):
     Args:
         fake_rows: Rows in print order.
         wrong_totals: TOTAL columns, ``paid_in`` or ``paid_out``, to print deliberately wrong.
+        identity: Which invented account holder to print (``_identity_lines``).
 
     Returns:
         Tuples of the texts on each line, left to right. A statement with no rows prints no
@@ -446,7 +475,7 @@ def _summary_lines(fake_rows, wrong_totals=()):
         None.
     """
     if not fake_rows:
-        return (*IDENTITY_LINES, ("Notice", "No transactions in this period"))
+        return (*_identity_lines(identity), ("Notice", "No transactions in this period"))
     sums = {label: [0, 0] for label in SUMMARY_TYPE_LABELS}
     for row in fake_rows:
         label = SUMMARY_TYPE_OF.get(row["event_type"], OTHERS_LABEL)
@@ -460,7 +489,7 @@ def _summary_lines(fake_rows, wrong_totals=()):
         for label, (paid_in, paid_out) in sums.items()
     )
     return (
-        *IDENTITY_LINES,
+        *_identity_lines(identity),
         (SUMMARY_MARKER,),
         *type_rows,
         ("TOTAL:", _amount_text(total[0]), _amount_text(total[1])),

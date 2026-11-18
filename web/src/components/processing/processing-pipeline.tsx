@@ -9,7 +9,7 @@ import type { UploadProgress } from "@/lib/api";
 import {
   cancelPendingUpload,
   hasPendingUpload,
-  submitPendingUpload,
+  submitPendingStatement,
   subscribeUploadProgress,
   uploadProgress,
 } from "@/lib/upload-flow";
@@ -120,12 +120,13 @@ export function ProcessingPipeline() {
   useEffect(() => {
     if (!hasPendingUpload()) return;
     let cancelled = false;
-    submitPendingUpload().then(
-      (created) => {
+    submitPendingStatement().then(
+      ({ next }) => {
         if (cancelled) return;
-        setImportId(created.import.id);
+        const importId = new URLSearchParams(next.split("?")[1] ?? "").get("import");
+        if (importId) setImportId(Number(importId));
         setOutcome("saved");
-        router.replace(`/analysis-summary?import=${created.import.id}`);
+        router.replace(next);
       },
       () => {
         if (cancelled) return;

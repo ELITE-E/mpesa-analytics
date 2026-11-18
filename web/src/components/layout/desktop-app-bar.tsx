@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PrivateOnDevice } from "@/components/private-on-device";
+import { RememberHeaderControls } from "@/components/remember/lock-control";
 import { INGEST_NAV_ITEMS, type NavKey } from "@/components/bottom-nav";
 import { Icon } from "@/components/icon";
 import { canvasFrame } from "@/components/layout/canvas";
@@ -121,6 +122,7 @@ export function DesktopAppBar({ navigation }: { navigation: DesktopNavigation })
             </>
           )}
           <PrivateOnDevice />
+          <RememberHeaderControls />
         </div>
       </div>
     </header>

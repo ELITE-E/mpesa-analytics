@@ -80,7 +80,7 @@ jobs:
         run: node --test --test-concurrency=1 tests/browser/*.test.js
       - name: Web app unit tests
         working-directory: web
-        run: node --import ./tests/support/register.mjs --test $(ls tests/*.test.mjs tests/*.test.ts | grep -v -e '-browser\.test' -e 'static-export-csp' -e 'e2e-local' -e 'vault-chrome' -e 'store-chrome')
+        run: node --import ./tests/support/register.mjs --test $(ls tests/*.test.mjs tests/*.test.ts | grep -v -e '-browser\.test' -e 'static-export-csp' -e 'e2e-local' -e 'vault-chrome' -e 'store-chrome' -e 'remember-e2e')
       - name: Web app in real Chrome (static export, CSP, the real UI)
         working-directory: web
         run: node --import ./tests/support/register.mjs --test --test-concurrency=1 tests/static-export-csp.test.mjs tests/e2e-local.test.mjs
@@ -90,6 +90,9 @@ jobs:
       - name: Store in real Chrome with the real engine (zero network, no plaintext; ADR 0017)
         working-directory: web
         run: node --import ./tests/support/register.mjs --test --test-concurrency=1 tests/store-chrome.test.mjs
+      - name: Remember on this device through the real UI in Chrome (CP9c)
+        working-directory: web
+        run: node --import ./tests/support/register.mjs --test --test-concurrency=1 tests/remember-e2e.test.mjs
       - name: Core tests under Pyodide, from the wheel
         run: node tools/run_pyodide_tests.mjs
       - name: Guard 8, wheel

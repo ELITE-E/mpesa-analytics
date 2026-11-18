@@ -109,6 +109,12 @@ Only if the user opts in to "Remember on this device"; until then nothing is wri
 - **Out:** `{ saved: true, ledgerId, statementId, counts }`; `mergedAnalytics()` then reports across the ledger's statements with the union period and the cross-statement closing balance.
 - **Breakpoint:** `applyStatementImport`, on the action for our row.
 
+## 12. On screen: the merge screen
+
+- **Files:** `web/src/lib/upload-flow.ts` `submitPendingStatement`, `web/src/data/repo.ts` `readStatement`, `web/src/components/remember/merge-panel.tsx`, `merge-review.tsx`.
+- **What happens:** with remembering on and unlocked, the processing screen goes to `/merge` instead of the summary. The proposal there was prepared (planned and validated by the core) but not written: the screen shows how many rows are new, already saved and kept side by side. Our transaction is new the first time. "Save" is the one vault write and shows the counts and the collision count; "Don't save" writes nothing. A statement of another account says so and offers only "Open as a separate ledger".
+- **Out:** the summary of the saved statement, or "Nothing was saved."
+
 ## Where to look next
 
 - `docs/DEBUGGING.md`: running one stage, and which test covers it.

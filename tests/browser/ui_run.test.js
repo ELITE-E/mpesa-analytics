@@ -86,3 +86,22 @@ test("any other option is refused, so a password cannot be passed on the command
   assert.equal(completed.status, 2);
   assert.equal(completed.stdout.includes("not-a-real-one"), false);
 });
+
+test("--remember reads the statement twice into a throwaway profile and prints the second import's counts only", () => {
+  const expected = JSON.parse(readFileSync(join(FIXTURES, "F-GOLDEN.expected.json"), "utf8"));
+  const completed = ui_run(["--pdf", join(FIXTURES, "F-GOLDEN.pdf"), "--remember"]);
+  assert.equal(completed.status, 0, completed.stdout);
+  for (const line of completed.stdout.trim().split("\n")) assert.match(line, COUNT_LINE);
+  const counts = counts_of(completed.stdout);
+  assert.equal(counts.ui_run, "PASS");
+  assert.equal(counts.remember, "on");
+  assert.equal(Number(counts.first_import_inserted), expected.row_count);
+  assert.equal(Number(counts.second_import_matched), expected.row_count);
+  assert.equal(counts.second_import_inserted, "0");
+  assert.equal(counts.second_import_collided, "0");
+  assert.equal(counts.csp_violations, "0");
+  assert.equal(counts.requests_other_origin, "0");
+  assert.equal(counts.requests_breaking_rule, "0");
+  assert.equal(completed.stdout.includes(expected.verification_token), false);
+  assert.deepEqual(readdirSync(scratch), []);
+});
