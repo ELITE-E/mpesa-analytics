@@ -2,7 +2,7 @@
 // runs under Pyodide. The password is used once, for pdf.js, and never logged, posted back or
 // passed to Python. Only codes, counts, timings and JSON text leave this worker.
 
-import { plan_import, reader_failure, run_pipeline } from "./bridge.js";
+import { call_store_core, plan_import, reader_failure, run_pipeline } from "./bridge.js";
 import { configure_reader, extract_statement_pages } from "./pdfjs/adapter.js";
 import { load_runtime } from "./runtime.js";
 
@@ -17,7 +17,21 @@ self.onmessage = ({ data: message }) => {
   if (message.type === "start") start(message.runtime_url);
   if (message.type === "run") run(message);
   if (message.type === "warm_up") warm_up();
+  if (message.type === "core_call") core_call(message);
 };
+
+/**
+ * Answer one of the browser store's core calls (CP9b): JSON text in, the core's envelope out.
+ *
+ * Side effects: runs the core, may load pandas, and posts `core_done`.
+ *
+ * @param {object} message `request_id`, `function_name` and `request_text`.
+ * @returns {Promise<void>} Resolves once the answer is posted.
+ */
+async function core_call(message) {
+  const envelope = await call_store_core(runtime.core, message.function_name, message.request_text);
+  self.postMessage({ type: "core_done", request_id: message.request_id, envelope });
+}
 
 /**
  * Load and verify the runtime, then say so.

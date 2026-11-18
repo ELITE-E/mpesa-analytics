@@ -19,8 +19,8 @@ const CANCELLED = Object.freeze({ code: "CANCELLED", stage: "engine" });
  * @param {string} options.runtime_url URL of the verified runtime, ending in its version and `/`.
  * @param {number} [options.timeout_ms] Longest run, in milliseconds, from handing over the PDF.
  * @param {number} [options.start_timeout_ms] Longest wait for the runtime to load.
- * @returns {{ready: Function, run: Function, warm_up: Function, cancel: Function, close: Function}}
- *   The engine.
+ * @returns {{ready: Function, run: Function, warm_up: Function, call_core: Function, cancel: Function,
+ *   close: Function}} The engine.
  */
 export function create_statement_engine({
   create_worker,
@@ -37,12 +37,15 @@ export function create_statement_engine({
     starting: null,
     restarts: 0,
     warmed: null,
+    // The browser store's core calls in flight, by request id (CP9b).
+    calls: new Map(),
   };
   const settings = { create_worker, runtime_url, timeout_ms, start_timeout_ms };
   return {
     ready: () => ensure_started(state, settings),
     run: (request) => run_statement(state, settings, request),
     warm_up: () => warm_up(state, settings),
+    call_core: (functionName, requestText) => call_core(state, settings, functionName, requestText),
     cancel: () => {
       state.starting?.cancel();
       fail_pending(state, CANCELLED);
@@ -183,6 +186,54 @@ async function warm_up(state, settings) {
 }
 
 /**
+ * Ask the worker's core one of the browser store's questions (CP9b): plan an import, validate a
+ * plan, or analyze a ledger. Calls never carry PDF bytes or a password.
+ *
+ * Side effects: may start the worker; posts it the call.
+ *
+ * @param {object} state The engine's mutable state.
+ * @param {object} settings The engine's options.
+ * @param {string} functionName The core function.
+ * @param {string} requestText Its request, as JSON text.
+ * @returns {Promise<object>} The core's envelope, or `{ok: false, error: {code, row_index: null}}`
+ *   with ENGINE_FAILED when the runtime cannot start, or TIMEOUT.
+ */
+async function call_core(state, settings, functionName, requestText) {
+  const started = await ensure_started(state, settings);
+  if (!started.ok) {
+    stop_worker(state);
+    return core_call_failure("ENGINE_FAILED");
+  }
+  const requestId = state.nextRequestId++;
+  const answered = new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(core_call_failure("TIMEOUT")), settings.timeout_ms);
+    state.calls.set(requestId, { resolve, timer });
+  });
+  state.worker.postMessage({
+    type: "core_call",
+    request_id: requestId,
+    function_name: functionName,
+    request_text: requestText,
+  });
+  const envelope = await answered;
+  clearTimeout(state.calls.get(requestId)?.timer);
+  state.calls.delete(requestId);
+  return envelope;
+}
+
+/**
+ * A core call's failure, shaped like the core's own envelope.
+ *
+ * Side effects: none.
+ *
+ * @param {string} code ENGINE_FAILED or TIMEOUT.
+ * @returns {object} The envelope.
+ */
+function core_call_failure(code) {
+  return { ok: false, error: { code, row_index: null } };
+}
+
+/**
  * Pass a worker's answer to whoever waits for it: a run's progress or outcome, or the warm-up.
  *
  * Side effects: resolves the pending run.
@@ -193,6 +244,10 @@ async function warm_up(state, settings) {
 function settle_pending(state, message) {
   if (message.type === "warmed") {
     state.warmed?.({ ok: true, timings: message.timings });
+    return;
+  }
+  if (message.type === "core_done") {
+    state.calls.get(message.request_id)?.resolve(message.envelope);
     return;
   }
   if (state.pending?.requestId !== message.request_id) return;
@@ -211,6 +266,7 @@ function settle_pending(state, message) {
  */
 function fail_pending(state, failure) {
   state.pending?.resolve({ ok: false, failure });
+  for (const call of state.calls.values()) call.resolve(core_call_failure("ENGINE_FAILED"));
 }
 
 /**

@@ -13,6 +13,7 @@ from mpesa_core.contracts import SCHEMA_VERSION
 from mpesa_core.extraction.rows import build_rows
 from mpesa_core.reconciliation.account import account_digest
 from mpesa_core.reconciliation.attest import attest, verification_instruction
+from mpesa_core.reconciliation.merge import merged_closing_balance, merged_period
 from mpesa_core.reconciliation.reconcile import measure_balances, measure_unclassified, reconcile
 
 COMPLETION_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -125,3 +126,36 @@ def _with_plain_classes(transaction):
         None.
     """
     return {**transaction, **{field: str(transaction[field]) for field in CLASS_FIELDS}}
+
+
+def analyze_merged(transactions, statements):
+    """Build one report over a ledger's transactions, as remembered from several statements.
+
+    The rules are ADR 0017's: the period is the union of the statements' periods, and the closing
+    balance is that of the newest transaction by completion time, ties going to the later
+    imported statement and then to that statement's print order.
+
+    Errors pass through unchanged: ``AnalysisError`` ``MERGE_REQUEST_INVALID`` for a malformed
+    statement description, or as ``analyze_transactions`` raises.
+
+    Args:
+        transactions: The ledger's ``ClassifiedRow`` records, each stored once, in the order the
+            ledger holds them (import order, then print order).
+        statements: Statement descriptions in import order: ``period``, ``chain_orientation`` and
+            ``transaction_indices`` (positions in ``transactions``, in print order).
+
+    Returns:
+        ``period``, ``closing_balance`` and ``report``, plain JSON values. Neither input changes.
+
+    Side Effects:
+        Imports pandas on first use.
+    """
+    closing_balance = merged_closing_balance(transactions, statements)
+    period = merged_period(statements)
+    span = None
+    if period["start"] and period["end"]:
+        span = tuple(
+            datetime.strptime(period[side], COMPLETION_TIME_FORMAT) for side in ("start", "end")
+        )
+    report = analyze_transactions(transactions, span, closing_balance=closing_balance)
+    return {"period": period, "closing_balance": closing_balance, "report": report}

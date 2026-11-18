@@ -101,6 +101,14 @@ Only if the user opts in to "Remember on this device"; until then nothing is wri
 - **Out:** `{ saved: true, version }`, or a `VaultError` with a code and a fixed message.
 - **Breakpoint:** `Vault.saveLedger`, after `findForbiddenContent`.
 
+## 11. Into its account's ledger: `LedgerStore.rememberStatement`
+
+- **Files:** `web/src/persistence/store.ts`, `ledger.ts`, `store-core.ts`; the core side is `bridge.py` `call_json`, reached through the engine's `call_core` (ADR 0017).
+- **In:** the pipeline result, the web layer's import time.
+- **What happens:** the account digest becomes the ledger id (HMAC under the vault's ledger-id key) and is then forgotten. The store reads that ledger, sends our statement's rows and the ledger's transactions to the core for a plan, and asks the core to validate it. Our transaction is new the first time: `applyStatementImport` stores it unchanged with an id, links it to the statement, and keeps the report as a snapshot, all on a copy of the ledger. The copy is saved in one vault write. Reading the same statement again links our transaction instead of storing it twice.
+- **Out:** `{ saved: true, ledgerId, statementId, counts }`; `mergedAnalytics()` then reports across the ledger's statements with the union period and the cross-statement closing balance.
+- **Breakpoint:** `applyStatementImport`, on the action for our row.
+
 ## Where to look next
 
 - `docs/DEBUGGING.md`: running one stage, and which test covers it.

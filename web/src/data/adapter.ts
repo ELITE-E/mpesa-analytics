@@ -3,10 +3,11 @@
 // derived figures fit unchanged. Pure functions; nothing here is stored.
 
 import { NO_ENTITY } from "@/lib/statement/groups";
+import { ANALYTICS_CONTRACT_VERSION } from "@/persistence/ledger";
 import type { AnalyticsResult, AnalyticsSnapshot, CreatedImport, ImportSummary, Transaction } from "@/data/types";
 
 /** A transaction as the core gives it (contracts.ClassifiedRow). */
-type CoreTransaction = {
+export type CoreTransaction = {
   receipt_no: string;
   completion_time: string;
   details: string;
@@ -39,7 +40,7 @@ export type ImportPlan = { counts: { new: number; matched: number; collided: num
 /** Room for each import's rows in the id space: more than the 300-page limit could print. */
 const IDS_PER_IMPORT = 1_000_000;
 /** The old API's contract version, kept for the snapshot shape; marks local analysis. */
-const LOCAL_CONTRACT_VERSION = "local-1";
+const LOCAL_CONTRACT_VERSION = ANALYTICS_CONTRACT_VERSION;
 
 /**
  * The statement's transactions as the UI's Transaction rows, in print order.
@@ -50,8 +51,20 @@ const LOCAL_CONTRACT_VERSION = "local-1";
  *   the UI's "not identified" marker, and each row gets an id stable for this import.
  */
 export function toTransactions(importId: number, result: PipelineResult): Transaction[] {
-  return result.transactions.map((row, index) => ({
-    id: importId * IDS_PER_IMPORT + index + 1,
+  return result.transactions.map((row, index) => toTransaction(row, importId * IDS_PER_IMPORT + index + 1));
+}
+
+/**
+ * One core transaction as the UI's Transaction row.
+ *
+ * @param row The core's transaction (or a remembered one: the same fields).
+ * @param id The row's id: a session id, or the ledger's own.
+ * @returns The row: `status` becomes `transaction_status`, a missing entity becomes the UI's "not
+ *   identified" marker.
+ */
+export function toTransaction(row: CoreTransaction, id: number): Transaction {
+  return {
+    id,
     receipt_no: row.receipt_no,
     completion_time: row.completion_time,
     details: row.details,
@@ -64,7 +77,7 @@ export function toTransactions(importId: number, result: PipelineResult): Transa
     balance: row.balance,
     cash_flow_direction: row.cash_flow_direction as Transaction["cash_flow_direction"],
     economic_meaning: row.economic_meaning,
-  }));
+  };
 }
 
 /**

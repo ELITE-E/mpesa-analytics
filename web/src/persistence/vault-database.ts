@@ -94,6 +94,17 @@ export function readLedgerRecord(database: IDBDatabase, ledgerId: string): Promi
 }
 
 /**
+ * The ids of every saved ledger.
+ *
+ * @param database The open connection.
+ * @returns The ledger ids, in key order. Side effects: none.
+ */
+export function listLedgerRecordIds(database: IDBDatabase): Promise<string[]> {
+  const transaction = database.transaction(LEDGER_STORE, "readonly");
+  return requestResult(transaction.objectStore(LEDGER_STORE).getAllKeys()) as Promise<string[]>;
+}
+
+/**
  * Write one ledger record in one transaction, only if the stored version counter is still the one
  * the caller read (compare-and-set). Reading the counter and writing happen in the same
  * transaction, which IndexedDB runs alone on the store, so two tabs cannot both win.

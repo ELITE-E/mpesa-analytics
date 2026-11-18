@@ -389,3 +389,28 @@ No existing test was edited. New tests, red first per item (each file was writte
 | 5 failure modes | `vault-failures.test.mjs` | 14 of 14: no memory-only mode, raw errors, no compare-and-set | none |
 | 6 iteration guards | `vault-iterations.test.mjs` | 4 of 8: stored lower or other KDF parameters were followed; the test factory took any count | 4: the 600,000 constant, the production factory's derivation, ignoring an option, and "no app source calls the test factory" were true from item 2 (the factory was written with the constant and no option). Mutation-checked: 100,000 turns the Chrome guard red |
 | 7 real Chrome | `vault-chrome.test.mjs` | 0 of 8 at first run: items 2 to 5 had built every behaviour under fake IndexedDB | All 8; each was then mutation-checked red: a request in `create` (zero network), quota not mapped, blocked storage not caught, compare-and-set removed (two tabs), no `versionchange` close (delete-all across tabs), 100,000 production iterations, a source registering a service worker (N-35); code restored after each |
+
+## CP9b: ledgers per account, merging, merged analytics (ADR 0017)
+
+Edited tests, two. `tests/core/test_errors.py::test_every_analysis_code_exists`:
+
+| Old assertion | New assertion | Reason |
+|---|---|---|
+| The `AnalysisCode` names are exactly `DATE_UNREADABLE` and `ANALYSIS_FAILED` | ... and `MERGE_REQUEST_INVALID` | ADR 0017 adds the code for a malformed merged-analysis request (`reconciliation/merge.py`, `bridge.analyze_merged_json`). The test pins the full list of codes that can reach the UI, so a new code must be added to it; found red by the full suite (CPython and Pyodide) after the code was added |
+
+`web/tests/vault-iterations.test.mjs`, `recordingCrypto()`:
+
+| Old assertion | New assertion | Reason |
+|---|---|---|
+| The spy recorded `algorithm.iterations` of every `subtle.deriveKey` call | The spy records `algorithm.iterations` of every PBKDF2 call, through `deriveKey` or `deriveBits` | ADR 0017: the vault now stretches the passphrase with PBKDF2 `deriveBits` and splits the result with HKDF. The assertions (exactly one derivation at 600,000 or more; nothing lowers it) are unchanged; without the edit the spy would see only the HKDF calls. Edited before the implementation; the test stayed green across the change |
+
+New tests, red first per item:
+
+| Item | File | Seen red | Passed at once, and why |
+|---|---|---|---|
+| 5 merged analytics (core) | `tests/core/test_merge.py` | 27 of 27 (collection error, then stubs raising `NotImplementedError`) | none |
+| 1 ledger id | `web/tests/vault-ledger-id.test.mjs` | 9 of 9 (`ledgerIdFor`, `listLedgerIds` missing) | none |
+| 2, 3, 4, 6 store and data layer | `web/tests/store.test.ts` (S-01 to S-54, old names) | 54 of 54 (stubs threw) | none |
+| 1, 2, 3, 5 at the store | `web/tests/store-ledgers.test.ts` | 24 of 24 (stubs threw); then 1 more ("in the app, the store reaches the core through the statement engine's call_core") red before `storeCoreForThisBrowser` | none |
+| 7 engine wiring | `tests/pdf_readers/engine_bridge.test.js` (5, `call_store_core`), `engine_client.test.js` (4, `call_core`) | 9 of 9 (missing export; no `call_core`) | none |
+| 7 real Chrome | `web/tests/store-chrome.test.mjs` | 1 of 3 at first run, but for a stale reason: the served runtime still held the CP9a wheel (no `call_json`) | 2 of 3, and all 3 after rebuilding the runtime: the store was already built. Each then mutation-checked red: a request during the merge (zero network), plaintext saved beside the blob (raw scan), an unreadable account saved anyway; code restored after each |

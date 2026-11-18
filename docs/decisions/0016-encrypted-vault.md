@@ -1,6 +1,6 @@
 # 0016. "Remember on this device" is an encrypted vault: WebCrypto, whole-ledger blobs, off by default
 
-Status: Accepted (owner instruction, CP9a)
+Status: Accepted (owner instruction, CP9a); key derivation amended by ADR 0017 (one stretch, split by HKDF into the encryption key and a ledger-id key)
 Date: 2026-11-18
 
 ## Context

@@ -22,15 +22,15 @@ const FLOOR = 600_000;
 const WEB = join(import.meta.dirname, "..");
 const REPO = join(WEB, "..");
 
-/** Node's WebCrypto, recording the PBKDF2 iterations of every key derivation. */
+/** Node's WebCrypto, recording the PBKDF2 iterations of every derivation, by key or by bits. */
 function recordingCrypto() {
   const derivations = [];
   const subtle = new Proxy(globalThis.crypto.subtle, {
     get(target, property) {
-      if (property === "deriveKey") {
+      if (property === "deriveKey" || property === "deriveBits") {
         return (algorithm, ...rest) => {
-          derivations.push(algorithm.iterations);
-          return target.deriveKey(algorithm, ...rest);
+          if (algorithm.name === "PBKDF2") derivations.push(algorithm.iterations);
+          return target[property](algorithm, ...rest);
         };
       }
       const member = target[property];

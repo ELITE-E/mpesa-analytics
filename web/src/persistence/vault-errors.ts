@@ -18,7 +18,8 @@ export type VaultErrorCode =
   | "STALE_LEDGER"
   | "STORAGE_UNAVAILABLE"
   | "STORAGE_QUOTA_EXCEEDED"
-  | "STORAGE_WRITE_FAILED";
+  | "STORAGE_WRITE_FAILED"
+  | "ACCOUNT_DIGEST_INVALID";
 
 const MESSAGES: Record<VaultErrorCode, string> = {
   PASSPHRASE_TOO_SHORT: "Use at least four words, or at least 16 characters.",
@@ -46,6 +47,7 @@ const MESSAGES: Record<VaultErrorCode, string> = {
     "There is not enough storage space on this device to save. The previous saved data is unchanged; " +
     "the app keeps working without saving.",
   STORAGE_WRITE_FAILED: "Saving failed. The previous saved data is unchanged.",
+  ACCOUNT_DIGEST_INVALID: "This statement's account could not be read, so it cannot be matched to saved data.",
 };
 
 /**

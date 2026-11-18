@@ -103,7 +103,13 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | vault | The encrypted IndexedDB database behind "Remember on this device", and the object that opens it. Locked until unlocked with the passphrase | `Vault`, `openVault`, `web/src/persistence/` | safe, keystore, db |
 | passphrase | What the person types to create or unlock the vault; never stored | `checkPassphrase` | password (reserved for the PDF's password), PIN |
 | hint | Optional plaintext reminder, at most 60 characters, holding no word of the passphrase; shown only after a failed unlock | `checkHint`, `hintAfterFailedUnlock` | clue, reminder |
-| ledger | One encrypted blob of remembered data, under a ledger id, with a version counter. CP9b fills it with statements and transactions | `readLedger`, `saveLedger`, `LedgerRecord` | wallet, book, archive |
+| ledger | Everything remembered for one account, as one encrypted blob under its ledger id, with a version counter: statements, transactions (each stored once), provenance links, snapshots and observations (ADR 0017) | `Ledger`, `readLedger`, `saveLedger`, `LedgerStore` | wallet, book, archive |
+| ledger id | HMAC of the account digest under the vault's ledger-id key: the only account marker stored | `ledgerIdFor`, `ledgerIdForAccount` | account id, phone hash |
+| provenance link | A record that a statement observed a transaction; each pair once | `links`, `linkStatementTransaction` | statement transaction row |
+| snapshot | A statement's report kept as JSON text with its contract version and the web layer's time | `snapshots`, `addSnapshot`, `ANALYTICS_CONTRACT_VERSION` | cache, saved report |
+| observation | A domain observation kept with a statement (and a transaction): one of three known categories, status `new` | `observations`, `addObservation`, `OBSERVATION_CATEGORIES` | issue, warning, log |
+| merged analytics | One report over a ledger's transactions across its statements, with the union period and the cross-statement closing balance (ADR 0017) | `analyze_merged`, `mergedAnalytics` | combined report, totals |
+| prepared import | A merge planned and validated but not written: its counts, then confirm (one write) or cancel | `prepareStatementImport`, `PreparedImport` | draft, pending import |
 | key check | A known text sealed under the key in `meta`, so a wrong passphrase is told apart without opening a ledger | `key_check` | verifier, canary |
 | lock | Dropping the key and every held ledger; by hand, after the idle time (`DEFAULT_IDLE_LOCK_MS`), on delete-all, or when another tab deletes the database | `lock`, `onLock`, `LockReason` | logout, sign out |
 | version counter | The number of saves of one ledger; a save must name the counter it read (compare-and-set), so a stale tab cannot overwrite a newer save | `version`, `STALE_LEDGER` | revision, etag |

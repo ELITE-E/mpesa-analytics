@@ -20,35 +20,72 @@ export function randomSalt(cryptoApi: Crypto): Uint8Array {
   return cryptoApi.getRandomValues(new Uint8Array(SALT_BYTES));
 }
 
+/** The vault's two keys: one encrypts blobs, the other computes ledger ids (ADR 0017). */
+export type VaultKeys = { encryption: CryptoKey; ledgerId: CryptoKey };
+
+const STRETCHED_BITS = 256;
+const ENCRYPTION_INFO = "mpesa-analytics vault encryption";
+const LEDGER_ID_INFO = "mpesa-analytics ledger id";
+
 /**
- * Derive the vault key from a passphrase.
+ * Derive the vault's keys from a passphrase: PBKDF2-SHA256 stretches it once, and HKDF splits the
+ * result into an AES-GCM 256-bit encryption key and an HMAC-SHA256 ledger-id key, so neither key
+ * can stand in for the other. The stretched bits are wiped as soon as they are imported.
  *
  * @param cryptoApi The WebCrypto object.
  * @param passphrase The passphrase, as typed.
  * @param salt The vault's salt.
  * @param iterations PBKDF2 iterations.
- * @returns A non-extractable AES-GCM 256-bit key for encrypt and decrypt. Side effects: none.
+ * @returns Both keys, non-extractable. Side effects: none.
  */
-export async function deriveVaultKey(
+export async function deriveVaultKeys(
   cryptoApi: Crypto,
   passphrase: string,
   salt: Uint8Array,
   iterations: number,
-): Promise<CryptoKey> {
+): Promise<VaultKeys> {
   const material = await cryptoApi.subtle.importKey(
     "raw",
     new TextEncoder().encode(passphrase),
     "PBKDF2",
     false,
-    ["deriveKey"],
+    ["deriveBits"],
   );
-  return cryptoApi.subtle.deriveKey(
-    { name: "PBKDF2", hash: "SHA-256", salt: salt as BufferSource, iterations },
-    material,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"],
+  const stretched = new Uint8Array(
+    await cryptoApi.subtle.deriveBits(
+      { name: "PBKDF2", hash: "SHA-256", salt: salt as BufferSource, iterations },
+      material,
+      STRETCHED_BITS,
+    ),
   );
+  const master = await cryptoApi.subtle.importKey("raw", stretched, "HKDF", false, ["deriveKey"]);
+  stretched.fill(0);
+  const expand = (info: string, algorithm: AesKeyGenParams | HmacImportParams, usages: KeyUsage[]) =>
+    cryptoApi.subtle.deriveKey(
+      { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: new TextEncoder().encode(info) },
+      master,
+      algorithm,
+      false,
+      usages,
+    );
+  const [encryption, ledgerId] = await Promise.all([
+    expand(ENCRYPTION_INFO, { name: "AES-GCM", length: 256 }, ["encrypt", "decrypt"]),
+    expand(LEDGER_ID_INFO, { name: "HMAC", hash: "SHA-256", length: 256 }, ["sign"]),
+  ]);
+  return { encryption, ledgerId };
+}
+
+/**
+ * The ledger id for an account: HMAC-SHA256 of its digest under the ledger-id key, as hex.
+ *
+ * @param cryptoApi The WebCrypto object.
+ * @param ledgerIdKey The vault's ledger-id key.
+ * @param accountDigest The account digest from the pipeline result; used here and never kept.
+ * @returns 64 lowercase hex characters. Side effects: none.
+ */
+export async function computeLedgerId(cryptoApi: Crypto, ledgerIdKey: CryptoKey, accountDigest: string): Promise<string> {
+  const signature = await cryptoApi.subtle.sign("HMAC", ledgerIdKey, new TextEncoder().encode(accountDigest));
+  return Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 /**
