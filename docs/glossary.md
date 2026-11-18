@@ -92,9 +92,23 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | statement engine | The module worker holding the pdf reader and the core under Pyodide, with its verified runtime; the main thread reaches it through `engine_client.js`. Its failures carry one of the reader's codes or `ENGINE_FAILED` | `create_statement_engine`, `reader.worker.js` | engine (alone, for the pdf reader) |
 | runtime | The self-hosted files the statement engine loads: Pyodide, pdf.js, the wheel and the analysis packages, under `runtime/<version>/` with a SHA-256 manifest | `tools/vendor.py runtime`, `load_runtime` | CDN, bundle |
 | "error" | Reserved for exceptions raised by code: `ExtractionError`, `AttestationError`, `DomainRowError`, `AnalysisError`, each with a code or a position only | `*Error` | using it for data-quality counts |
-| remember on this device | The opt-in that keeps data in local browser storage. | `remember_on_device` | save, sync, upload, import |
+| remember on this device | The opt-in that keeps data in local browser storage, encrypted in the vault (ADR 0016). Off by default | `remember_on_device` | save, sync, upload, import |
 | session | The statements read since the app's page was opened, held in memory only; a reload forgets them (CP8b, until "Remember on this device" in CP9) | `session` in `web/src/data/repo.ts` | login session, account session |
 | static export | The web app built as plain files (`next build` with `output: "export"`), served with a per-page CSP (ADR 0015) | `web/out`, `postbuild.mjs` | server build |
+
+## Storage on the device (ADR 0016)
+
+| Term | Meaning | Code name | Avoid |
+|---|---|---|---|
+| vault | The encrypted IndexedDB database behind "Remember on this device", and the object that opens it. Locked until unlocked with the passphrase | `Vault`, `openVault`, `web/src/persistence/` | safe, keystore, db |
+| passphrase | What the person types to create or unlock the vault; never stored | `checkPassphrase` | password (reserved for the PDF's password), PIN |
+| hint | Optional plaintext reminder, at most 60 characters, holding no word of the passphrase; shown only after a failed unlock | `checkHint`, `hintAfterFailedUnlock` | clue, reminder |
+| ledger | One encrypted blob of remembered data, under a ledger id, with a version counter. CP9b fills it with statements and transactions | `readLedger`, `saveLedger`, `LedgerRecord` | wallet, book, archive |
+| key check | A known text sealed under the key in `meta`, so a wrong passphrase is told apart without opening a ledger | `key_check` | verifier, canary |
+| lock | Dropping the key and every held ledger; by hand, after the idle time (`DEFAULT_IDLE_LOCK_MS`), on delete-all, or when another tab deletes the database | `lock`, `onLock`, `LockReason` | logout, sign out |
+| version counter | The number of saves of one ledger; a save must name the counter it read (compare-and-set), so a stale tab cannot overwrite a newer save | `version`, `STALE_LEDGER` | revision, etag |
+| memory-only mode | The vault's state when the browser refuses storage or runs out of quota: the app keeps working and nothing is saved | `memory_only`, `storageProblem` | offline mode, fallback |
+| delete-all | Deleting the whole vault database: every ledger, the salt, the hint and the settings | `deleteAll` | reset, wipe, clear |
 
 ## Verbs for functions
 

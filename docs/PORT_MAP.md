@@ -87,6 +87,8 @@ Old paths are in mpesa-parser; new paths are in this repo, under `src/mpesa_core
 | `src/persistence/collisions.py` `preserve_collision` and helpers | Decision: `reconciliation/import_plan.py` (`preserve` actions; `validate_import_plan` refuses preserving a non-collision). Storage: `web/src/persistence` (CP9) | Python decides, JavaScript persists |
 | `src/persistence/orchestration.py`, `statements.py`, `transactions.py`, `observations.py`, `provenance.py`, `analytics_snapshots.py` | Row decisions: `reconciliation/import_plan.py` `plan_statement_import`, exposed by `bridge.py` as JSON. Storage, in one IndexedDB transaction: `web/src/persistence` (CP9) | Rules: `docs/decisions/import-plan-behaviour.md` |
 | `src/persistence/database.py`, `src/persistence/models.py` (`User`, `AuthSession`, `LoginThrottleCounter` and the tables) | dropped | No server, no accounts |
+| The Postgres database itself (tables, one transaction per import, delete by cascade) | The vault, `web/src/persistence/vault.ts` (CP9a): one encrypted blob per ledger in IndexedDB, one transaction per save, compare-and-set on a version counter; delete-all deletes the database | ADR 0016. The old tables become fields inside the ledger blob (CP9b) |
+| (none: the server relied on login and the host's disk encryption) | Passphrase lock: `vault.ts` `create`/`unlock`/`lock`, `passphrase-policy.ts`, `vault-crypto.ts`; what is never stored: `forbidden-content.ts` | New in the rewrite; `docs/THREAT_MODEL.md` |
 
 ## New in the rewrite
 
