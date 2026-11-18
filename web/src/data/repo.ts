@@ -21,10 +21,11 @@ import type { AnalyticsResult, AnalyticsSnapshot, CreatedImport, ImportSummary, 
 import {
   snapshotsOf,
   statementTransactions,
+  type ImportCounts,
   type Ledger,
   type StoredStatement,
 } from "@/persistence/ledger";
-import type { LedgerStore } from "@/persistence/store";
+import type { LedgerListing, LedgerStore } from "@/persistence/store";
 import { storeCoreFrom, type CoreEnvelope, type StoreCore } from "@/persistence/store-core";
 import { StoreError } from "@/persistence/store-errors";
 import { VaultError } from "@/persistence/vault-errors";
@@ -116,23 +117,49 @@ export async function uploadStatement(
   password: string,
   options: { onProgress?: (step: UploadProgress) => void } = {},
 ): Promise<CreatedImport> {
-  cancelRequested = false;
-  const pdfBytes = new Uint8Array(await file.arrayBuffer());
-  // A cancel that came while the file was being read stops the upload before the engine starts.
-  if (cancelRequested) throw apiErrorFor("CANCELLED");
-  const outcome = await currentEngine().run({
-    pdf_bytes: pdfBytes,
-    password: password || undefined,
-    processed_at: new Date().toISOString(),
-    existing_transactions_json: JSON.stringify(session.imports.flatMap((held) => held.coreTransactions)),
-    on_progress: options.onProgress,
-  });
-  if (!outcome.ok || !outcome.pipeline_result_json || !outcome.plan_json) {
-    throw outcome.failure ? toApiError(outcome.failure) : apiErrorFor("unexpected_error");
-  }
-  const result: PipelineResult = JSON.parse(outcome.pipeline_result_json);
+  const { result, plan } = await readWithEngine(file, password, options);
   const remembered = await rememberInLedger(result);
-  return remembered ?? keep(result, JSON.parse(outcome.plan_json));
+  return remembered ?? keep(result, plan);
+}
+
+/** A merge waiting for the person's answer (CP9c, N-26): its counts come before any write. */
+export type MergeProposal = {
+  /** New, matched and collided rows; null until a ledger is chosen for an unreadable account. */
+  counts: ImportCounts | null;
+  /** The statement's account is not the ledger on screen: it opens as a separate ledger. */
+  differentAccount: boolean;
+  /** No statement of this account is saved yet. */
+  newLedger: boolean;
+  /** The statement's account cannot be read: the person picks a saved ledger, or does not save. */
+  accountUnreadable: boolean;
+  ledgerChoices: LedgerListing[];
+  /** For an unreadable account: the proposal for adding it to this saved ledger. */
+  chooseLedger(ledgerId: string): Promise<MergeProposal>;
+  /** Write it: one vault write. The ledger it went into is shown afterwards. */
+  confirm(): Promise<{ created: CreatedImport; counts: ImportCounts }>;
+  /** Write nothing. */
+  cancel(): void;
+};
+
+/**
+ * Read a statement for the screens (CP9c): with remember on, propose its merge for the person to
+ * confirm or cancel; otherwise keep it in the session, as `uploadStatement` does.
+ *
+ * @param file The statement PDF the user chose.
+ * @param password Its password, or "" if it has none. Handed to the engine once; never kept.
+ * @param options.onProgress Called with each step the engine reports.
+ * @returns `{kind: "merge", proposal}` while remembering, else `{kind: "created", created}`.
+ * @throws {ApiError} With the engine's or the core's code, or "save_failed" (503) when the merge
+ *   cannot be worked out.
+ */
+export async function readStatement(
+  file: File,
+  password: string,
+  options: { onProgress?: (step: UploadProgress) => void } = {},
+): Promise<{ kind: "merge"; proposal: MergeProposal } | { kind: "created"; created: CreatedImport }> {
+  const { result, plan } = await readWithEngine(file, password, options);
+  if (rememberedStore === null || !rememberedStore.isActive()) return { kind: "created", created: keep(result, plan) };
+  return { kind: "merge", proposal: await proposeMerge(rememberedStore, result) };
 }
 
 /**
@@ -306,6 +333,104 @@ export function useEngineForTests(replacement: StatementEngine) {
   warmedUp = null;
   session.imports = [];
   session.nextId = 1;
+}
+
+/**
+ * Read one statement with the engine.
+ *
+ * @param file The PDF.
+ * @param password Its password, or "".
+ * @param options.onProgress Progress callback.
+ * @returns The pipeline result and the session plan.
+ * @throws {ApiError} With the engine's or the core's code, or "CANCELLED".
+ */
+async function readWithEngine(
+  file: File,
+  password: string,
+  options: { onProgress?: (step: UploadProgress) => void },
+): Promise<{ result: PipelineResult; plan: ImportPlan }> {
+  cancelRequested = false;
+  const pdfBytes = new Uint8Array(await file.arrayBuffer());
+  // A cancel that came while the file was being read stops the upload before the engine starts.
+  if (cancelRequested) throw apiErrorFor("CANCELLED");
+  const outcome = await currentEngine().run({
+    pdf_bytes: pdfBytes,
+    password: password || undefined,
+    processed_at: new Date().toISOString(),
+    existing_transactions_json: JSON.stringify(session.imports.flatMap((held) => held.coreTransactions)),
+    on_progress: options.onProgress,
+  });
+  if (!outcome.ok || !outcome.pipeline_result_json || !outcome.plan_json) {
+    throw outcome.failure ? toApiError(outcome.failure) : apiErrorFor("unexpected_error");
+  }
+  return { result: JSON.parse(outcome.pipeline_result_json), plan: JSON.parse(outcome.plan_json) };
+}
+
+/**
+ * Work out how a statement merges, without writing (N-26).
+ *
+ * @param store The store.
+ * @param result The pipeline result.
+ * @param ledgerChoice For an unreadable account: the saved ledger the person picked.
+ * @returns The proposal.
+ * @throws {ApiError} "save_failed" (503) when the core or the vault refuses.
+ */
+async function proposeMerge(store: LedgerStore, result: PipelineResult, ledgerChoice?: string): Promise<MergeProposal> {
+  const importedAt = result.processed_at ?? new Date().toISOString();
+  const [prepared, ledgers] = await asSaveFailure(() =>
+    Promise.all([store.prepareStatementImport({ pipelineResult: result, importedAt, ledgerChoice }), store.listLedgers()]),
+  );
+  const shown = store.currentLedgerId();
+  const chooseLedger = (ledgerId: string) => proposeMerge(store, result, ledgerId);
+  if (!("confirm" in prepared)) {
+    return {
+      counts: null,
+      differentAccount: false,
+      newLedger: false,
+      accountUnreadable: prepared.reason === "ACCOUNT_UNREADABLE",
+      ledgerChoices: ledgers,
+      chooseLedger,
+      confirm: () => Promise.reject(apiErrorFor("unexpected_error")),
+      cancel: () => undefined,
+    };
+  }
+  return {
+    counts: prepared.counts,
+    differentAccount: ledgerChoice === undefined && shown !== null && shown !== prepared.ledgerId,
+    newLedger: !ledgers.some((ledger) => ledger.ledgerId === prepared.ledgerId),
+    accountUnreadable: false,
+    ledgerChoices: ledgers,
+    chooseLedger,
+    confirm: async () => {
+      const saved = await asSaveFailure(() => prepared.confirm());
+      const ledger = store.currentLedger() as Ledger;
+      return {
+        counts: saved.counts,
+        created: {
+          import: toLedgerImportSummary(rememberedStatement(ledger, saved.statementId)),
+          analytics: result.report,
+          verification_token: result.verification_token,
+        },
+      };
+    },
+    cancel: () => prepared.cancel(),
+  };
+}
+
+/**
+ * Run a store call, turning the vault's and store's refusals into the UI's "save_failed".
+ *
+ * @param call The call.
+ * @returns Its answer.
+ * @throws {ApiError} "save_failed" (503) with the refusal's own message; other errors unchanged.
+ */
+async function asSaveFailure<Answer>(call: () => Promise<Answer>): Promise<Answer> {
+  try {
+    return await call();
+  } catch (error) {
+    if (error instanceof VaultError || error instanceof StoreError) throw new ApiError(503, "save_failed", error.message);
+    throw error;
+  }
 }
 
 /**

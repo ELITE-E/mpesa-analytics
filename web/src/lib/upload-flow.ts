@@ -3,20 +3,32 @@
 // the PDF and its password are never written to storage, and a page reload
 // forgets them (the processing screen then asks for the file again).
 
-import { ApiError, cancelUpload, uploadStatement, type CreatedImport, type UploadProgress } from "@/lib/api";
+import {
+  ApiError,
+  cancelUpload,
+  readStatement,
+  uploadStatement,
+  type CreatedImport,
+  type MergeProposal,
+  type UploadProgress,
+} from "@/lib/api";
 
 type PendingUpload = { file: File; password: string };
 
 let pending: PendingUpload | null = null;
 let inFlight: Promise<CreatedImport> | null = null;
+let statementInFlight: Promise<{ next: string }> | null = null;
 let lastFailure: ApiError | null = null;
 let lastSuccess: CreatedImport | null = null;
 let progress: UploadProgress | null = null;
+/** A remembered statement's merge, waiting on /merge for the person's answer (CP9c). */
+let mergeWaiting: MergeProposal | null = null;
 const progressListeners = new Set<() => void>();
 
 export function setPendingUpload(file: File, password: string) {
   pending = { file, password };
   inFlight = null;
+  statementInFlight = null;
   lastFailure = null;
   setProgress(null);
 }
@@ -52,6 +64,8 @@ export function resetUploadFlowForTests() {
   inFlight = null;
   lastFailure = null;
   lastSuccess = null;
+  mergeWaiting = null;
+  statementInFlight = null;
   setProgress(null);
 }
 
@@ -110,4 +124,57 @@ export function lastUploadFailure() {
 /** The verification token of an import uploaded in this tab, if any. */
 export function verificationTokenFor(importId: number) {
   return lastSuccess?.import.id === importId ? lastSuccess.verification_token : null;
+}
+
+/**
+ * Read the pending statement and say where the screens go next (CP9c): with remember on, to the
+ * merge screen, where the person confirms or cancels before anything is written; otherwise to the
+ * statement's summary. Repeated calls while a read is running share it.
+ *
+ * @returns `{next}`: "/merge" or "/analysis-summary?import=<id>".
+ * @throws {ApiError} As `submitPendingUpload`.
+ */
+export function submitPendingStatement(): Promise<{ next: string }> {
+  if (!pending) {
+    return Promise.reject(new ApiError(0, "no_statement", "Choose a statement to upload first."));
+  }
+  if (!statementInFlight) {
+    const { file, password } = pending;
+    statementInFlight = readStatement(file, password, { onProgress: setProgress }).then(
+      (read) => {
+        pending = null;
+        statementInFlight = null;
+        if (read.kind === "merge") {
+          mergeWaiting = read.proposal;
+          return { next: "/merge" };
+        }
+        lastSuccess = read.created;
+        return { next: `/analysis-summary?import=${read.created.import.id}` };
+      },
+      (error: unknown) => {
+        statementInFlight = null;
+        lastFailure =
+          error instanceof ApiError ? error : new ApiError(0, "unexpected_error", "Something went wrong. Please try again.");
+        if (!lastFailure.isRetryable) pending = null;
+        throw lastFailure;
+      },
+    );
+  }
+  return statementInFlight;
+}
+
+/**
+ * The merge waiting for the person's answer on /merge, if any.
+ *
+ * @returns The proposal, or null.
+ */
+export function pendingMerge(): MergeProposal | null {
+  return mergeWaiting;
+}
+
+/**
+ * Forget the waiting merge once it is confirmed or cancelled.
+ */
+export function clearPendingMerge() {
+  mergeWaiting = null;
 }

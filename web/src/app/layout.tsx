@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import { EngineWarmUp } from "@/components/engine-warm-up";
+import { RememberSession } from "@/components/remember/remember-session";
 import "./globals.css";
 
 // The same families and weights the Stitch screens load.
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="bg-surface font-body text-on-surface antialiased min-h-screen flex flex-col">
         <EngineWarmUp />
+        <RememberSession />
         {children}
       </body>
     </html>

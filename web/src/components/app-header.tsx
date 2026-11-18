@@ -1,4 +1,5 @@
 import { PrivateOnDevice } from "@/components/private-on-device";
+import { RememberHeaderControls } from "@/components/remember/lock-control";
 import { Icon } from "@/components/icon";
 
 /**
@@ -33,6 +34,7 @@ export function AppHeader() {
         </div>
         <div className="flex items-center gap-2">
           <PrivateOnDevice />
+          <RememberHeaderControls />
         </div>
       </div>
     </header>

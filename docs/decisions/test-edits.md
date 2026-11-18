@@ -414,3 +414,18 @@ New tests, red first per item:
 | 1, 2, 3, 5 at the store | `web/tests/store-ledgers.test.ts` | 24 of 24 (stubs threw); then 1 more ("in the app, the store reaches the core through the statement engine's call_core") red before `storeCoreForThisBrowser` | none |
 | 7 engine wiring | `tests/pdf_readers/engine_bridge.test.js` (5, `call_store_core`), `engine_client.test.js` (4, `call_core`) | 9 of 9 (missing export; no `call_core`) | none |
 | 7 real Chrome | `web/tests/store-chrome.test.mjs` | 1 of 3 at first run, but for a stale reason: the served runtime still held the CP9a wheel (no `call_json`) | 2 of 3, and all 3 after rebuilding the runtime: the store was already built. Each then mutation-checked red: a request during the merge (zero network), plaintext saved beside the blob (raw scan), an unreadable account saved anyway; code restored after each |
+
+## CP9c: the screens for saving and merging
+
+No existing test was edited. `tests/browser/ui_run.test.js` gained one new test (`--remember`); its existing tests are unchanged and still pass. New tests, red first per item:
+
+| Item | File | Seen red | Passed at once, and why |
+|---|---|---|---|
+| fixture for item 6 | `tests/synth/test_generator.py` (2 new) | 2 of 2 (no `identity` option, no `F-OTHER-ACCOUNT`) | none |
+| 1 remember card | `web/tests/remember-setup.test.mjs` | 9 of 9 (stubs) | none |
+| 2 unlock, lock, auto-lock, forgot | `web/tests/remember-unlock.test.mjs` | 12 of 12 (stubs) | none |
+| 3, 4 ledger switcher, different account, merge screen | `web/tests/remember-merge.test.mjs` | 16 of 17 (stubs) | "no screen copy offers to replace saved data" was first red for a test bug (it matched the key name `noReplace`); fixed to read the copy's text only, it passed at once: the copy, written before the tests, never offered a replace |
+| 5 statement list, quality card, delete-all | `web/tests/remember-settings.test.mjs` | 8 of 8 (stubs); then 1 more, "after delete-all, settings says everything was deleted", red for a bug the Chrome test found (the notice vanished with the section that held it) | none |
+| claims behind the copy | `web/tests/remember-claims.test.mjs` | 2 of 6 (two claims had no entry; one card text said a claim in its own words) | 4: the CSV, passphrase-policy, no-recovery and plaintext-hint proofs pin facts that were already true |
+| 6 real UI in Chrome | `web/tests/remember-e2e.test.mjs` | 4 of 4 at first run: 3 for a test bug (it reloaded pages with `goto`, and a reload correctly locks the vault; now it follows the app's links), 1 for the delete-all notice bug above | none at first; after the fixes each was mutation-checked red: cancel that writes, a reload not sent to unlock, no different-account prompt, the idle lock not followed, delete-all without confirmation; code restored after each |
+| 7 `ui_run --remember` | `tests/browser/ui_run.test.js` (1 new) | 1 of 1 (option refused) | none |

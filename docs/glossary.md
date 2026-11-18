@@ -110,6 +110,9 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | observation | A domain observation kept with a statement (and a transaction): one of three known categories, status `new` | `observations`, `addObservation`, `OBSERVATION_CATEGORIES` | issue, warning, log |
 | merged analytics | One report over a ledger's transactions across its statements, with the union period and the cross-statement closing balance (ADR 0017) | `analyze_merged`, `mergedAnalytics` | combined report, totals |
 | prepared import | A merge planned and validated but not written: its counts, then confirm (one write) or cancel | `prepareStatementImport`, `PreparedImport` | draft, pending import |
+| merge screen | `/merge`: a prepared import's counts (new, already saved, kept side by side) before the write, then save or don't save | `MergeProposal`, `readStatement`, `MergeReview` | import preview, sync screen |
+| separate ledger | What a statement of another M-Pesa account becomes; never compared with or replacing another ledger | `differentAccount` | replace, overwrite |
+| claim | A sentence the remember screens state as fact; each names the test that proves it | `claims`, `remember-claims.test.mjs` | promise, guarantee |
 | key check | A known text sealed under the key in `meta`, so a wrong passphrase is told apart without opening a ledger | `key_check` | verifier, canary |
 | lock | Dropping the key and every held ledger; by hand, after the idle time (`DEFAULT_IDLE_LOCK_MS`), on delete-all, or when another tab deletes the database | `lock`, `onLock`, `LockReason` | logout, sign out |
 | version counter | The number of saves of one ledger; a save must name the counter it read (compare-and-set), so a stale tab cannot overwrite a newer save | `version`, `STALE_LEDGER` | revision, etag |

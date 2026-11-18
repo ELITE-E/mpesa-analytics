@@ -25,7 +25,8 @@ export function StatementChecksCard({ checks }: { checks: StatementChecks }) {
       <p className="text-sm font-body text-on-surface">{passes ? copy.passes : copy.doesNotPass}</p>
       <div className="p-3 rounded-lg bg-surface-container-low flex flex-col gap-1">
         <span className="text-xs font-label text-on-surface-variant">
-          {copy.verificationLabel}: <span className="font-semibold text-on-surface">{checks.verification_token}</span>
+          {copy.verificationLabel}:{" "}
+          <span className="font-semibold text-on-surface">{checks.verification_token || copy.tokenNotKept}</span>
         </span>
         <span className="text-xs font-label text-on-surface-variant">
           {copy.verifyWithSafaricom}:{" "}

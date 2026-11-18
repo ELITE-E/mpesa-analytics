@@ -13,6 +13,8 @@ export const hero = {
 export const checks = {
   title: "Statement checks",
   verificationLabel: "Verification code",
+  // A remembered statement: the code is never stored (ADR 0016), so the card says where to find it.
+  tokenNotKept: "Not kept on this device. Read it from your PDF.",
   verifyWithSafaricom: "Verify with Safaricom",
   // Shown when the core could not read the statement's own instruction: the app never assumes a code.
   instructionUnreadable: "Use the verification instruction printed on your statement.",

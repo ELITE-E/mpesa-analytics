@@ -446,3 +446,28 @@ def test_the_tied_fixture_ties_more_than_sixteen_rows_at_its_latest_time():
     # tie group must be larger to show a platform difference.
     times = Counter(row["completion_time"] for row in tied_ledger()["rows"])
     assert times[max(times)] > 16
+
+
+def test_the_other_account_fixture_prints_another_invented_identity_in_the_fake_range():
+    from mpesa_core import pipeline
+    from pdf_readers.pdfplumber_reader import extract_statement_pages
+    from synth.generate import COMMITTED_FIXTURES
+
+    seed, options = ON_DEMAND_FIXTURES["F-OTHER-ACCOUNT"]
+    other = build_outputs(seed, options)[".pdf"]
+    golden_seed, golden_options = COMMITTED_FIXTURES["F-GOLDEN"]
+    golden = build_outputs(golden_seed, golden_options)[".pdf"]
+    with pdfplumber.open(io.BytesIO(other)) as pdf:
+        page_one = pdf.pages[0].extract_text()
+    assert "Example Person 01" in page_one
+    assert "07000000" + "01" in page_one.replace(" ", "")
+    other_result = pipeline.run(extract_statement_pages(other))
+    golden_result = pipeline.run(extract_statement_pages(golden))
+    assert other_result["account_digest"] is not None
+    assert other_result["account_digest"] != golden_result["account_digest"]
+
+
+def test_the_committed_fixtures_keep_the_first_invented_identity():
+    from synth.generate import COMMITTED_FIXTURES
+
+    assert all(options.identity == 0 for _, options in COMMITTED_FIXTURES.values())
