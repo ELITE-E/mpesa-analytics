@@ -375,3 +375,17 @@ CP8b owner decision (2): the prototype's ten browser test files run on the stati
 | "analytics fail" and "transactions fail (T-LOADFAIL)" in each area file: cash, fees, hub, money-in, overview, people, savings, spending (16) | Same: an import's analytics and rows are in memory once read, so they cannot fail to load | `statement-data.test.mjs` (rows that fail H-4 or H-5 are rejected) |
 
 Kept and still failing, as findings (owner's rule: a failing assertion is a finding, not an edit): the tests that expect a link to carry the fake API's import id (`?import=5`), or a story link to carry `?import=`. The static app numbers the session's statements from 1 and shows the latest until ledger switching (CP9), so these wait for CP9.
+
+## CP9a: the encrypted vault (ADR 0016)
+
+No existing test was edited. New tests, red first per item (each file was written before the code it covers, against a stub that threw "not implemented" or lacked the behaviour):
+
+| Item | File | Seen red | Passed at once, and why |
+|---|---|---|---|
+| 1 passphrase and hint | `vault-policy.test.mjs` | 19 of 19 (stub threw "not implemented") | none |
+| 2 create, unlock, lock, delete-all, idle lock | `vault-lock.test.mjs` | 27 of 27 (stub threw) | N-03 "every save uses a fresh random 12-byte IV", added after item 7: `sealBlob` drew a random IV since item 2. Mutation-checked: a fixed IV turns it red |
+| 3 tamper and schema version | `vault-tamper.test.mjs` | 12 of 12: raw `OperationError`/`TypeError` instead of `LEDGER_DAMAGED`; slot and version counter not bound; no schema check; delete-all blocked by another tab's open connection | none |
+| 4 never stored | `vault-never-stored.test.mjs` | 15 of 19: remember off threw `LOCKED` instead of writing nothing; nothing refused forbidden content. Then 1 more, added after Chrome showed a frozen page: 40,000 unbroken characters took 10.7 s in the email check | 4: persistent storage only on opt-in and "a refused opt-in requests none" (the order was built into `create` in item 2); "after a full save, neither the decrypted ledger nor the raw database holds a secret" (encryption from item 2 already hid every value, and the ledger was clean by construction); "ordinary ledger values pass" (no check existed yet to over-refuse) |
+| 5 failure modes | `vault-failures.test.mjs` | 14 of 14: no memory-only mode, raw errors, no compare-and-set | none |
+| 6 iteration guards | `vault-iterations.test.mjs` | 4 of 8: stored lower or other KDF parameters were followed; the test factory took any count | 4: the 600,000 constant, the production factory's derivation, ignoring an option, and "no app source calls the test factory" were true from item 2 (the factory was written with the constant and no option). Mutation-checked: 100,000 turns the Chrome guard red |
+| 7 real Chrome | `vault-chrome.test.mjs` | 0 of 8 at first run: items 2 to 5 had built every behaviour under fake IndexedDB | All 8; each was then mutation-checked red: a request in `create` (zero network), quota not mapped, blocked storage not caught, compare-and-set removed (two tabs), no `versionchange` close (delete-all across tabs), 100,000 production iterations, a source registering a service worker (N-35); code restored after each |

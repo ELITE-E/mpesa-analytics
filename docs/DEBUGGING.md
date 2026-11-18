@@ -125,6 +125,8 @@ To make a statement of your own: `.venv/bin/python tools/synth/generate.py --nam
 | Verification instruction | `reconciliation/attest.py` `verification_instruction` | `pytest tests/core/test_verification_instruction.py` |
 | Web app, unit | `web/src/` | from `web/`: `node --import ./tests/support/register.mjs --test tests/<name>.test.mjs` |
 | Web app in Chrome: static export, CSP, real UI | `web/out`, `web/scripts/` | from `web/`, after `npm run build`: `node --import ./tests/support/register.mjs --test --test-concurrency=1 tests/static-export-csp.test.mjs tests/e2e-local.test.mjs` (about 7 minutes) |
+| Vault, unit (fake IndexedDB, Node's WebCrypto, a low iteration count) | `web/src/persistence/` | from `web/`: `node --import ./tests/support/register.mjs --test tests/vault-policy.test.mjs tests/vault-lock.test.mjs tests/vault-tamper.test.mjs tests/vault-never-stored.test.mjs tests/vault-failures.test.mjs tests/vault-iterations.test.mjs` (about 10 seconds) |
+| Vault in Chrome: quota, blocked storage, two tabs, zero network | `web/src/persistence/`, `web/tests/support/vault-page-server.mjs` | from `web/`: `node --import ./tests/support/register.mjs --test --test-concurrency=1 tests/vault-chrome.test.mjs` (needs Chrome only, not the build; under a minute) |
 | The prototype's browser tests | `web/tests/*-browser.test.mjs`, `web/tests/support/frontend-server.mjs` | from `web/`, after `npm run build`: `node --import ./tests/support/register.mjs --test --test-concurrency=1 tests/<name>-browser.test.mjs` (a few minutes each). Tests expecting links to carry the fake API's import id fail until ledger switching (CP9) |
 
 The core tests also run under Pyodide: build the wheel (`uv build --wheel`), then `node tools/run_pyodide_tests.mjs`.
@@ -142,4 +144,14 @@ Every core error carries a code and, at most, a position; never a statement valu
 | `DomainRowError` | row index only | `classify_transactions` (a row with both or neither amount) |
 | `AnalysisError` | `DATE_UNREADABLE` (with the row), `ANALYSIS_FAILED` | `analyze_transactions` |
 | Engine failure (JavaScript) | `NOT_A_PDF`, `PASSWORD_*`, `CORRUPT_PDF`, `TOO_*`, `TIMEOUT`, `LAYOUT_UNRECOGNIZED` (core codes kept in `core_code`), `ENGINE_FAILED`, each with a `stage` (`reader`, `core`, `runtime`, `engine`) | `pdf_reader/bridge.js`, `engine_client.js` |
+| `VaultError` (JavaScript) | `WRONG_PASSPHRASE`, `LOCKED`, `NO_VAULT`, `VAULT_EXISTS`, `LEDGER_DAMAGED`, `SCHEMA_TOO_NEW`, `KDF_PARAMETERS_REFUSED`, `FORBIDDEN_CONTENT` (with `detail`: which kind, from a fixed list), `STALE_LEDGER`, `STORAGE_UNAVAILABLE`, `STORAGE_QUOTA_EXCEEDED`, `STORAGE_WRITE_FAILED`, and the policy codes `PASSPHRASE_*`, `HINT_*`. A fixed message each; the browser's own error, if any, is in `cause` | `web/src/persistence/vault.ts` |
 | `ImportPlanError` | `INCOMING_ROW_INVALID`, `EXISTING_ROW_INVALID` (with the row), `REQUEST_INVALID`, `ROW_ACTION_COUNT`, `PRESERVE_NOT_COLLISION`, `PLAN_MISMATCH` | `plan_statement_import`, `validate_import_plan`, the bridge |
+
+### Looking inside the vault
+
+The vault is the IndexedDB database `mpesa-analytics-vault` (ADR 0016). In Chrome DevTools, Application, IndexedDB shows its two stores: `meta` (plaintext: schema version, KDF parameters, salt, key check, hint) and `ledgers` (per ledger id: `iv`, `ciphertext`, `version`, `schema_version`). Ledgers are unreadable there by design; to see one, unlock in the page and call `readLedger`. Use invented data only: a real statement's ledger must never be copied out of the browser.
+
+- `LEDGER_DAMAGED` for one ledger while others read fine: that record was changed, truncated, or moved from another slot (the associated data binds slot, version counter and schema version). Delete-all is the only repair.
+- `KDF_PARAMETERS_REFUSED` in development: a vault created by a unit test's `openVaultWithIterations` (low count) opened by the app's `openVault`. Delete it.
+- `STALE_LEDGER`: another tab saved first. Read the ledger again (or reload), then save.
+- The unit tests' raw scan is `dumpDatabases` in `web/tests/support/vault-environment.mjs`.

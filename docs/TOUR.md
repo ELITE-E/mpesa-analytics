@@ -91,6 +91,16 @@ Only if the user opts in to "Remember on this device".
 - **Out:** an `ImportPlan`: one action per row and the counts. Positions only, never a value. The browser store applies it in one IndexedDB transaction (CP9).
 - **Breakpoint:** `_action_for`, conditional on `row_index`.
 
+## 10. Keeping it locked: the vault
+
+Only if the user opts in to "Remember on this device"; until then nothing is written (ADR 0016).
+
+- **Files:** `web/src/persistence/vault.ts`, with `vault-crypto.ts`, `vault-database.ts`, `passphrase-policy.ts` and `forbidden-content.ts`.
+- **In:** the passphrase (at opt-in and each unlock) and a whole ledger: our transaction among the others, as JSON.
+- **What happens:** at opt-in, `create` checks the passphrase and hint, asks the browser to keep the storage, derives a non-extractable AES-GCM key with PBKDF2-SHA256 (600,000 iterations, random salt) and writes the `meta` record. `saveLedger` first refuses the ledger if it holds anything never stored (the verification token, the account digest, PDF bytes...), then encrypts the whole ledger with a fresh IV, bound to the slot `ledger:<id>`, the schema version and the next version counter, and writes it in one transaction only if the stored counter is still the one this tab read. Our transaction is now scrambled bytes in IndexedDB. `lock` (or ten idle minutes) drops the key and the ledger from memory; `unlock` derives the key again and checks it against the key check before reading anything.
+- **Out:** `{ saved: true, version }`, or a `VaultError` with a code and a fixed message.
+- **Breakpoint:** `Vault.saveLedger`, after `findForbiddenContent`.
+
 ## Where to look next
 
 - `docs/DEBUGGING.md`: running one stage, and which test covers it.
