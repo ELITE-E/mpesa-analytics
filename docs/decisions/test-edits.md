@@ -453,3 +453,10 @@ New tests, red first per item:
 | 4 offline app (Chrome) | `web/tests/pwa-chrome.test.mjs` | 1 of 1 at first: the worker's own network-first attempts and the page's self-cancelled prefetches were counted as failures; then the prefetch HEADs, which the worker now answers from its cache | none; mutation-checked after: no worker registered went red; a worker caching unlisted URLs first passed (the app requests only listed files), so the test now fetches an unlisted URL and checks it is never cached, and that mutation went red |
 | 5 error copy | `web/tests/error-copy.test.mjs` | 1 of 5 for a test bug (the code pattern missed wrapped messages) | 5 once fixed: every message was already plain; mutation-checked red (a technical word in one vault message) |
 | 5 accessibility (Chrome) | `web/tests/a11y-chrome.test.mjs` | 2 of 4: five serious axe violations (four contrast, one link name not starting with its visible text) and the keyboard test looking for the hidden file input instead of the button that opens the picker (test corrected) | 2 audits whose findings were collected for the last test, which was red |
+
+After CP10a (CI failure, 2026-11-19):
+
+| Test | Old | New | Reason |
+|---|---|---|---|
+| `web/tests/remember-settings.test.mjs` (new) | | "delete-all goes straight from unlocked to off: the screen never sees a locked state to unlock" | CI found `remember-e2e` "delete-all from settings…" timing out: delete-all locks before it deletes, the controller published that brief "locked", and the session sent the page to `/unlock`. Seen red (`locked, off`); fixed in `lib/remember.ts` (a lock from delete-all is not shown); the journey then passed five runs in a row |
+| `web/tests/static-export-csp.test.mjs`, "every route loads…" and "an unknown address gets the 404 page…" | `page.goto(..., {waitUntil: "networkidle"})` with Playwright's default 30 s | the same wait with a 120 s timeout | No assertion changed. A fresh profile's first load now also runs the service worker's precache (ADR 0018), so the network goes quiet later; both tests timed out at 30 s on a loaded run |
