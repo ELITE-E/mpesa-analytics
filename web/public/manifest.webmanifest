@@ -1,0 +1,14 @@
+{
+  "name": "M-Pesa Analytics",
+  "short_name": "M-Pesa Analytics",
+  "description": "Read an M-Pesa statement in this browser and see where the money went.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f9fb",
+  "theme_color": "#00654a",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

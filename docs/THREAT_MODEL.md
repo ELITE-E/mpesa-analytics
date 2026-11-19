@@ -24,6 +24,13 @@ By default the app remembers nothing: a statement is read in your browser, shown
 - **Forgetting the passphrase.** There is no recovery. If you forget it, delete the saved data (this works while locked) and read your statements again.
 - **The browser clearing storage.** A browser may clear site data (for example when space runs low, or when you clear browsing data). The app asks the browser to keep the data when you turn remembering on, but browsers may still remove it. Keep your PDF statements if you need them.
 
+## The offline copy of the app
+
+After a first visit the app keeps a copy of its own files in the browser (Cache Storage), so it
+opens with no network. That copy holds only the app's files, listed and checked by hash at build
+time (ADR 0018): never a statement, a PDF, a password or anything read from one. The CSV files
+you export are not encrypted: anyone who has the file can read it.
+
 ## What leaks even when locked
 
 - That this device remembers M-PESA data, and roughly how much (the size of each saved ledger).

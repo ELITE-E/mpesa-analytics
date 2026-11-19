@@ -49,7 +49,7 @@ export function RecoveryWorkspace() {
                 {failureCard.title}
               </h2>
               {failure && (
-                <span className="font-label text-[10px] font-semibold text-tertiary bg-tertiary-fixed px-2 py-0.5 rounded-pill truncate">
+                <span className="font-label text-[10px] font-semibold text-on-tertiary-fixed bg-tertiary-fixed px-2 py-0.5 rounded-pill truncate">
                   {failure.code}
                 </span>
               )}

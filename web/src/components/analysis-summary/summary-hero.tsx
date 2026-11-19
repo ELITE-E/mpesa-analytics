@@ -16,7 +16,7 @@ export function SummaryHero({
           {hero.statusLabel}
         </span>
         {verificationCode && (
-          <span className="text-xs font-label text-on-surface-variant/70">
+          <span className="text-xs font-label text-on-surface-variant">
             {hero.verificationLabel}: {verificationCode}
           </span>
         )}

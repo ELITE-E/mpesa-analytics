@@ -11,6 +11,7 @@ import { sheetDialogClasses } from "@/components/layout/sheet-dialog";
 import { ExportLedgerButton } from "@/components/ledger/export-ledger-button";
 import { ReceiptDetail } from "@/components/ledger/receipt-detail";
 import { ScopeBanner, type ScopeTotals } from "@/components/ledger/scope-banner";
+import { ledgerCsvFileName } from "@/lib/ledger-csv";
 import { useSharedStatement } from "@/components/statement-data";
 import { BUCKET_LABELS, BUCKET_STYLE, bucketQuestion, channelQuestion, chargeCauseLabel, chargeCauseQuestion, ledger, NAMED_SCOPE_COPY } from "@/content/ledger";
 import { CHANNEL_COPY } from "@/content/spending";
@@ -294,7 +295,7 @@ function LedgerContent({ transactions, summary, analytics, request }: LedgerCont
   const totals = scopeTotals(members);
   const isReceipt = scope?.kind === "receipt";
   const cellPadding = dense ? "py-1.5" : "py-3";
-  const fileName = `ledger-${summary.period_start}-${summary.period_end}${scope ? `-${scope.id.replace(/[^a-z0-9-]+/gi, "_")}` : ""}.csv`;
+  const fileName = ledgerCsvFileName(summary);
   const status = `Showing ${shown.length} of ${searched.length} lines`;
 
   /** Open the receipt of `line`, remembering `opener` to give focus back when the dialog closes. */

@@ -53,7 +53,7 @@ const MESSAGES: Record<string, string> = {
   DATE_UNREADABLE: "A transaction's date couldn't be read, so the analysis stopped. Nothing was kept.",
   ANALYSIS_FAILED: "The transactions were read, but the analysis couldn't be completed. Nothing was kept.",
   TOO_FEW_AMOUNTS:
-    "This statement has too few money-in or money-out entries for its columns to be found. A statement covering a longer period should work.",
+    "This statement shows no money in or out that its columns could be read from. A statement with at least one payment in or out, printed with its column titles, should work.",
   CANCELLED: "You stopped reading this statement. Nothing from it was kept.",
   import_not_found: "That statement isn't open in this session. Statements are forgotten when the page reloads.",
   no_statement: "Choose a statement to read first.",

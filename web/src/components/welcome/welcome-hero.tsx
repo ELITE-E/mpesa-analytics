@@ -1,3 +1,4 @@
+import { verifiedOn } from "@/content/capabilities";
 import { hero } from "@/content/welcome";
 
 export function WelcomeHero() {
@@ -18,6 +19,9 @@ export function WelcomeHero() {
       </h1>
       <p className="font-body text-sm sm:text-base text-on-surface-variant leading-relaxed">
         {hero.description}
+      </p>
+      <p className="font-label text-[11px] text-on-surface-variant" data-verified-on="">
+        {verifiedOn}
       </p>
     </div>
   );

@@ -1,8 +1,9 @@
 """tools/measure_bundle.py: the download budget, enforced on the runtime the browser loads (CP8a-2).
 
-Budgets from ADR 0006: 15 MB gzip with pandas, 8 MB without. Measured over the built runtime's
-files, gzip -9, so what is counted is exactly what ships. CP8b item 7: the frontend's static export
-(pages, Next's chunks, the engine's files) counts towards both.
+Budgets from ADR 0006, as amended by ADR 0018: 15.5 MB gzip with pandas, 8 MB without.
+Measured over the built runtime's files, gzip -9, so what is counted is exactly what ships.
+CP8b item 7: the frontend's static export (pages, Next's chunks, the engine's files) counts
+towards both.
 """
 
 import subprocess
@@ -40,7 +41,7 @@ def run_tool(runtime_root, *options):
 
 
 def test_the_budgets_are_15_mb_with_pandas_and_8_mb_without():
-    assert BUDGET_WITH_PANDAS == 15_000_000
+    assert BUDGET_WITH_PANDAS == 15_500_000
     assert BUDGET_WITHOUT_PANDAS == 8_000_000
 
 

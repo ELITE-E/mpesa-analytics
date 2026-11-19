@@ -277,7 +277,7 @@ test("delete-all in one tab is not blocked by another open tab, which locks and 
   await context.close();
 });
 
-test("no service worker and no cache hold anything after the vault is used (N-35)", async () => {
+test("using the vault puts nothing in a cache, and the app's only service worker is its hand-written one (N-35)", async () => {
   const context = await browser.newContext();
   const { page } = await openTestPage(context);
   const held = await page.evaluate(async (passphrase) => {
@@ -290,15 +290,17 @@ test("no service worker and no cache hold anything after the vault is used (N-35
     };
   }, PASSPHRASE);
   assert.deepEqual(held, { workers: 0, caches: [] });
-  const registering = [join(WEB, "src"), join(WEB, "out")]
-    .filter((directory) => existsSync(directory))
+  const sources = [join(WEB, "src")]
     .flatMap(function filesUnder(directory) {
       return readdirSync(directory).flatMap((name) => {
         const path = join(directory, name);
         return statSync(path).isDirectory() ? filesUnder(path) : [path];
       });
     })
-    .filter((path) => /\.(ts|tsx|js|mjs|html)$/.test(path) && readFileSync(path, "utf8").includes("serviceWorker.register"));
-  assert.deepEqual(registering, [], "the app registers no service worker");
+    .filter((path) => /\.(ts|tsx|js|mjs)$/.test(path));
+  const registering = sources.filter((path) => /\.register\(\s*["']\/[^"']*\.js["']/.test(readFileSync(path, "utf8")));
+  assert.deepEqual(registering, [join(WEB, "src/lib/service-worker.ts")], "one place registers a worker");
+  assert.match(readFileSync(join(WEB, "src/lib/service-worker.ts"), "utf8"), /register\("\/sw\.js"/);
+  assert.ok(existsSync(join(WEB, "public/sw.js")), "the worker is public/sw.js, whose caching tests/pwa-chrome.test.mjs checks");
   await context.close();
 });
