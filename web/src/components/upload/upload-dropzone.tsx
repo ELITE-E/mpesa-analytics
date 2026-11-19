@@ -26,6 +26,7 @@ export function UploadDropzone({ title, onSelect, error }: UploadDropzoneProps) 
     <div className="bg-surface-container-low rounded-xl p-4 space-y-3">
       {/* First, not last: space-y-3 would otherwise add margin under the drop target. */}
       <input
+        aria-label="Statement PDF"
         ref={inputRef}
         type="file"
         accept="application/pdf,.pdf"

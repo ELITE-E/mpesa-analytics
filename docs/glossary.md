@@ -113,6 +113,8 @@ Field names that form the frontend contract (`receipt_no`, `completion_time`, `p
 | merge screen | `/merge`: a prepared import's counts (new, already saved, kept side by side) before the write, then save or don't save | `MergeProposal`, `readStatement`, `MergeReview` | import preview, sync screen |
 | separate ledger | What a statement of another M-Pesa account becomes; never compared with or replacing another ledger | `differentAccount` | replace, overwrite |
 | claim | A sentence the remember screens state as fact; each names the test that proves it | `claims`, `remember-claims.test.mjs` | promise, guarantee |
+| allow-list | Every file the build ships, with its integrity hash; the only files the service worker caches (ADR 0018) | `sw-allow-list.js`, `buildAllowList` | whitelist, precache manifest |
+| capability check | The start-up test of what the browser offers; names what is missing | `checkBrowser`, `CapabilityNotice` | browser sniffing, compatibility check |
 | key check | A known text sealed under the key in `meta`, so a wrong passphrase is told apart without opening a ledger | `key_check` | verifier, canary |
 | lock | Dropping the key and every held ledger; by hand, after the idle time (`DEFAULT_IDLE_LOCK_MS`), on delete-all, or when another tab deletes the database | `lock`, `onLock`, `LockReason` | logout, sign out |
 | version counter | The number of saves of one ledger; a save must name the counter it read (compare-and-set), so a stale tab cannot overwrite a newer save | `version`, `STALE_LEDGER` | revision, etag |

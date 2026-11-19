@@ -49,6 +49,10 @@ class RowMix:
     # Every amount at the bottom of its range and most transactions at the second before, so
     # amounts and times tie often.
     tied_values: bool = False
+    # Exactly this many money-in (or money-out) rows, the first ones built; None leaves the mix
+    # alone and draws nothing extra from the seed, so existing statements keep their bytes.
+    money_in_rows: int | None = None
+    money_out_rows: int | None = None
 
 
 def build_fake_rows(
@@ -144,6 +148,10 @@ class _RowBuilder:
         self.single_line_share = mix.single_line_share
         self.pair_share = mix.pair_share
         self.tied_values = mix.tied_values
+        self.money_in_rows = mix.money_in_rows
+        self.money_out_rows = mix.money_out_rows
+        self.built_in = 0
+        self.built_out = 0
         self.balance_cents = OPENING_CENTS
         self.time = START_TIME
         self.used_receipts = set()
@@ -167,7 +175,8 @@ class _RowBuilder:
         # With tied values the clock moves only every TIED_TIME_EVERY transactions.
         if not self.tied_values or self.rng.random() < 1 / TIED_TIME_EVERY:
             self.time += gap
-        if remaining >= 2 and (pair_only or self.rng.random() < self.pair_share):
+        is_capped = self.money_in_rows is not None or self.money_out_rows is not None
+        if not is_capped and remaining >= 2 and (pair_only or self.rng.random() < self.pair_share):
             return self._build_paid_in_pair(order) if paid_in_parent else self._build_pair(order)
         return [self._build_single()]
 
@@ -180,10 +189,14 @@ class _RowBuilder:
         Side Effects:
             Advances the running balance.
         """
-        kind = self._pick(SINGLE_ROW_BUILDERS)
+        kind = self._pick(self._allowed_kinds())
         if SINGLE_ROW_KINDS[kind][0] == "out" and self.balance_cents < LOW_BALANCE_CENTS:
-            kind = "received"
+            kind = "received" if self._may_build("in") else "airtime"
         money, low, high = SINGLE_ROW_KINDS[kind]
+        if money == "in":
+            self.built_in += 1
+        else:
+            self.built_out += 1
         is_short = self.rng.random() < self.single_line_share
         details, event_type, entity = getattr(self, f"_{kind}_details")(is_short=is_short)
         amount = {
@@ -191,6 +204,50 @@ class _RowBuilder:
         }
         row = self._row(self._new_receipt(), details, **amount)
         return {**row, "event_type": event_type, "entity": entity}
+
+    def _allowed_kinds(self):
+        """The single-row kinds that may come next under the money-row caps.
+
+        A capped direction is built first until it reaches its count, then never again.
+
+        Returns:
+            Kind names; every kind when nothing is capped.
+
+        Side Effects:
+            None.
+        """
+        if self.money_in_rows is None and self.money_out_rows is None:
+            return SINGLE_ROW_BUILDERS
+        for money, cap, built in (
+            ("in", self.money_in_rows, self.built_in),
+            ("out", self.money_out_rows, self.built_out),
+        ):
+            if cap is not None and built < cap:
+                return tuple(
+                    kind for kind in SINGLE_ROW_BUILDERS if SINGLE_ROW_KINDS[kind][0] == money
+                )
+        return tuple(
+            kind for kind in SINGLE_ROW_BUILDERS if self._may_build(SINGLE_ROW_KINDS[kind][0])
+        )
+
+    def _may_build(self, money):
+        """Tell whether another row of this direction stays within its cap.
+
+        Args:
+            money: ``in`` or ``out``.
+
+        Returns:
+            True if uncapped or below the cap.
+
+        Side Effects:
+            None.
+        """
+        cap, built = (
+            (self.money_in_rows, self.built_in)
+            if money == "in"
+            else (self.money_out_rows, self.built_out)
+        )
+        return cap is None or built < cap
 
     def _merchant_details(self, *, is_short):
         """Write a merchant payment; the short form names a till no entity grammar reads.

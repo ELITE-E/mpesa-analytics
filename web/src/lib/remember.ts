@@ -224,8 +224,10 @@ async function open(options: RememberOptions): Promise<void> {
   const store = openLedgerStore(vault, options.core ?? storeCoreForThisBrowser());
   session = { vault, store };
   vault.onLock((reason) => {
-    if (session?.vault !== vault) return;
-    lockReason = reason === "deleted" ? null : reason;
+    // A lock from delete-all is not shown: deleteEverything shows "off" once the data is gone, so
+    // no screen ever sees a locked state and sends the person to unlock data being deleted.
+    if (session?.vault !== vault || reason === "deleted") return;
+    lockReason = reason;
     refresh();
   });
   rememberOnThisDevice(store);

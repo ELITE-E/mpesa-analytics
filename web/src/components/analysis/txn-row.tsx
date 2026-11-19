@@ -72,11 +72,11 @@ export function TxnRow({ line, time, onOpen }: { line: LedgerLine; time: string;
           {kes(row.principalCents)}
         </span>
         {!row.isCharge && (
-          <span className={`font-label text-[10px] tabular-nums ${charges > 0 ? "text-tertiary font-semibold" : "text-on-surface-variant/70"}`}>
+          <span className={`font-label text-[10px] tabular-nums ${charges > 0 ? "text-tertiary font-semibold" : "text-on-surface-variant"}`}>
             {charges > 0 ? `+ ${kes(charges)} charge` : "No charge"}
           </span>
         )}
-        <span className="font-label text-[10px] text-on-surface-variant/70 tabular-nums">Bal {formatKes(row.source.balance)}</span>
+        <span className="font-label text-[10px] text-on-surface-variant tabular-nums">Bal {formatKes(row.source.balance)}</span>
       </div>
     </button>
   );

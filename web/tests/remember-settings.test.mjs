@@ -166,3 +166,13 @@ test("after delete-all, settings says everything was deleted", async () => {
   );
   assert.ok(text.includes(deleteAll.done));
 });
+
+test("delete-all goes straight from unlocked to off: the screen never sees a locked state to unlock", async () => {
+  await remembered([]);
+  const phases = [];
+  const stop = remember.subscribeRemember(() => phases.push(remember.rememberView().phase));
+  await remember.deleteEverything();
+  stop();
+  assert.equal(phases.includes("locked"), false, `phases seen: ${phases.join(", ")}`);
+  assert.equal(phases.at(-1), "off");
+});

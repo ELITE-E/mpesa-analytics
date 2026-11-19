@@ -25,11 +25,12 @@ export function Door({ href, children, className = "", label }: DoorProps) {
   return (
     <Link
       href={href}
-      aria-label={label}
       title={label ?? "See the rows behind this figure"}
       className={`inline-flex items-baseline gap-0.5 underline decoration-dotted decoration-primary/50 underline-offset-4 hover:decoration-solid hover:decoration-primary focus-visible:outline-2 focus-visible:outline-primary rounded-xs tabular-nums ${className}`}
     >
       {children}
+      {/* Read after the visible figure, so the link's name starts with what is shown. */}
+      {label && <span className="sr-only"> {label}</span>}
       <Icon name="receipt_long" size={13} className="text-primary/70 no-underline self-center" />
     </Link>
   );

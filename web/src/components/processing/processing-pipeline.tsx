@@ -63,7 +63,7 @@ function StageStatusLabel({ stage, status }: { stage: PipelineStage; status: Sta
 
 function StageRow({ stage, status, note }: { stage: PipelineStage; status: StageStatus; note?: string }) {
   return (
-    <div className={`flex items-start gap-3 relative ${status === "queued" ? "opacity-55" : ""}`}>
+    <div className="flex items-start gap-3 relative" data-stage-status={status}>
       <StageMarker status={status} />
       <div className="flex-1 min-w-0 pt-0.5">
         <div className="flex items-center justify-between gap-2">

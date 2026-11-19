@@ -161,10 +161,12 @@ def test_behaviour_log_marks_d03_done_with_its_test():
     assert "| Done" in row
 
 
-def test_behaviour_log_asks_the_owner_about_one_sided_statements():
+def test_behaviour_log_records_the_owners_decision_on_one_sided_statements():
     log = (DECISIONS / "behaviour-changes.md").read_text(encoding="utf-8")
     row = next(line for line in log.splitlines() if line.startswith("| D-10 |"))
-    assert "Proposed" in row
+    assert "| Done" in row
+    assert "owner instruction" in row
+    assert "test_one_sided_columns.py" in row
 
 
 def test_test_edit_log_records_the_cp3_edits():

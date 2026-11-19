@@ -105,3 +105,6 @@ export const ledger = {
   searchLabel: "Search receipt, name or statement text",
   densityLabel: "Row density",
 };
+
+/** Shown with every CSV export (CP10a item 3): the file leaves the app's lock behind. */
+export const exportNotice = "The CSV file is not encrypted: anyone who has the file can read it.";

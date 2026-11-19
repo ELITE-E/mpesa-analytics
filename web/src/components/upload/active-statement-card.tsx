@@ -59,7 +59,7 @@ export function ActiveStatementCard({ statement, onRemove }: ActiveStatementCard
               )}
               <span className="font-label tabular-nums">{formatStatementSize(size)}</span>
             </div>
-            <span className="text-[10px] font-body text-outline mt-1 flex items-center gap-1">
+            <span className="text-[10px] font-body text-on-surface-variant mt-1 flex items-center gap-1">
               <Icon
                 name={isValidated ? "lock_open" : "schedule"}
                 size={12}

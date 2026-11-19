@@ -9,13 +9,21 @@ import { cpSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } 
 import { join, relative, sep } from "node:path";
 
 import { ARCHITECTURE_CSP } from "../harness/serve.js";
+import { allowListScript, buildAllowList } from "./sw_allow_list.mjs";
 
 const WEB = join(import.meta.dirname, "..");
 const OUT = join(WEB, "out");
 const ENGINE = join(WEB, "../pdf_reader");
 const INLINE_SCRIPT = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g;
 // Files served beside the pages; they run no inline script, so the plain policy covers them.
-const ASSET_PATTERNS = ["/_next/*", "/runtime/*", "/pdf_reader/*"];
+const ASSET_PATTERNS = [
+  "/_next/*",
+  "/runtime/*",
+  "/pdf_reader/*",
+  "/sw.js",
+  "/sw-allow-list.js",
+  "/manifest.webmanifest",
+];
 
 main();
 
@@ -35,6 +43,9 @@ function main() {
     recursive: true,
     filter: (source) => !source.includes(`${sep}.`) && !source.endsWith(".gitkeep"),
   });
+  // The service worker's allow-list, from every shipped file's checksum (CP10a item 4); written
+  // after the engine is copied in, so pdf_reader/ is listed too.
+  writeFileSync(join(OUT, "sw-allow-list.js"), allowListScript(buildAllowList(OUT)));
   const blocks = [
     ...page_routes().map(([route, file]) => [route, page_csp(file)]),
     ...ASSET_PATTERNS.map((pattern) => [pattern, ARCHITECTURE_CSP]),
