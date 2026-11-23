@@ -1,8 +1,10 @@
 import { Icon } from "@/components/icon";
 import { proceedCallToAction } from "@/content/upload";
 
+// Colours and shadow may animate; opacity never does, so the label is never caught mid-fade at low
+// contrast when the button becomes enabled (found by axe in CI).
 const BUTTON_CLASSES =
-  "w-full h-12 bg-primary-container text-on-primary rounded-lg font-headline text-sm font-semibold flex items-center justify-center gap-2 shadow-md hover:opacity-95 transition-all";
+  "w-full h-12 bg-primary-container text-on-primary rounded-lg font-headline text-sm font-semibold flex items-center justify-center gap-2 shadow-md hover:bg-primary transition-[background-color,box-shadow]";
 
 export function ProceedCallToAction({
   disabled,

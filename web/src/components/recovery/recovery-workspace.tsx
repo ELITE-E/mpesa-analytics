@@ -79,7 +79,7 @@ export function RecoveryWorkspace() {
               type="button"
               onClick={retry}
               disabled={isRetrying}
-              className="w-full h-11 px-4 rounded-lg bg-primary text-on-primary font-body text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.99] transition-all shadow-sm shadow-primary/20 disabled:opacity-60"
+              className="w-full h-11 px-4 rounded-lg bg-primary text-on-primary font-body text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.99] transition-[background-color,box-shadow,transform] shadow-sm shadow-primary/20 disabled:opacity-60"
             >
               <Icon name="refresh" size={18} className={isRetrying ? "animate-spin" : ""} />
               <span aria-live="polite">
