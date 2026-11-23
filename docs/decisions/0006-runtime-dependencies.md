@@ -54,7 +54,7 @@ How it is held in place:
 
 - The overview screen uses `largest_purchases`, so lazy pandas still loads on the landing screen unless spending is ported.
 - If pandas stays, any frame built from rows must receive plain strings, not enum members, or the D-01 bug returns.
-- Any new runtime dependency needs its own ADR and a size check against the budget (15 MB gzip over the wire; 8 MB without pandas).
+- Any new runtime dependency needs its own ADR and a size check against the budget (15 MB gzip over the wire, 15.5 MB since ADR 0018; 8 MB without pandas).
 
 ## Enforcement
 

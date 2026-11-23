@@ -44,3 +44,16 @@ export function ledgerCsvRows(members: StatementRow[]): string[][] {
     row.source.details,
   ]);
 }
+
+/**
+ * The export's file name: the statement period's dates and nothing else, so no name, number,
+ * receipt or scope (which may name a person) ends up in a downloads folder or a file listing.
+ *
+ * @param summary The statement's period, as printed completion times.
+ * @returns e.g. "mpesa-ledger-2026-01-02-to-2026-01-31.csv", or "mpesa-ledger.csv" without dates.
+ */
+export function ledgerCsvFileName(summary: { period_start: string; period_end: string }) {
+  const date = (time: string) => (/^\d{4}-\d{2}-\d{2}/.exec(time) ?? [""])[0];
+  const [start, end] = [date(summary.period_start), date(summary.period_end)];
+  return start && end ? `mpesa-ledger-${start}-to-${end}.csv` : "mpesa-ledger.csv";
+}

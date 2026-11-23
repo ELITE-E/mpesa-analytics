@@ -130,6 +130,9 @@ To make a statement of your own: `.venv/bin/python tools/synth/generate.py --nam
 | Store: ledgers, merging, the old S-01 to S-54 (real core under CPython) | `web/src/persistence/ledger.ts`, `store.ts`, `store-core.ts`, `web/src/data/repo.ts` | from `web/`: `node --import ./tests/support/register.mjs --test tests/store.test.ts tests/store-ledgers.test.ts tests/vault-ledger-id.test.mjs` (needs the repo's `.venv`; under a minute) |
 | Remember screens: card, unlock, lock, merge, ledger switcher, statement list, delete-all, and the claims behind the copy | `web/src/lib/remember.ts`, `web/src/components/remember/`, `web/src/content/remember.ts`, `repo.readStatement` | from `web/`: `node --import ./tests/support/register.mjs --test tests/remember-*.test.mjs` without `remember-e2e` (needs the repo's `.venv` for the core; under a minute) |
 | Remember through the real UI in Chrome | the built app (`web/out`), the engine, the vault | from `web/`, after building the runtime and the app: `node --import ./tests/support/register.mjs --test --test-concurrency=1 tests/remember-e2e.test.mjs` (about two minutes; it generates the other-account statement, `F-OTHER-ACCOUNT`, into a temp folder) |
+| Columns printed once or never (D-10) | `extraction/columns.py` `_amount_positions`, `_header_spacing` | `pytest tests/core/test_one_sided_columns.py tests/synth/test_one_sided_fixtures.py`; generate a variant: `.venv/bin/python tools/synth/generate.py --name F-NO-PAID-IN --out-dir <scratch>` (also F-ONE-PAID-IN, F-ONE-WITHDRAWN) |
+| Capability check, CSV export, error copy, service worker (unit) | `web/src/lib/capabilities.ts`, `lib/download-csv.ts`, `data/messages.ts`, `public/sw.js`, `scripts/sw_allow_list.mjs` | from `web/`: `node --import ./tests/support/register.mjs --test tests/capabilities.test.mjs tests/csv-export.test.mjs tests/error-copy.test.mjs tests/service-worker.test.mjs` |
+| Offline app and accessibility in Chrome | the built app with its service worker | from `web/`, after `npm run build`: `node --import ./tests/support/register.mjs --test --test-concurrency=1 tests/pwa-chrome.test.mjs tests/a11y-chrome.test.mjs` |
 | Merged analytics (core) | `reconciliation/merge.py`, `pipeline.py` `analyze_merged`, `bridge.py` `call_json` | `pytest tests/core/test_merge.py` |
 | Store in Chrome with the real engine | `web/src/persistence/`, `pdf_reader/` | from `web/`, after building the runtime: `node --import ./tests/support/register.mjs --test --test-concurrency=1 tests/store-chrome.test.mjs` (about a minute; rebuild the wheel and runtime after any core change, or Chrome runs the old core and the merge fails with `PLAN_FAILED`) |
 | The prototype's browser tests | `web/tests/*-browser.test.mjs`, `web/tests/support/frontend-server.mjs` | from `web/`, after `npm run build`: `node --import ./tests/support/register.mjs --test --test-concurrency=1 tests/<name>-browser.test.mjs` (a few minutes each). Tests expecting links to carry the fake API's import id fail until ledger switching (CP9) |
@@ -144,7 +147,7 @@ Every core error carries a code and, at most, a position; never a statement valu
 
 | Error | Codes | Raised by |
 |---|---|---|
-| `ExtractionError` | `LAYOUT_UNRECOGNIZED`, `NOT_A_PDF`, `PASSWORD_*`, `CORRUPT_PDF`, `TOO_*` (`TOO_FEW_AMOUNTS`: an amount column printed fewer than twice, its own user message; CP10 relaxes it), `TIMEOUT` | the PDF reader, `calibrate_columns` |
+| `ExtractionError` | `LAYOUT_UNRECOGNIZED`, `NOT_A_PDF`, `PASSWORD_*`, `CORRUPT_PDF`, `TOO_*` (`TOO_FEW_AMOUNTS`: only the balance prints, or a money column printed once or never with no header row to place it; D-10), `TIMEOUT` | the PDF reader, `calibrate_columns` |
 | `AttestationError` | `NO_PAGES`, `BRAND_MISSING`, `ANCHOR_MISSING`, `TOKEN_MISSING` | `attest` |
 | `DomainRowError` | row index only | `classify_transactions` (a row with both or neither amount) |
 | `AnalysisError` | `DATE_UNREADABLE` (with the row), `ANALYSIS_FAILED` | `analyze_transactions` |
@@ -174,3 +177,9 @@ The vault is the IndexedDB database `mpesa-analytics-vault` (ADR 0016). In Chrom
 - A screen with saved data shows nothing after a page load: correct. A full page load locks the saved data; the layout's `RememberSession` sends data screens to `/unlock`. Tests and tools must move with the app's own links after turning remembering on (`tools/browser/ui_journey.js` `follow`).
 - The merge screen says "There is no statement waiting": the proposal lives in module memory (`upload-flow.ts` `pendingMerge`); a reload forgets it, and nothing was written.
 - `F-OTHER-ACCOUNT` (a second invented account holder, `Example Person 01`) is generated on demand: `.venv/bin/python tools/synth/generate.py --name F-OTHER-ACCOUNT --out-dir <scratch>`. Committed fixtures keep identity 0, so their bytes are unchanged.
+
+### The service worker
+
+- After any change, the app shows "A new version of the app is ready" in a tab that had the old one: accept it, or close every tab of the app. In DevTools, Application, Service workers shows the waiting worker; Cache Storage shows one cache, `mpesa-analytics-<version>`.
+- A file missing offline: it is not on `out/sw-allow-list.js` (only shipped files are). The worker never caches anything else, by design (ADR 0018).
+- A failed install: a listed file no longer matches its integrity hash (rebuild after changing anything in `web/out` by hand).

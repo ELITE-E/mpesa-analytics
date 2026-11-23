@@ -42,6 +42,9 @@ function page_file(route) {
   return join(OUT, route === "/" ? "index.html" : `${route}.html`);
 }
 const INLINE_SCRIPT = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g;
+// A fresh profile's first page load also starts the service worker's precache of the whole app
+// (ADR 0018), so the network takes longer to go quiet than the default 30 seconds allows.
+const NETWORK_IDLE_TIMEOUT_MS = 120_000;
 
 let server;
 let browser;
@@ -154,7 +157,7 @@ test("every route loads in Chrome under its CSP with no violation and no foreign
       });
     });
     page.on("console", (message) => consoleLines.push(message.text()));
-    await page.goto(`${server.origin}${route}`, { waitUntil: "networkidle" });
+    await page.goto(`${server.origin}${route}`, { waitUntil: "networkidle", timeout: NETWORK_IDLE_TIMEOUT_MS });
     const violations = await page.evaluate(() => window.__cspViolations ?? 0);
     assert.equal(violations, 0, `${route}: CSP violations`);
     assert.deepEqual(
@@ -189,7 +192,10 @@ test("an unknown address gets the 404 page under its CSP with no violation (foun
       window.__cspViolations += 1;
     });
   });
-  const response = await page.goto(`${server.origin}/no-such-page`, { waitUntil: "networkidle" });
+  const response = await page.goto(`${server.origin}/no-such-page`, {
+    waitUntil: "networkidle",
+    timeout: NETWORK_IDLE_TIMEOUT_MS,
+  });
   assert.equal(response.status(), 404);
   assert.equal(await page.evaluate(() => window.__cspViolations ?? 0), 0);
   assert.deepEqual(consoleLines.filter((line) => /Content Security Policy/i.test(line)), []);

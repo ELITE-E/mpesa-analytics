@@ -13,4 +13,4 @@ CP10 relaxes it, for example by placing a missing column from the header row or 
 - a **stray item** to the right of the status column (a lone number that is not an amount column) does not become a column and does not move the real ones;
 - the scenario comparison then reads stress, no-spending and savings with no `core_error`.
 
-Until then the rule stays as it is (ADR 0009).
+**Done at CP10a** (behaviour change D-10): the header's label spacing places a column printed once or never; the four tests above exist (`tests/core/test_one_sided_columns.py`, `tests/synth/test_one_sided_fixtures.py`) and `scenario_compare.py` reads stress, no-spending and savings with no `core_error`.

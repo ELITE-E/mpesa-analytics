@@ -32,7 +32,7 @@ and what it does not, is in [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 
 ## Limits
 
-Desktop limits come from measuring the synthetic F-LARGE statement in Chrome (`pdf_reader/limits.js`, `docs/decisions/cp8-notes.md`). Phone unverified: no limit has been measured on a phone.
+Desktop limits come from measuring the synthetic F-LARGE statement in Chrome (`pdf_reader/limits.js`, `docs/decisions/cp8-notes.md`). Verified on desktop Chrome; other browsers untested. Phone unverified: no limit has been measured on a phone (`docs/ROADMAP.md`). After a first visit the app works offline: a hand-written service worker keeps only the app's own files (ADR 0018). CSV exports are not encrypted.
 
 ## Map
 

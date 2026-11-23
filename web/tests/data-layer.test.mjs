@@ -141,7 +141,7 @@ test("the engine's codes and the core's codes are all covered", () => {
 test("too few money-in or money-out entries to find the columns has its own message (CP8b)", () => {
   const sparse = toApiError({ code: "LAYOUT_UNRECOGNIZED", stage: "core", core_code: "TOO_FEW_AMOUNTS" });
   assert.equal(sparse.code, "TOO_FEW_AMOUNTS");
-  assert.match(sparse.message, /too few/i);
+  assert.match(sparse.message, /no money in or out/i);
   assert.match(sparse.message, /paid-in|money-in|money in/i);
   assert.notEqual(sparse.message, messageFor("LAYOUT_UNRECOGNIZED"));
 });

@@ -110,6 +110,9 @@ class StatementOptions:
     # Which invented account holder page 1 prints: 0 for every committed fixture, so their bytes
     # stay as they are; another number gives another account (CP9c, the different-account test).
     identity: int = 0
+    # Exact money-in and money-out row counts for one-sided statements (CP10a, D-10); None for none.
+    money_in_rows: int | None = None
+    money_out_rows: int | None = None
 
 
 # Cycled across the pairs, so the fixture holds both print orders.
@@ -173,6 +176,13 @@ ON_DEMAND_FIXTURES = {
     "F-TIED": (1012, StatementOptions(name="F-TIED", row_count=300, tied_values=True)),
     # Another invented account holder: the store must open it as a separate ledger (CP9c).
     "F-OTHER-ACCOUNT": (1013, StatementOptions(name="F-OTHER-ACCOUNT", row_count=20, identity=1)),
+    # One-sided statements (CP10a, D-10): no money in, one money in, one money out.
+    "F-NO-PAID-IN": (1014, StatementOptions(name="F-NO-PAID-IN", row_count=12, money_in_rows=0)),
+    "F-ONE-PAID-IN": (1015, StatementOptions(name="F-ONE-PAID-IN", row_count=12, money_in_rows=1)),
+    "F-ONE-WITHDRAWN": (
+        1016,
+        StatementOptions(name="F-ONE-WITHDRAWN", row_count=12, money_out_rows=1),
+    ),
 }
 
 
@@ -289,6 +299,8 @@ def build_outputs(seed, options):
             single_line_share=options.single_line_share,
             pair_share=options.pair_share,
             tied_values=options.tied_values,
+            money_in_rows=options.money_in_rows,
+            money_out_rows=options.money_out_rows,
         ),
     )
     if options.chain_break_count:
