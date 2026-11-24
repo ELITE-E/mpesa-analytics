@@ -1,0 +1,16 @@
+Licence: not yet chosen
+
+The repo owner has not chosen a licence for this project. Until the owner chooses one, the
+placeholder in LICENSE applies: all rights reserved, and no permission is granted to use, copy,
+modify or distribute this software.
+
+What the choice has to take into account:
+
+- The licences of what ships to the browser, listed in THIRD_PARTY_NOTICES.md: the web app's
+  production dependencies, and the statement engine runtime (Pyodide, the CPython standard
+  library, numpy, pandas, python-dateutil, six and pdf.js). Some of these require their notices
+  to travel with the app, and some are file-level copyleft.
+- Whether others may run their own copy of the app, change it, or only read the code.
+
+When the owner has chosen: replace LICENSE with the chosen licence's text, set `license` in
+pyproject.toml and web/package.json, record the decision in docs/decisions/, and delete this file.

@@ -73,6 +73,11 @@ describe("DesktopFooter", () => {
       assert.doesNotMatch(text, unsupported);
     }
   });
+
+  test("says the app is not affiliated with Safaricom (CP10b item 8)", () => {
+    const text = renderToString(createElement(DesktopFooter)).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+    assert.match(text, /not affiliated with Safaricom/i);
+  });
 });
 
 describe("PageShell", () => {

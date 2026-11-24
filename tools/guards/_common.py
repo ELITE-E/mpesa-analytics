@@ -115,20 +115,55 @@ def find_tokens(text, rel=None):
     Side Effects:
         None.
     """
+    return {span for _name, span in _token_matches(text, rel)}
+
+
+def token_categories(text, rel=None):
+    """Name the kinds of token in a text, with the same rules and exemptions as ``find_tokens``.
+
+    Args:
+        text: Text to search.
+        rel: Repo-relative path of the text, which selects path-based exemptions.
+
+    Returns:
+        Set of rule names found: ``phone``, ``masked`` or ``receipt``. A token two rules match
+        (a ten-digit phone is also receipt-shaped) counts under the first rule in ``RULES``.
+
+    Side Effects:
+        None.
+    """
+    first_rule = {}
+    for name, span in _token_matches(text, rel):
+        first_rule.setdefault(span, name)
+    return set(first_rule.values())
+
+
+def _token_matches(text, rel):
+    """List every token match that no exemption covers.
+
+    Args:
+        text: Text to search.
+        rel: Repo-relative path of the text, which selects path-based exemptions.
+
+    Returns:
+        List of ``(rule name, (start, end))`` pairs.
+
+    Side Effects:
+        None.
+    """
     is_lock = rel is not None and rel.rsplit("/", 1)[-1] in _LOCKFILES
     in_fixtures = rel is not None and rel.startswith(SYNTHETIC)
     digests = [match.span() for match in _DIGEST.finditer(text)]
     if in_fixtures and rel.endswith(".pdf"):
         digests += [match.span() for match in _PDF_OFFSET.finditer(text)]
-    spans = set()
+    matches = []
     for name, pattern, lock_exempt in RULES:
         if is_lock and lock_exempt:
             continue
         for match in pattern.finditer(text):
-            if _is_exempt(match, name, in_fixtures=in_fixtures, digests=digests):
-                continue
-            spans.add(match.span())
-    return spans
+            if not _is_exempt(match, name, in_fixtures=in_fixtures, digests=digests):
+                matches.append((name, match.span()))
+    return matches
 
 
 def display_name(rel):

@@ -1,6 +1,6 @@
 # 0015. The web app is a static export, served with the architecture CSP plus per-page script hashes
 
-Status: Accepted (CP8b, owner instruction; measured in Chrome)
+Status: Accepted (CP8b, owner instruction; measured in Chrome). Its per-page CSP rules are superseded by ADR 0019 (CP10b): one site-wide hash set.
 Date: 2026-11-17
 
 ## Context

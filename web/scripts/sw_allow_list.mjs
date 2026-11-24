@@ -101,7 +101,7 @@ function runtimeManifestHashes(outDir) {
  * @param {string} filePath The file's path inside out/, from "/".
  * @returns {string} The served path.
  */
-function servedPath(filePath) {
+export function servedPath(filePath) {
   if (filePath === "/index.html") return "/";
   if (filePath === "/404.html") return filePath;
   return filePath.endsWith(".html") ? filePath.slice(0, -".html".length) : filePath;
@@ -113,7 +113,7 @@ function servedPath(filePath) {
  * @param {string} directory The folder.
  * @returns {string[]} Their paths.
  */
-function filesUnder(directory) {
+export function filesUnder(directory) {
   return safeList(directory).flatMap((name) => {
     const path = join(directory, name);
     return statSync(path).isDirectory() ? filesUnder(path) : [path];

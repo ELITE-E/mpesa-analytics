@@ -1,12 +1,16 @@
 // Serves the static export (out/) on loopback with the headers postbuild wrote (out/_headers),
-// exactly as a static host would: each page with its own CSP, everything else with the plain one.
-// For tests and for trying the app by hand; it never logs a request.
+// resolved as the static hosts resolve them (scripts/host_headers.mjs), except Cache-Control: it
+// sends no-store, so a test never runs a file cached from an older build. For tests and for trying
+// the app by hand; it never logs a request.
 //   node scripts/serve_static.mjs [--port 8000]
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { extname, join, normalize, sep } from "node:path";
+import { extname, join, normalize, relative, sep } from "node:path";
 import { parseArgs } from "node:util";
+
+import { parseRules, resolveHeaders } from "./host_headers.mjs";
+import { filesUnder, servedPath } from "./sw_allow_list.mjs";
 
 const OUT = join(import.meta.dirname, "..", "out");
 const TYPES = {
@@ -26,19 +30,27 @@ const NOT_FOUND = 404;
 const OK = 200;
 
 /**
- * The CSP for each path in out/_headers, exact paths and "/prefix/*" patterns alike.
+ * The CSP each shipped path is served with, as out/_headers resolves it.
  *
- * @returns {Map<string, string>} Path or pattern to policy.
+ * @returns {Map<string, string>} Served path ("/", "/overview", "/_next/static/…") to policy.
  */
 export function read_headers() {
-  const headers = new Map();
-  let path = null;
-  for (const line of readFileSync(join(OUT, "_headers"), "utf8").split("\n")) {
-    if (line && !line.startsWith(" ")) path = line.trim();
-    const policy = line.match(/^\s+Content-Security-Policy: (.+)$/);
-    if (policy && path) headers.set(path, policy[1]);
-  }
-  return headers;
+  const rules = read_rules();
+  return new Map(
+    filesUnder(OUT).map((file) => {
+      const path = servedPath(`/${relative(OUT, file).split(sep).join("/")}`);
+      return [path, resolveHeaders(rules, path).get("content-security-policy")];
+    }),
+  );
+}
+
+/**
+ * The rules in out/_headers.
+ *
+ * @returns {object[]} Rules, as scripts/host_headers.mjs parses them.
+ */
+function read_rules() {
+  return parseRules(readFileSync(join(OUT, "_headers"), "utf8"));
 }
 
 /**
@@ -50,9 +62,9 @@ export function read_headers() {
  * @returns {Promise<{origin: string, close: Function}>} The origin and a close function.
  */
 export function start_static_server({ port = 0, answer = null } = {}) {
-  const headers = read_headers();
+  const rules = read_rules();
   const server = createServer((request, response) => {
-    serve(request, response, headers, answer).catch(() => {
+    serve(request, response, rules, answer).catch(() => {
       if (!response.headersSent) response.writeHead(NOT_FOUND);
       response.end();
     });
@@ -72,35 +84,30 @@ export function start_static_server({ port = 0, answer = null } = {}) {
  *
  * @param {object} request The HTTP request.
  * @param {object} response The HTTP response.
- * @param {Map<string, string>} headers Path to CSP.
+ * @param {object[]} rules The rules in out/_headers.
  * @param {Function|null} answer Tests only: given the URL and request, gives `{status, type, body}` to serve
  *   with the path's CSP, or null to serve out/ as usual.
  * @returns {Promise<void>} Resolves when the response is written.
  */
-async function serve(request, response, headers, answer) {
+async function serve(request, response, rules, answer) {
   const url = new URL(request.url, "http://localhost");
   const urlPath = decodeURIComponent(url.pathname);
   const answered = answer ? await answer(url, request) : null;
   if (answered) {
     response.writeHead(answered.status, {
+      ...headers_for(urlPath, rules),
       "Content-Type": answered.type,
-      "Content-Security-Policy": policy_for(urlPath, headers),
-      "X-Content-Type-Options": "nosniff",
-      "Cache-Control": "no-store",
     });
     response.end(request.method === "HEAD" ? undefined : answered.body);
     return;
   }
   const file = locate(urlPath);
   const found = file !== null;
-  const servedPath = found ? route_of(urlPath) : "/404.html";
   const body = await readFile(found ? file : join(OUT, "404.html"));
   response.writeHead(found ? OK : NOT_FOUND, {
+    ...headers_for(found ? route_of(urlPath) : urlPath, rules),
     "Content-Type": TYPES[extname(found ? file : "x.html")] ?? "application/octet-stream",
     "Content-Length": body.length,
-    "Content-Security-Policy": policy_for(servedPath, headers),
-    "X-Content-Type-Options": "nosniff",
-    "Cache-Control": "no-store",
   });
   response.end(request.method === "HEAD" ? undefined : body);
 }
@@ -133,18 +140,14 @@ function locate(urlPath) {
 }
 
 /**
- * The CSP for a path: its own block, else the pattern it falls under.
+ * The headers for a path, as the host would send them, with Cache-Control replaced by no-store.
  *
  * @param {string} urlPath The path served.
- * @param {Map<string, string>} headers Path to CSP.
- * @returns {string} The policy.
+ * @param {object[]} rules The rules in out/_headers.
+ * @returns {object} Header name to value.
  */
-function policy_for(urlPath, headers) {
-  if (headers.has(urlPath)) return headers.get(urlPath);
-  for (const [pattern, policy] of headers) {
-    if (pattern.endsWith("/*") && urlPath.startsWith(pattern.slice(0, -1))) return policy;
-  }
-  return headers.get("/404.html");
+function headers_for(urlPath, rules) {
+  return { ...Object.fromEntries(resolveHeaders(rules, urlPath)), "cache-control": "no-store" };
 }
 
 /**
