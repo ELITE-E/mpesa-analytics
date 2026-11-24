@@ -1,0 +1,22 @@
+name: Idea or request
+description: Something the app could do. Describe it in words, never with a statement.
+labels: ["idea"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never attach a statement**, real or redacted, or a screenshot of one. Issues are public.
+        Describe what you would like to see and why; a made-up example is fine.
+  - type: checkboxes
+    id: no-statement
+    attributes:
+      label: Privacy
+      options:
+        - label: This issue holds no statement, screenshot of one, or value read from one.
+          required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like the app to do, and why
+    validations:
+      required: true

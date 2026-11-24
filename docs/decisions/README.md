@@ -22,6 +22,7 @@ Architecture decision records (ADRs) and logs. An ADR records one decision, why,
 | 0014 | Lint the web app with its own ESLint 9; the rest of the repo keeps ESLint 10 | Accepted (CP8b), owner decision |
 | 0015 | The web app is a static export, served with the architecture CSP plus per-page script hashes | Accepted (CP8b), owner instruction, measured in Chrome |
 | 0018 | A hand-written service worker that caches only the build's allow-list; offline after a first load; updates wait for the person | Accepted (CP10a), owner instruction |
+| 0019 | Host headers: one hash-based CSP on every response, Cache-Control per path; deploys from tags only | Proposed (CP10b); supersedes ADR 0015's per-page CSP rules |
 | 0017 | One encrypted ledger per account, merged by the core's plan, saved in one write; merged period (union) and closing balance across statements | Accepted (CP9b), owner instruction |
 | 0016 | "Remember on this device" is an encrypted vault: WebCrypto, whole-ledger blobs, off by default (supersedes the migration plan's D4 plaintext recommendation) | Accepted (CP9a), owner instruction; what the lock does and does not protect: `docs/THREAT_MODEL.md` |
 

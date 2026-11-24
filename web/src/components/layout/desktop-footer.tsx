@@ -4,7 +4,8 @@ import { canvasFrame } from "@/components/layout/canvas";
  * Desktop-only (≥1024px) footer with the IA prototype's Stitch layout. Its
  * wording is limited to supported facts (migration decisions C-13 and Q-C2):
  * the brand, what the app does, that imports are private to the account
- * (owner-scoped by the API), and the year it is rendered in. The prototype's
+ * (owner-scoped by the API), that the app is not affiliated with Safaricom (CP10b), and the year
+ * it is rendered in. The prototype's
  * "Institutional engine", reconciliation, hash and encryption labels and its
  * fixed year were not carried over. Pages render per request, so the year is
  * always current.
@@ -20,6 +21,7 @@ export function DesktopFooter() {
         </div>
         <div className="flex items-center gap-6 text-xs text-on-surface-variant font-label whitespace-nowrap">
           <span>PRIVATE ON THIS DEVICE</span>
+          <span>NOT AFFILIATED WITH SAFARICOM</span>
           <span>
             © {new Date().getFullYear()} Sovereign Ledger
           </span>

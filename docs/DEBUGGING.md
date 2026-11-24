@@ -139,7 +139,7 @@ To make a statement of your own: `.venv/bin/python tools/synth/generate.py --nam
 
 The core tests also run under Pyodide: build the wheel (`uv build --wheel`), then `node tools/run_pyodide_tests.mjs`.
 
-The browser tests need the runtime: `uv build --wheel --out-dir dist`, then `uv run python tools/vendor.py runtime --wheel dist/mpesa_core-0.0.0-py3-none-any.whl`. Rebuild it after any core change, or Chrome runs the old wheel; then rebuild the app (`npm run build` in `web/`), which copies the runtime and `pdf_reader/` into `web/out`. To look at the engine by hand, `node web/harness/serve.js` serves the harness with the architecture CSP; open DevTools on the worker for its requests.
+The browser tests need the runtime: `uv build --wheel --out-dir dist`, then `uv run python tools/vendor.py runtime --wheel dist/mpesa_core-1.0.0-py3-none-any.whl`. Rebuild it after any core change, or Chrome runs the old wheel; then rebuild the app (`npm run build` in `web/`), which copies the runtime and `pdf_reader/` into `web/out`. To look at the engine by hand, `node web/harness/serve.js` serves the harness with the architecture CSP; open DevTools on the worker for its requests.
 
 ## Errors you may see
 

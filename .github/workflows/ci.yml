@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The release workflow runs these same checks before it deploys a version tag.
+  workflow_call:
 
 permissions:
   contents: read
@@ -42,6 +44,10 @@ jobs:
         run: uv run python tools/guards/check_secrets.py --mode staged
       - name: Guard 5, gitleaks full history
         run: uv run python tools/guards/check_secrets.py --mode history
+      - name: History scan, every commit on every ref (CP10b)
+        run: uv run python tools/release/scan_history.py
+      - name: Third-party notices up to date with the lockfiles (CP10b)
+        run: uv run python tools/release/third_party_notices.py --check
       - name: Guard 6, import-linter
         run: uv run python tools/guards/check_imports.py
       - name: Guard 7, core purity
@@ -69,7 +75,7 @@ jobs:
       - name: Build wheel
         run: uv build --wheel --out-dir dist
       - name: Build and verify the browser runtime
-        run: uv run python tools/vendor.py runtime --wheel dist/mpesa_core-0.0.0-py3-none-any.whl
+        run: uv run python tools/vendor.py runtime --wheel dist/mpesa_core-*-py3-none-any.whl
       - name: Build the web app (static export)
         run: npm run build --prefix web
       - name: Record what a first visit downloads from the app (real Chrome)
@@ -80,7 +86,12 @@ jobs:
         run: node --test --test-concurrency=1 tests/browser/*.test.js
       - name: Web app unit tests
         working-directory: web
-        run: node --import ./tests/support/register.mjs --test $(ls tests/*.test.mjs tests/*.test.ts | grep -v -e '-browser\.test' -e 'static-export-csp' -e 'e2e-local' -e '-chrome' -e 'remember-e2e')
+        run: node --import ./tests/support/register.mjs --test $(ls tests/*.test.mjs tests/*.test.ts | grep -v -e '-browser\.test' -e 'static-export-csp' -e 'e2e-local' -e '-chrome' -e 'remember-e2e' -e 'host-headers')
+      - name: Host headers for Cloudflare Pages and Netlify, every route (CP10b)
+        working-directory: web
+        run: node --import ./tests/support/register.mjs --test tests/host-headers.test.mjs
+      - name: Release tools against a loopback host (check_deployed, checksums; CP10b)
+        run: node --test --test-concurrency=1 tests/release/*.test.mjs
       - name: Web app in real Chrome (static export, CSP, the real UI)
         working-directory: web
         run: node --import ./tests/support/register.mjs --test --test-concurrency=1 tests/static-export-csp.test.mjs tests/e2e-local.test.mjs

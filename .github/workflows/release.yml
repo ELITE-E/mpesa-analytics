@@ -1,0 +1,89 @@
+name: release
+
+# The only way the app reaches a host: a version tag (vX.Y.Z) pushed by the owner. Every CI check
+# runs first; then this builds the app for the host named in the repository variable DEPLOY_HOST
+# (cloudflare-pages or netlify), publishes it, and creates a draft GitHub release whose notes hold
+# the release's SHA-256 checksum, with sha256sums.txt attached (CP10b item 8, ADR 0019).
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: [checks]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: write # the draft release
+    env:
+      UV_FROZEN: "1"
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - run: uv sync
+      - run: npm ci --no-audit --no-fund
+      - run: npm ci --prefix web --no-audit --no-fund
+      - name: The tag names the version in web/package.json
+        run: test "$GITHUB_REF_NAME" = "v$(node -p "require('./web/package.json').version")"
+      - name: The public name is chosen and avoids the M-Pesa trademark
+        run: uv run python tools/release/check_naming.py
+      - name: The host is chosen
+        run: |
+          case "$DEPLOY_HOST" in
+            cloudflare-pages|netlify) ;;
+            *) echo "Set the repository variable DEPLOY_HOST to cloudflare-pages or netlify"; exit 1 ;;
+          esac
+      - name: Fetch and verify pinned runtime
+        run: uv run python tools/vendor.py fetch
+      - name: Build the wheel and the browser runtime
+        run: |
+          uv build --wheel --out-dir dist
+          uv run python tools/vendor.py runtime --wheel dist/mpesa_core-*-py3-none-any.whl
+      - name: Build the web app (static export) for the host
+        run: npm run build --prefix web
+      - name: Headers for the chosen host
+        run: node web/scripts/host_headers.mjs --host "$DEPLOY_HOST" --out web/out
+      - name: Checksums and release notes
+        run: node tools/release/release_checksums.mjs --out web/out --to "$RUNNER_TEMP/release"
+      - name: Deploy to Cloudflare Pages
+        if: env.DEPLOY_HOST == 'cloudflare-pages'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${{ vars.CLOUDFLARE_PROJECT }}
+          WRANGLER_VERSION: ${{ vars.WRANGLER_VERSION }}
+        run: |
+          test -n "$PROJECT" && test -n "$WRANGLER_VERSION"
+          npx --yes "wrangler@${WRANGLER_VERSION}" pages deploy web/out --project-name "$PROJECT" --branch main
+      - name: Deploy to Netlify
+        if: env.DEPLOY_HOST == 'netlify'
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          NETLIFY_CLI_VERSION: ${{ vars.NETLIFY_CLI_VERSION }}
+        run: |
+          test -n "$NETLIFY_CLI_VERSION"
+          npx --yes "netlify-cli@${NETLIFY_CLI_VERSION}" deploy --dir web/out --prod --no-build
+      - name: Draft the GitHub release with its checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/release/RELEASE_NOTES.md" "$RUNNER_TEMP/release/sha256sums.txt"

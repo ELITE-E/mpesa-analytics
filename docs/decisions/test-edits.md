@@ -461,3 +461,27 @@ After CP10a (CI failure, 2026-11-19):
 | `web/tests/remember-settings.test.mjs` (new) | | "delete-all goes straight from unlocked to off: the screen never sees a locked state to unlock" | CI found `remember-e2e` "delete-all from settings…" timing out: delete-all locks before it deletes, the controller published that brief "locked", and the session sent the page to `/unlock`. Seen red (`locked, off`); fixed in `lib/remember.ts` (a lock from delete-all is not shown); the journey then passed five runs in a row |
 | `web/tests/static-export-csp.test.mjs`, "every route loads…" and "an unknown address gets the 404 page…" | `page.goto(..., {waitUntil: "networkidle"})` with Playwright's default 30 s | the same wait with a 120 s timeout | No assertion changed. A fresh profile's first load now also runs the service worker's precache (ADR 0018), so the network goes quiet later; both tests timed out at 30 s on a loaded run |
 | `web/tests/no-fading-controls.test.mjs` (new) | | no control dimmed while disabled animates its opacity; the rendered Proceed button never fades | CI's axe run caught `/upload`'s "Proceed to Analysis" mid-fade from 50% to full opacity (`color-contrast (serious)`); at rest it is 5.48:1. Seen red on Proceed and on `/recovery`'s retry button; both now transition colours, shadow and press scale only (hover: `bg-primary`, 7.68:1) |
+
+## CP10b (2026-11-23): the release pack
+
+No existing assertion changed. New tests, red first:
+
+| Item | File | Seen red | Passed at once, and why |
+|---|---|---|---|
+| 1 host headers | `web/tests/host-headers.test.mjs` | 11 of 15 (no generator); then the dotfile test 1 of 1 (`public/.gitkeep` shipped) | 4: the build's routes, no sitemap, and the overlap checker's self-test check the build and the test itself; "an unknown host is refused" passed because the missing generator also failed |
+| 2 check_deployed | `tests/release/check_deployed.test.mjs` | 11 of 11 (module missing) | none |
+| 3 notices | `tests/release/test_third_party_notices.py` | 8 of 8 | none |
+| 3, 5, 6 release documents, versions | `tests/release/test_release_docs.py` | 13 of 13 | none |
+| 4 history scan | `tests/release/test_scan_history.py` | 15 of 15 | none |
+| 7, 8 workflows | `tests/release/test_release_workflows.py` | 7 of 8 | 1: "CI never deploys" was already true |
+| 8 naming gate | `tests/release/test_check_naming.py` | 8 of 8 | none |
+| 8 checksums | `tests/release/release_checksums.test.mjs` | 4 of 4 (module missing) | none |
+| 8 footer | `web/tests/app-shell.test.mjs`, new test "says the app is not affiliated with Safaricom (CP10b item 8)" | 1 of 1 | none |
+
+Found while going green: the guards read the usual all-capitals checksum file name as receipt-shaped (ten capitals and digits),
+so the checksum list is `sha256sums.txt`; and the history scan counted a ten-digit phone twice
+(also receipt-shaped), so `_common.token_categories` counts a token under its first rule.
+
+`web/scripts/serve_static.mjs` now serves the generated headers (Content-Security-Policy, nosniff,
+Referrer-Policy, Permissions-Policy, COOP, X-Robots-Tag) for every path, Cache-Control kept at
+`no-store`; `read_headers()` keeps its contract (path to CSP), so the tests that use it are unchanged.
