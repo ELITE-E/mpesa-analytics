@@ -3,7 +3,9 @@ import { PrivateOnDevice } from "@/components/private-on-device";
 import { RememberHeaderControls } from "@/components/remember/lock-control";
 import { INGEST_NAV_ITEMS, type NavKey } from "@/components/bottom-nav";
 import { Icon } from "@/components/icon";
+import { BrandMark } from "@/components/brand-mark";
 import { canvasFrame } from "@/components/layout/canvas";
+import { APP_NAME } from "@/content/brand";
 import { StoryPeriod } from "@/components/story-period";
 import { STORY_NAV_ITEMS, type StoryNavKey } from "@/components/story-bottom-nav";
 import { withImport } from "@/lib/import-link";
@@ -56,22 +58,12 @@ export function DesktopAppBar({ navigation }: { navigation: DesktopNavigation })
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-3 whitespace-nowrap">
             <div className="w-8 h-8 rounded-xs bg-primary flex items-center justify-center">
-              <Icon name="account_balance" size={18} className="text-on-primary" />
+              <BrandMark size={18} className="text-on-primary" />
             </div>
-            {isStory && <span className="sr-only xl:hidden">Sovereign Ledger</span>}
-            <div className={`flex-col ${isStory ? "hidden xl:flex" : "flex"}`}>
-              <div className="flex items-center gap-1.5">
-                <span className="font-headline font-bold text-sm tracking-tight text-on-surface">
-                  SOVEREIGN LEDGER
-                </span>
-                <span className={`text-[11px] text-on-surface-variant font-label font-medium ${isStory ? "hidden min-[1440px]:inline" : ""}`}>
-                  • M-Pesa Analytics
-                </span>
-              </div>
-              <span className={`font-label text-[10px] text-on-surface-variant uppercase tracking-wider ${isStory ? "hidden min-[1440px]:inline" : ""}`}>
-                M-Pesa statement analysis
-              </span>
-            </div>
+            {isStory && <span className="sr-only xl:hidden">{APP_NAME}</span>}
+            <span className={`font-headline font-bold text-sm tracking-tight text-on-surface ${isStory ? "hidden xl:inline" : ""}`}>
+              {APP_NAME}
+            </span>
           </Link>
           {isStory && (
             <div className="flex items-center gap-2 px-2.5 py-1 bg-surface-container rounded-xs border border-surface-container-highest whitespace-nowrap">

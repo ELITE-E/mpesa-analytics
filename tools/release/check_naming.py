@@ -2,8 +2,10 @@
 """Release gate: the public name is chosen, avoids the M-Pesa trademark, and is the one shown.
 
 Reads the owner's choice from docs/NAMING.md ("Chosen name: ..." and "Domain: ..."), and the
-names the app shows from the web manifest and the root layout's title. Run by the release
-workflow before it deploys (CP10b item 8); it fails until the owner has chosen.
+names the app shows: the one source web/src/content/brand.ts (APP_NAME), the web manifest
+(web/src/app/manifest.ts, which must name the app with APP_NAME; or a hand-written
+web/public/manifest.webmanifest) and the root layout's title (APP_NAME, or a literal). Run by the
+release workflow before it deploys (CP10b item 8); it fails until the owner has chosen.
 """
 
 import argparse
@@ -17,6 +19,9 @@ TRADEMARK = re.compile(r"m[\s._-]*pesa", re.IGNORECASE)
 CHOSEN = re.compile(r"^Chosen name:\s*(.*)$", re.MULTILINE)
 DOMAIN = re.compile(r"^Domain:\s*(.*)$", re.MULTILINE)
 TITLE = re.compile(r'^\s*title:\s*"([^"]*)"', re.MULTILINE)
+TITLE_FROM_BRAND = re.compile(r"^\s*title:\s*APP_NAME\b", re.MULTILINE)
+BRAND_NAME = re.compile(r'^export const APP_NAME = "([^"]*)";', re.MULTILINE)
+MANIFEST_FIELDS = ("name", "short_name")
 PENDING = re.compile(r"pending|^\s*$|^\(", re.IGNORECASE)
 
 
@@ -78,20 +83,54 @@ def _shown_name_problems(root, chosen):
         Problems naming the file that differs.
 
     Side Effects:
-        Reads the web manifest and the root layout.
+        Reads brand.ts, the web manifest and the root layout.
     """
-    manifest = json.loads(
-        (root / "web" / "public" / "manifest.webmanifest").read_text(encoding="utf-8")
+    web = root / "web"
+    brand_file = web / "src" / "content" / "brand.ts"
+    brand = ""
+    if brand_file.exists():
+        brand = _first(BRAND_NAME, brand_file.read_text(encoding="utf-8"))
+    problems = []
+    if brand_file.exists() and brand != chosen:
+        problems.append("APP_NAME in web/src/content/brand.ts is not the chosen name")
+    problems += _manifest_problems(web, chosen, brand)
+    layout = (web / "src" / "app" / "layout.tsx").read_text(encoding="utf-8")
+    title = (
+        brand if brand_file.exists() and TITLE_FROM_BRAND.search(layout) else _first(TITLE, layout)
     )
-    layout = (root / "web" / "src" / "app" / "layout.tsx").read_text(encoding="utf-8")
-    problems = [
-        f"the web manifest's {field} is not the chosen name"
-        for field in ("name", "short_name")
-        if manifest.get(field) != chosen
-    ]
-    if _first(TITLE, layout) != chosen:
+    if title != chosen:
         problems.append("the page title in web/src/app/layout.tsx is not the chosen name")
     return problems
+
+
+def _manifest_problems(web, chosen, brand):
+    """Check the web manifest's name and short name.
+
+    Args:
+        web: The web app's folder.
+        chosen: The chosen public name.
+        brand: APP_NAME from brand.ts, or an empty string without that file.
+
+    Returns:
+        Problems naming the manifest field that differs.
+
+    Side Effects:
+        Reads web/src/app/manifest.ts or web/public/manifest.webmanifest.
+    """
+    generated = web / "src" / "app" / "manifest.ts"
+    if generated.exists():
+        source = generated.read_text(encoding="utf-8")
+        return [
+            f"the web manifest's {field} (web/src/app/manifest.ts) is not APP_NAME, the chosen name"
+            for field in MANIFEST_FIELDS
+            if not re.search(rf"\b{field}:\s*APP_NAME\b", source) or brand != chosen
+        ]
+    manifest = json.loads((web / "public" / "manifest.webmanifest").read_text(encoding="utf-8"))
+    return [
+        f"the web manifest's {field} is not the chosen name"
+        for field in MANIFEST_FIELDS
+        if manifest.get(field) != chosen
+    ]
 
 
 def _first(pattern, text):

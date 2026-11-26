@@ -5,10 +5,12 @@ import { CapabilityList } from "@/components/welcome/capability-list";
 import { ReturningSessionCard } from "@/components/welcome/returning-session-card";
 import { UploadCallToAction } from "@/components/welcome/upload-call-to-action";
 import { WelcomeHero } from "@/components/welcome/welcome-hero";
+import { DISCLAIMER } from "@/content/brand";
 
 /**
- * Stitch screen: "Welcome — M-Pesa Analytics". A linear flow screen: it stays
- * a centred column at every width, inside the responsive ingest shell.
+ * Stitch screen: "Welcome". A linear flow screen: it stays a centred column at
+ * every width, inside the responsive ingest shell. It ends with the app's one
+ * affiliation disclaimer (content/brand.ts).
  */
 export default function WelcomePage() {
   return (
@@ -23,6 +25,7 @@ export default function WelcomePage() {
         <UploadCallToAction />
         <CapabilityList />
         <ReturningSessionCard />
+        <p className="text-xs font-body text-on-surface-variant text-center">{DISCLAIMER}</p>
       </div>
     </PageShell>
   );

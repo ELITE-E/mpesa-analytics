@@ -1,31 +1,22 @@
 import { canvasFrame } from "@/components/layout/canvas";
+import { APP_NAME } from "@/content/brand";
 
 /**
- * Desktop-only (≥1024px) footer with the IA prototype's Stitch layout. Its
- * wording is limited to supported facts (migration decisions C-13 and Q-C2):
- * the brand, what the app does, that imports are private to the account
- * (owner-scoped by the API), that the app is not affiliated with Safaricom (CP10b), and the year
- * it is rendered in. The prototype's
- * "Institutional engine", reconciliation, hash and encryption labels and its
- * fixed year were not carried over. Pages render per request, so the year is
- * always current.
+ * Desktop-only (≥1024px) footer: the app's name (content/brand.ts) and the copyright year, nothing
+ * else. The affiliation disclaimer is on the Welcome screen and in the README. The year is the
+ * build's, since every page is exported at build time.
  */
 export function DesktopFooter() {
   return (
     <footer className="hidden lg:block w-full bg-surface-container-lowest border-t border-surface-container-high py-8">
       <div className={`flex flex-wrap items-center justify-between gap-x-6 gap-y-2 ${canvasFrame}`}>
-        <div className="flex items-center gap-4 text-xs font-label text-on-surface-variant whitespace-nowrap">
-          <span>SOVEREIGN LEDGER</span>
-          <span>•</span>
-          <span>M-PESA STATEMENT ANALYSIS</span>
-        </div>
-        <div className="flex items-center gap-6 text-xs text-on-surface-variant font-label whitespace-nowrap">
-          <span>PRIVATE ON THIS DEVICE</span>
-          <span>NOT AFFILIATED WITH SAFARICOM</span>
+        <p className="flex items-center gap-2 text-xs font-label text-on-surface-variant whitespace-nowrap">
+          <span>{APP_NAME}</span>
+          <span aria-hidden="true">·</span>
           <span>
-            © {new Date().getFullYear()} Sovereign Ledger
+            © {new Date().getFullYear()} {APP_NAME}
           </span>
-        </div>
+        </p>
       </div>
     </footer>
   );

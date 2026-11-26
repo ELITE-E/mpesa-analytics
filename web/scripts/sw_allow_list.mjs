@@ -6,6 +6,8 @@ import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
+import { APP_NAME } from "../src/content/brand.ts";
+
 // Files the host or the worker owns, never cached: the CSP headers, the 404 page served for unknown
 // paths, and the worker's own two files (the browser checks those for updates itself).
 const NOT_LISTED = new Set(["/_headers", "/404.html", "/sw.js", "/sw-allow-list.js"]);
@@ -13,12 +15,15 @@ const NOT_LISTED = new Set(["/_headers", "/404.html", "/sw.js", "/sw-allow-list.
 const HASHED_PREFIXES = ["/_next/static/"];
 const RUNTIME = "/runtime/";
 const VERSION_LENGTH = 16;
+// The worker's caches are named after the app (content/brand.ts): "tallydesk-<version>".
+const CACHE_PREFIX = `${APP_NAME.toLowerCase()}-`;
 
 /**
  * The allow-list for a built app.
  *
  * @param {string} outDir The static export (web/out).
- * @returns {{version: string, entries: {path: string, kind: string, integrity: string}[]}} Every
+ * @returns {{version: string, cachePrefix: string, entries: {path: string, kind: string,
+ *   integrity: string}[]}} The prefix of the worker's cache names, from the app's name, and every
  *   shipped file by the path it is served at ("/upload" for upload.html, "/" for index.html), as
  *   "hashed" (cache-first) or "page" (network-first), with its integrity; the version is a digest
  *   of the whole list, so any change to any file is a new version.
@@ -38,7 +43,7 @@ export function buildAllowList(outDir) {
     .update(JSON.stringify(entries))
     .digest("hex")
     .slice(0, VERSION_LENGTH);
-  return { version, entries };
+  return { version, cachePrefix: CACHE_PREFIX, entries };
 }
 
 /**

@@ -4,6 +4,7 @@ import { EngineWarmUp } from "@/components/engine-warm-up";
 import { CapabilityCheck } from "@/components/capability-notice";
 import { ServiceWorkerSetup } from "@/components/update-prompt";
 import { RememberSession } from "@/components/remember/remember-session";
+import { APP_NAME } from "@/content/brand";
 import "./globals.css";
 
 // The same families and weights the Stitch screens load.
@@ -26,10 +27,16 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "M-Pesa Analytics",
+  title: APP_NAME,
   description: "Turn your M-Pesa statement into a clear picture of your money.",
-  manifest: "/manifest.webmanifest",
-  icons: { icon: "/icon.svg" },
+  // The manifest link comes from src/app/manifest.ts. Icons from scripts/build_app_icons.mjs.
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "48x48" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: { url: "/apple-touch-icon.png", sizes: "180x180" },
+  },
 };
 
 export const viewport: Viewport = {
