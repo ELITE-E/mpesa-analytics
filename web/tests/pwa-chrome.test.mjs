@@ -118,7 +118,7 @@ test("after a first load, a statement is read with the network off; only allow-l
       }
       return { names, paths, hits };
     }, needles);
-    assert.deepEqual(found.names, [`mpesa-analytics-${list.version}`]);
+    assert.deepEqual(found.names, [`${list.cachePrefix}${list.version}`]);
     assert.deepEqual(found.paths.filter((path) => !listed.has(path)), [], "only allow-listed files are cached");
     assert.equal(found.paths.includes("/unlisted-probe.json"), false);
     assert.deepEqual(found.hits, [], "no statement data in Cache Storage");

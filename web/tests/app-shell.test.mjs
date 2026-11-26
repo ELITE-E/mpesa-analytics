@@ -23,6 +23,7 @@ globalThis.window = {
 const { BottomNav } = await import("../src/components/bottom-nav.tsx");
 const { DesktopAppBar } = await import("../src/components/layout/desktop-app-bar.tsx");
 const { DesktopFooter } = await import("../src/components/layout/desktop-footer.tsx");
+const { APP_NAME } = await import("../src/content/brand.ts");
 const { PageShell } = await import("../src/components/layout/page-shell.tsx");
 
 /** Each link in `html` as { href, text, current }, in DOM order. */
@@ -66,7 +67,7 @@ describe("DesktopAppBar", () => {
 describe("DesktopFooter", () => {
   test("states the brand, what the app does, privacy and the current year", () => {
     const text = renderToString(createElement(DesktopFooter)).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
-    for (const expected of ["Sovereign Ledger", "M-Pesa statement analysis", "Private on this device", `© ${new Date().getFullYear()} Sovereign Ledger`]) {
+    for (const expected of [APP_NAME, `© ${new Date().getFullYear()} ${APP_NAME}`]) {
       assert.ok(text.toLowerCase().includes(expected.toLowerCase()), `footer lacks "${expected}"`);
     }
     for (const unsupported of [/institutional/i, /reconcil/i, /hash/i, /aes/i, /encrypt/i, /audit/i]) {
@@ -74,9 +75,9 @@ describe("DesktopFooter", () => {
     }
   });
 
-  test("says the app is not affiliated with Safaricom (CP10b item 8)", () => {
+  test("carries no affiliation disclaimer: it is on the Welcome screen and in the README", () => {
     const text = renderToString(createElement(DesktopFooter)).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
-    assert.match(text, /not affiliated with Safaricom/i);
+    assert.doesNotMatch(text, /not affiliated/i);
   });
 });
 

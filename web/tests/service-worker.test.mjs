@@ -23,10 +23,13 @@ const { buildAllowList, allowListScript } = await import("../scripts/sw_allow_li
 const { UpdatePrompt } = await import("../src/components/update-prompt.tsx");
 const { updatePrompt } = await import("../src/content/pwa.ts");
 const { registerServiceWorker } = await import("../src/lib/service-worker.ts");
+const { APP_NAME } = await import("../src/content/brand.ts");
 
 const ORIGIN = "https://app.test";
+const CACHE_PREFIX = `${APP_NAME.toLowerCase()}-`;
 const ALLOW_LIST = {
   version: "v1abc",
+  cachePrefix: CACHE_PREFIX,
   entries: [
     { path: "/", kind: "page", integrity: "sha256-root" },
     { path: "/upload", kind: "page", integrity: "sha256-upload" },
@@ -113,8 +116,8 @@ test("install precaches exactly the allow-list, each file with its integrity, an
     worker.fetched,
     ALLOW_LIST.entries.map((entry) => ({ path: entry.path, integrity: entry.integrity })),
   );
-  assert.deepEqual([...worker.stores.keys()], ["mpesa-analytics-v1abc"]);
-  assert.equal(worker.stores.get("mpesa-analytics-v1abc").size, ALLOW_LIST.entries.length);
+  assert.deepEqual([...worker.stores.keys()], [`${CACHE_PREFIX}v1abc`]);
+  assert.equal(worker.stores.get(`${CACHE_PREFIX}v1abc`).size, ALLOW_LIST.entries.length);
   assert.equal(worker.calls.skipWaiting, 0);
 });
 
@@ -138,7 +141,7 @@ test("a request that is not a GET is left alone, even to a listed path", async (
 });
 
 test("a HEAD for a listed page (a link prefetch) is answered from the cache, with no body and no network", async () => {
-  const worker = loadWorker({ network: false, cached: { "mpesa-analytics-v1abc": { "/upload": "cached upload" } } });
+  const worker = loadWorker({ network: false, cached: { [`${CACHE_PREFIX}v1abc`]: { "/upload": "cached upload" } } });
   const response = await dispatchFetch(worker, "/upload", { method: "HEAD" });
   assert.equal(response.status, 200);
   assert.equal(await response.text(), "");
@@ -147,7 +150,7 @@ test("a HEAD for a listed page (a link prefetch) is answered from the cache, wit
 });
 
 test("hashed files come from the cache first, and are fetched with their integrity only when missing", async () => {
-  const worker = loadWorker({ cached: { "mpesa-analytics-v1abc": { "/_next/static/chunks/app.js": "cached app" } } });
+  const worker = loadWorker({ cached: { [`${CACHE_PREFIX}v1abc`]: { "/_next/static/chunks/app.js": "cached app" } } });
   assert.equal(await (await dispatchFetch(worker, "/_next/static/chunks/app.js")).text(), "cached app");
   assert.deepEqual(worker.fetched, []);
   const wasm = await dispatchFetch(worker, "/runtime/62b8/pyodide/pyodide.asm.wasm");
@@ -156,15 +159,15 @@ test("hashed files come from the cache first, and are fetched with their integri
 });
 
 test("pages come from the network first, with their integrity, and from the cache when offline", async () => {
-  const online = loadWorker({ cached: { "mpesa-analytics-v1abc": { "/upload": "cached upload" } } });
+  const online = loadWorker({ cached: { [`${CACHE_PREFIX}v1abc`]: { "/upload": "cached upload" } } });
   assert.equal(await (await dispatchFetch(online, "/upload")).text(), "network /upload");
   assert.deepEqual(online.fetched, [{ path: "/upload", integrity: "sha256-upload" }]);
-  const offline = loadWorker({ network: false, cached: { "mpesa-analytics-v1abc": { "/upload": "cached upload" } } });
+  const offline = loadWorker({ network: false, cached: { [`${CACHE_PREFIX}v1abc`]: { "/upload": "cached upload" } } });
   assert.equal(await (await dispatchFetch(offline, "/upload")).text(), "cached upload");
 });
 
 test("a page's query string is ignored when matching the allow-list", async () => {
-  const worker = loadWorker({ network: false, cached: { "mpesa-analytics-v1abc": { "/upload.txt": "cached rsc", "/": "cached home" } } });
+  const worker = loadWorker({ network: false, cached: { [`${CACHE_PREFIX}v1abc`]: { "/upload.txt": "cached rsc", "/": "cached home" } } });
   assert.equal(await (await dispatchFetch(worker, "/upload.txt?_rsc=abc")).text(), "cached rsc");
   assert.equal(await (await dispatchFetch(worker, "/?import=3")).text(), "cached home");
 });
@@ -178,12 +181,20 @@ test("the update waits for the person: only their message makes the new worker t
 });
 
 test("activating removes the app's older caches only, and takes over open pages", async () => {
-  const worker = loadWorker({ cached: { "mpesa-analytics-old": {}, "mpesa-analytics-v1abc": {}, "someone-else": {} } });
+  const worker = loadWorker({ cached: { [`${CACHE_PREFIX}old`]: {}, [`${CACHE_PREFIX}v1abc`]: {}, "someone-else": {} } });
   let done = null;
   worker.listeners.activate({ waitUntil: (promise) => (done = promise) });
   await done;
-  assert.deepEqual([...worker.stores.keys()].sort(), ["mpesa-analytics-v1abc", "someone-else"]);
+  assert.deepEqual([...worker.stores.keys()].sort(), [`${CACHE_PREFIX}v1abc`, "someone-else"].sort());
   assert.equal(worker.calls.claim, 1);
+});
+
+test("activating also removes caches left under the app's old name", async () => {
+  const worker = loadWorker({ cached: { "mpesa-analytics-0123": {}, [`${CACHE_PREFIX}v1abc`]: {}, "someone-else": {} } });
+  let done = null;
+  worker.listeners.activate({ waitUntil: (promise) => (done = promise) });
+  await done;
+  assert.deepEqual([...worker.stores.keys()].sort(), [`${CACHE_PREFIX}v1abc`, "someone-else"].sort());
 });
 
 test("the worker's source is short, plain, and fetches only through its allow-listed helper", () => {
@@ -272,14 +283,13 @@ test("a runtime file whose bytes differ from the runtime manifest stops the buil
 });
 
 test("the web manifest names the app plainly, starts at home, and its generic icons exist", () => {
-  const manifest = JSON.parse(readFileSync(join(WEB, "public/manifest.webmanifest"), "utf8"));
-  assert.equal(manifest.name, "M-Pesa Analytics");
+  const manifest = JSON.parse(readFileSync(join(WEB, "out/manifest.webmanifest"), "utf8"));
+  assert.equal(manifest.name, APP_NAME);
   assert.equal(manifest.start_url, "/");
   assert.equal(manifest.display, "standalone");
   assert.ok(manifest.icons.length >= 1);
   for (const icon of manifest.icons) assert.ok(existsSync(join(WEB, "public", icon.src)), icon.src);
-  const layout = readFileSync(join(WEB, "src/app/layout.tsx"), "utf8");
-  assert.match(layout, /manifest: "\/manifest\.webmanifest"/);
+  assert.ok(existsSync(join(WEB, "src/app/manifest.ts")), "the manifest is generated by src/app/manifest.ts");
 });
 
 test("the update prompt says a new version is ready and asks before reloading", () => {

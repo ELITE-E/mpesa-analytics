@@ -18,7 +18,7 @@
 importScripts("/sw-allow-list.js");
 
 const LIST = self.SW_ALLOW_LIST;
-const CACHE_PREFIX = "mpesa-analytics-";
+const CACHE_PREFIX = LIST.cachePrefix; // The app's name (src/content/brand.ts), via the allow-list.
 const CACHE_NAME = CACHE_PREFIX + LIST.version;
 const ENTRIES = new Map(LIST.entries.map((entry) => [entry.path, entry]));
 
@@ -57,10 +57,13 @@ async function precache() {
   }
 }
 
-/** Delete the caches of this app's older versions; other caches are not ours to touch. */
+/** Delete this app's older caches, under its name or its earlier one; other caches are not ours. */
 async function removeOldCaches() {
   const names = await caches.keys();
-  const old = names.filter((name) => name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME);
+  const prefixes = [CACHE_PREFIX, "mpesa-analytics-"];
+  const old = names.filter(
+    (name) => name !== CACHE_NAME && prefixes.some((prefix) => name.startsWith(prefix)),
+  );
   await Promise.all(old.map((name) => caches.delete(name)));
 }
 

@@ -505,3 +505,32 @@ New tests, red first:
 
 The `HOST_REPORTING_NOTE` constant was exported before the red run, so the file could load and each
 test show its own result; it carries no behaviour.
+
+## Brand pass (2026-11-26): TallyDesk, one mark, disclaimer on Welcome
+
+The owner chose the name TallyDesk, Icon A (three bars in palette tokens), the disclaimer on the
+Welcome screen and in the README, the cache prefix renamed, and the domain `tallydesk.pages.dev`.
+Existing tests that pinned the old names or the old footer were changed; each change points at
+`web/src/content/brand.ts` or the new text, and no other assertion was loosened.
+
+| Test | Old | New | Reason |
+|---|---|---|---|
+| `web/tests/app-shell.test.mjs`, "states the brand, what the app does, privacy and the current year" | footer has "Sovereign Ledger", "M-Pesa statement analysis", "Private on this device", "© year Sovereign Ledger" | footer has `APP_NAME` and "© year `APP_NAME`" | Owner: the footer becomes "TallyDesk · © year TallyDesk". The unsupported-claims checks in the same test are unchanged |
+| `web/tests/app-shell.test.mjs`, "says the app is not affiliated with Safaricom (CP10b item 8)" | footer matches "not affiliated with Safaricom" | renamed "carries no affiliation disclaimer: it is on the Welcome screen and in the README"; footer does not match "not affiliated" | Owner: the disclaimer moves to Welcome and the README (`brand.test.mjs` checks both) |
+| `web/tests/service-worker.test.mjs`, "the web manifest names the app plainly…" | reads `public/manifest.webmanifest`; name "M-Pesa Analytics"; layout has `manifest: "/manifest.webmanifest"` | reads the built `out/manifest.webmanifest`; name `APP_NAME`; `src/app/manifest.ts` exists | The manifest is now generated from `brand.ts` by `src/app/manifest.ts`, which also emits the manifest link |
+| `web/tests/service-worker.test.mjs`, the sandbox's `ALLOW_LIST` fixture | `{version, entries}` | adds `cachePrefix: "tallydesk-"` (from `APP_NAME`) | The build now writes the cache prefix into the allow-list, and the worker reads it from there |
+| `web/tests/service-worker.test.mjs`, 9 cache-name assertions (install, cache-first, network-first, query string, HEAD, activation) | `"mpesa-analytics-v1abc"` and `"mpesa-analytics-old"` | `` `${CACHE_PREFIX}v1abc` `` and `` `${CACHE_PREFIX}old` ``; the activation test's expected names are sorted, since "tallydesk-" sorts after "someone-else" | Owner: rename the cache prefix. Only the prefix changed |
+| `web/tests/pwa-chrome.test.mjs`, the cache-name assertion | `` [`mpesa-analytics-${list.version}`] `` | `` [`${list.cachePrefix}${list.version}`] `` | Same rename; the prefix comes from the built allow-list |
+| `tests/release/test_release_docs.py`, `test_the_readme_says_not_affiliated_with_safaricom` | `not affiliated with Safaricom` | `not affiliated with (or endorsed by )?Safaricom` | Owner's wording: "is not affiliated with or endorsed by Safaricom or M-Pesa" |
+| `tests/release/test_check_naming.py`, module docstring | "the repo still names the app after M-Pesa, so the gate fails here" | describes both layouts and the repo check | The repo now passes; no assertion changed |
+
+New tests, red first (with `brand.ts` alone present, so each test showed its own result):
+
+| File | Seen red | Passed at once, and why |
+|---|---|---|
+| `web/tests/brand.test.mjs` (20) | 18 of 20 | 2: `brand.ts` holds the name and disclaimer (the file the red run needed), and "every built page links the manifest once" (Next already linked it once) |
+| `web/tests/service-worker.test.mjs`, "activating also removes caches left under the app's old name" | 1 of 1 | none |
+| `tests/release/test_check_naming.py` (5) | 5 of 5 | none |
+
+The red run's edited tests failed too: the footer pair, the manifest test and 8 of the 9 cache-name
+assertions (the ninth, in `pwa-chrome`, needs Chrome and ran in the full suite).

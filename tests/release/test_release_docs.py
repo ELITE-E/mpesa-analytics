@@ -109,7 +109,7 @@ def test_the_readme_says_what_is_stored_when_remember_is_on():
 
 
 def test_the_readme_says_not_affiliated_with_safaricom():
-    assert re.search(r"not affiliated with Safaricom", README, re.I)
+    assert re.search(r"not affiliated with (or endorsed by )?Safaricom", README, re.I)
 
 
 def test_licence_is_pending_and_names_no_choice():
