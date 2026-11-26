@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { after, test } from "node:test";
 
-import { checkDeployed } from "../../tools/release/check_deployed.mjs";
+import { checkDeployed, HOST_REPORTING_NOTE } from "../../tools/release/check_deployed.mjs";
 import { startHostEmulator } from "../../tools/release/host_emulator.mjs";
 import { releaseSums } from "../../tools/release/release_checksums.mjs";
 
@@ -33,6 +33,16 @@ const LINE = /^(PASS|FAIL) [a-z_]+( |:|$)/;
 const TIMEOUT_MS = 10 * 60 * 1000;
 const RUNTIME_VERSION = JSON.parse(readFileSync(join(OUT, "runtime/current.json"), "utf8")).version;
 const RUNTIME_FILE = `/runtime/${RUNTIME_VERSION}/pdfjs/pdf.min.mjs`;
+const ALLOW_LIST = readFileSync(join(OUT, "sw-allow-list.js"), "utf8");
+const STYLESHEET = ALLOW_LIST.match(/"path":"(\/_next\/static\/[^"]+\.css)"/)[1];
+const BUNDLE = ALLOW_LIST.match(/"path":"(\/_next\/static\/[^"]+\.js)"/)[1];
+const ROBOTS = "User-agent: *\nDisallow:\n";
+// Cloudflare's network-error reporting headers, in the form it sends them (JSON with escaped "/").
+const REPORTING_DOMAIN = "a.nel.cloudflare.com";
+const CLOUDFLARE_REPORT_TO =
+  '{"endpoints":[{"url":"https:\\/\\/a.nel.cloudflare.com\\/report\\/v4?s=AbC123"}],' +
+  '"group":"cf-nel","max_age":604800}';
+const CLOUDFLARE_NEL = '{"success_fraction":0,"report_to":"cf-nel","max_age":604800}';
 
 const scratch = mkdtempSync(join(tmpdir(), "check-deployed-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
@@ -51,6 +61,20 @@ async function checkWith(fault = {}, options = {}) {
   } finally {
     await site.close();
   }
+}
+
+/**
+ * A header fault adding Report-To and NEL to every response, as the host does.
+ *
+ * @param {string} reportTo The Report-To value.
+ * @param {string} nel The NEL value.
+ * @returns {Function} The `headers` fault.
+ */
+function withReporting(reportTo, nel) {
+  return (path, headers) => {
+    headers.set("report-to", reportTo);
+    headers.set("nel", nel);
+  };
 }
 
 /**
@@ -179,6 +203,136 @@ test("a site that serves a sitemap fails no_sitemap", { timeout: TIMEOUT_MS }, a
   );
   assert.equal(lineOf(lines, "no_sitemap").ok, false);
 });
+
+test(
+  "a /robots.txt the host answers itself gets the generated no-cache rule and passes headers",
+  { timeout: TIMEOUT_MS },
+  async () => {
+    const lines = await checkWith({ extra: { "/robots.txt": ROBOTS } }, { browser: false });
+    assert.ok(lineOf(lines, "headers").ok, lineOf(lines, "headers").line);
+  },
+);
+
+test(
+  "a /robots.txt served without no-cache fails headers, naming the path",
+  { timeout: TIMEOUT_MS },
+  async () => {
+    const lines = await checkWith(
+      {
+        extra: { "/robots.txt": ROBOTS },
+        headers: (path, headers) =>
+          path === "/robots.txt" ? headers.set("cache-control", "max-age=14400") : null,
+      },
+      { browser: false },
+    );
+    assert.equal(lineOf(lines, "headers").ok, false);
+    assert.match(lineOf(lines, "headers").line, /\/robots\.txt cache-control/);
+  },
+);
+
+for (const [form, reportTo] of [
+  ["escaped", CLOUDFLARE_REPORT_TO],
+  ["plain", CLOUDFLARE_REPORT_TO.replaceAll("\\/", "/")],
+]) {
+  test(
+    `the host's Report-To and NEL (${form}), naming only its reporting domain, pass no_third_party with a NOTE line`,
+    { timeout: TIMEOUT_MS },
+    async () => {
+      const lines = await checkWith(
+        { headers: withReporting(reportTo, CLOUDFLARE_NEL) },
+        { browser: false },
+      );
+      assert.ok(lineOf(lines, "no_third_party").ok, lineOf(lines, "no_third_party").line);
+      const notes = lines.filter((entry) => entry.line.startsWith("NOTE"));
+      assert.deepEqual(
+        notes.map((entry) => entry.line),
+        [HOST_REPORTING_NOTE],
+      );
+      assert.ok(notes[0].ok, "a NOTE is not a failure");
+      assert.equal(
+        lines.indexOf(notes[0]),
+        lines.indexOf(lineOf(lines, "no_third_party")) + 1,
+        "the NOTE follows no_third_party",
+      );
+    },
+  );
+}
+
+for (const [label, reportTo, nel] of [
+  [
+    "Report-To naming another host",
+    CLOUDFLARE_REPORT_TO.replace("a.nel.cloudflare.com", "reports.example.net"),
+    CLOUDFLARE_NEL,
+  ],
+  [
+    "Report-To naming a look-alike of the reporting domain",
+    CLOUDFLARE_REPORT_TO.replace("a.nel.cloudflare.com", "a.nel.cloudflare.com.example.net"),
+    CLOUDFLARE_NEL,
+  ],
+  [
+    "Report-To naming another subdomain of the host",
+    CLOUDFLARE_REPORT_TO.replace("a.nel.cloudflare.com", "b.nel.cloudflare.com"),
+    CLOUDFLARE_NEL,
+  ],
+  [
+    "NEL naming another host",
+    CLOUDFLARE_REPORT_TO,
+    '{"report_to":"cf-nel","url":"https:\\/\\/reports.example.net\\/"}',
+  ],
+]) {
+  test(`${label} fails no_third_party`, { timeout: TIMEOUT_MS }, async () => {
+    const lines = await checkWith({ headers: withReporting(reportTo, nel) }, { browser: false });
+    assert.equal(lineOf(lines, "no_third_party").ok, false);
+    assert.match(lineOf(lines, "no_third_party").line, /header (report-to|nel)/);
+  });
+}
+
+test(
+  "the reporting domain in any other header fails no_third_party",
+  { timeout: TIMEOUT_MS },
+  async () => {
+    const lines = await checkWith(
+      {
+        headers: (path, headers) =>
+          path === "/"
+            ? headers.set("link", `<https://${REPORTING_DOMAIN}/x>; rel=preconnect`)
+            : null,
+      },
+      { browser: false },
+    );
+    assert.equal(lineOf(lines, "no_third_party").ok, false);
+    assert.match(lineOf(lines, "no_third_party").line, /\/ header link/);
+  },
+);
+
+test(
+  "the reporting domain in a page, a stylesheet, the service worker, a bundle or a runtime file fails",
+  { timeout: TIMEOUT_MS },
+  async () => {
+    const url = `https://${REPORTING_DOMAIN}/report/v4`;
+    for (const [path, check] of [
+      ["/overview", "no_third_party"],
+      [STYLESHEET, "no_third_party"],
+      ["/sw.js", "no_third_party"],
+      [BUNDLE, "app_checksums"],
+      [RUNTIME_FILE, "runtime_checksums"],
+    ]) {
+      const lines = await checkWith(
+        {
+          body: (served, bytes) =>
+            served === path ? Buffer.concat([bytes, Buffer.from(`\n/* ${url} */\n`)]) : bytes,
+        },
+        { browser: false },
+      );
+      assert.equal(lineOf(lines, check).ok, false, `${path}: ${check}`);
+      assert.equal(
+        lines.some((entry) => entry.line.startsWith("NOTE")),
+        false,
+        `${path}: no NOTE without the headers`,
+      );
+    }
+  },
+);
 
 test(
   "without its service worker the site fails service_worker",

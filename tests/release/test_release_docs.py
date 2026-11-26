@@ -67,6 +67,24 @@ def test_every_readme_claim_names_a_test_that_exists():
             assert f'"{name}"' in source or f"`{name}`" in source, (row["file"], name)
 
 
+def test_the_readme_claims_say_what_the_hosts_reporting_can_send():
+    claims = [row["claim"].lower() for row in claim_rows()]
+    assert any("app code makes no requests to anyone but the host" in claim for claim in claims)
+    (reporting,) = [claim for claim in claims if "network-error reporting" in claim]
+    for fact in ("failure report", "address", "error type", "never statement data", "reached"):
+        assert fact in reporting, fact
+
+
+def test_adr_0019_explains_the_host_reporting_exception():
+    adr = text_of("docs/decisions/0019-host-headers-and-release.md")
+    section = re.search(r"^## Host reporting exception\n(.*?)(?=^## |\Z)", adr, re.M | re.S)
+    assert section, "ADR 0019 has no '## Host reporting exception' section"
+    text = section.group(1)
+    for fact in ("Report-To", "NEL", "a.nel.cloudflare.com", "NOTE host reporting header present"):
+        assert fact in text, fact
+    assert re.search(r"any other (third-party )?host.{0,120}fail", text, re.I | re.S)
+
+
 def test_the_readme_states_the_limits():
     limits = readme_section("Limits").lower()
     for limit in (

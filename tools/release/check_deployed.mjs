@@ -11,6 +11,9 @@
 // - runtime_checksums: every runtime file matches the runtime's checksum manifest.
 // - no_third_party: no response header, redirect or text body names another host (scripts and
 //   binaries are covered by the checksums), and the browser requests nothing from another host.
+//   One exception (ADR 0019): the host's network-error reporting headers, Report-To and NEL, may
+//   name its reporting domain (HOST_REPORTING_DOMAIN) and nothing else; when present, a NOTE line
+//   follows no_third_party. That domain anywhere else, or any other host there, still fails.
 // - no_sitemap: no /sitemap.xml, and no robots.txt pointing at one (private beta).
 // - service_worker: in Chrome, the page registers /sw.js and it becomes active.
 // - release_checksums, with --sums: every file matches the release's sha256sums.txt.
@@ -23,7 +26,12 @@ import { parseArgs } from "node:util";
 import { chromium } from "playwright-core";
 
 import { chrome_path } from "../browser/browser_session.js";
-import { cacheControlFor, sharedHeaders, siteCsp } from "../../web/scripts/host_headers.mjs";
+import {
+  HOST_ANSWERED_PATHS,
+  cacheControlFor,
+  sharedHeaders,
+  siteCsp,
+} from "../../web/scripts/host_headers.mjs";
 import { servedPath } from "../../web/scripts/sw_allow_list.mjs";
 
 const UNKNOWN_PATH = "/check-deployed-no-such-page";
@@ -38,6 +46,12 @@ const SCRIPT_TYPES = /^(text|application)\/javascript/;
 const URL_HOST = /\bhttps?:\/\/([^/\s"'<>)\\]+)/g;
 const PROTOCOL_RELATIVE = /\b(?:src|href|action)\s*=\s*["']?\/\/([^/\s"'<>]+)/g;
 const XML_NAMESPACE = /\bxmlns(?::\w+)?\s*=\s*"[^"]*"/g;
+// The host's network-error reporting (ADR 0019): Cloudflare adds Report-To and NEL to every
+// response, pointing the browser at its own reporting endpoint. Only these two headers may name a
+// host other than the site, and only this exact host.
+const HOST_REPORTING_HEADERS = new Set(["report-to", "nel"]);
+const HOST_REPORTING_DOMAIN = /^a\.nel\.cloudflare\.com$/;
+export const HOST_REPORTING_NOTE = "NOTE host reporting header present (documented)";
 const USAGE = "usage: check_deployed.mjs <site URL> [--sums sha256sums.txt] [--no-browser]";
 
 /**
@@ -49,7 +63,8 @@ const USAGE = "usage: check_deployed.mjs <site URL> [--sums sha256sums.txt] [--n
  * @param {object} [options] Options.
  * @param {boolean} [options.browser] Check the service worker in Chrome (default true).
  * @param {string|null} [options.sums] A sha256sums.txt file to check every file against.
- * @returns {Promise<{check: string, ok: boolean, line: string}[]>} One entry per check.
+ * @returns {Promise<{check: string, ok: boolean, line: string}[]>} One entry per check, and a
+ *   NOTE entry (`note: true`) after no_third_party when the host's reporting headers are present.
  */
 export async function checkDeployed(siteUrl, { browser = true, sums = null } = {}) {
   const origin = new URL(siteUrl).origin;
@@ -60,6 +75,7 @@ export async function checkDeployed(siteUrl, { browser = true, sums = null } = {
     line("app_checksums", appChecksumProblems(site)),
     line("runtime_checksums", runtimeChecksumProblems(site)),
     line("no_third_party", [...thirdPartyProblems(site), ...(visit?.foreignRequests ?? [])]),
+    ...(hasHostReporting(site) ? [note(HOST_REPORTING_NOTE)] : []),
     line("no_sitemap", sitemapProblems(site)),
   ];
   if (visit) lines.push(line("service_worker", visit.serviceWorkerProblems));
@@ -69,7 +85,8 @@ export async function checkDeployed(siteUrl, { browser = true, sums = null } = {
 
 /**
  * Fetch every file the site should serve: its allow-list, the service worker, the runtime's
- * manifest, an unknown path and the sitemap paths.
+ * manifest, an unknown path, the sitemap and the paths the host may answer itself (robots.txt,
+ * whose Cache-Control the headers check expects from its generated rule).
  *
  * @param {string} origin The site's origin.
  * @returns {Promise<object>} `origin`, `allowList`, `runtime` ({version, files}) and `responses`
@@ -88,7 +105,7 @@ async function fetchSite(origin) {
     paths.forEach((path, index) => responses.set(path, fetched[index]));
   };
   await fetchInto(["/sw.js", "/sw-allow-list.js", "/runtime/current.json", UNKNOWN_PATH]);
-  await fetchInto(["/sitemap.xml", "/robots.txt"]);
+  await fetchInto(["/sitemap.xml", ...HOST_ANSWERED_PATHS]);
   const allowList = parseAllowList(responses.get("/sw-allow-list.js"));
   const version = parseJson(responses.get("/runtime/current.json"))?.version;
   const manifestPath = `/runtime/${version}/manifest.json`;
@@ -223,11 +240,25 @@ function thirdPartyProblems(site) {
    * @returns {boolean} Whether one is foreign.
    */
   const foreign = (hosts) => hosts.some((host) => host.toLowerCase() !== own);
+  /**
+   * Whether a header names a host it may not: the reporting headers may name the host's reporting
+   * domain, every header may name the site.
+   *
+   * @param {string} name Lower-case header name.
+   * @param {string} value Its value.
+   * @returns {boolean} Whether it names a forbidden host.
+   */
+  const foreignInHeader = (name, value) =>
+    foreign(
+      hostsIn(unescapeJson(value)).filter(
+        (host) => !(HOST_REPORTING_HEADERS.has(name) && HOST_REPORTING_DOMAIN.test(host)),
+      ),
+    );
   const listed = new Set(site.allowList.entries.map((entry) => entry.path));
   const problems = [];
   for (const [path, response] of site.responses) {
     for (const [name, value] of response.headers) {
-      if (foreign(hostsIn(value))) problems.push(`${path} header ${name}`);
+      if (foreignInHeader(name, value)) problems.push(`${path} header ${name}`);
     }
     if (foreign(response.redirects.map((href) => new URL(href).host)))
       problems.push(`${path} redirect`);
@@ -250,6 +281,28 @@ function thirdPartyProblems(site) {
 function isScannedText(response, isListed) {
   const type = response.headers.get("content-type") ?? "";
   return TEXT_TYPES.test(type) || (SCRIPT_TYPES.test(type) && !isListed);
+}
+
+/**
+ * Whether any response carries the host's reporting headers.
+ *
+ * @param {object} site From fetchSite.
+ * @returns {boolean} Whether Report-To or NEL was served.
+ */
+function hasHostReporting(site) {
+  return [...site.responses.values()].some(({ headers }) =>
+    [...HOST_REPORTING_HEADERS].some((name) => headers.has(name)),
+  );
+}
+
+/**
+ * A text with JSON's escaped slashes undone, so "https:\/\/host" reads as a URL.
+ *
+ * @param {string} text The text.
+ * @returns {string} The text with "\/" as "/".
+ */
+function unescapeJson(text) {
+  return text.replaceAll("\\/", "/");
 }
 
 /**
@@ -384,6 +437,16 @@ function line(check, problems) {
 }
 
 /**
+ * A NOTE entry: printed, never a failure, not counted as a check.
+ *
+ * @param {string} text The line.
+ * @returns {{check: string, ok: boolean, note: boolean, line: string}} The entry.
+ */
+function note(text) {
+  return { check: "note", ok: true, note: true, line: text };
+}
+
+/**
  * The allow-list the service worker imports, or an empty one if it cannot be read.
  *
  * @param {object} response The /sw-allow-list.js response.
@@ -480,9 +543,8 @@ async function main() {
   });
   for (const entry of lines) console.log(entry.line);
   const failed = lines.filter((entry) => !entry.ok).length;
-  console.log(
-    `check_deployed: ${failed ? "FAIL" : "PASS"} (${failed} of ${lines.length} checks failed)`,
-  );
+  const checks = lines.filter((entry) => !entry.note).length;
+  console.log(`check_deployed: ${failed ? "FAIL" : "PASS"} (${failed} of ${checks} checks failed)`);
   process.exit(failed ? 1 : 0);
 }
 

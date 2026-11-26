@@ -91,4 +91,6 @@ the end of this part. Each folder must not exist before its command runs.
 - [ ] Download `sha256sums.txt` from the draft release; `sha256sum sha256sums.txt` equals the
       release checksum in its notes.
 - [ ] `node tools/release/check_deployed.mjs <site URL> --sums sha256sums.txt`: every line PASS.
+      On Cloudflare a `NOTE host reporting header present (documented)` line is expected: the host's
+      network-error reporting (ADR 0019, "Host reporting exception"). It is not a failure.
 - [ ] Publish the draft release.

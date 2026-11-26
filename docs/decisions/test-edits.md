@@ -485,3 +485,23 @@ so the checksum list is `sha256sums.txt`; and the history scan counted a ten-dig
 `web/scripts/serve_static.mjs` now serves the generated headers (Content-Security-Policy, nosniff,
 Referrer-Policy, Permissions-Policy, COOP, X-Robots-Tag) for every path, Cache-Control kept at
 `no-store`; `read_headers()` keeps its contract (path to CSP), so the tests that use it are unchanged.
+
+## CP10b follow-up (2026-11-24): robots.txt cache rule, host reporting exception
+
+After the first `check_deployed` run against Cloudflare Pages. One existing test gained a probe;
+no assertion was loosened.
+
+| Test | Old | New | Reason |
+|---|---|---|---|
+| `web/tests/host-headers.test.mjs`, "${host}: no header is set by two rules that match one path, unknown addresses included" | probes routes, files and unknown paths | also probes `/robots.txt` | Stricter: the new `/robots.txt` rule must not overlap another |
+
+New tests, red first:
+
+| File | Seen red | Passed at once, and why |
+|---|---|---|
+| `web/tests/host-headers.test.mjs`: "${host}: /robots.txt … has its own no-cache rule" (2) | 2 of 2 | none |
+| `tests/release/check_deployed.test.mjs` (14) | 7 of 14: robots rule; Report-To and NEL escaped and plain (no NOTE); Report-To naming another host, a look-alike, another subdomain, NEL naming another host (the check missed JSON-escaped `https:\/\/` URLs) | 7 guards that already held: robots.txt without no-cache fails; the reporting domain in another header; in a page, stylesheet, service worker, bundle or runtime file |
+| `tests/release/test_release_docs.py` (2) | 2 of 2 (README rows, ADR section) | none |
+
+The `HOST_REPORTING_NOTE` constant was exported before the red run, so the file could load and each
+test show its own result; it carries no behaviour.
