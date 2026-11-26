@@ -175,9 +175,15 @@ for (const host of HOSTS) {
     assert.ok(FILES.some((file) => isHashed(servedPath(file))), "the build has hashed files");
   });
 
+  test(`${host}: /robots.txt, which the host may answer itself though no file ships, has its own no-cache rule`, () => {
+    const rules = parse(generated(host));
+    assert.ok(rules.some((rule) => rule.path === "/robots.txt"), "no /robots.txt rule");
+    assert.equal(single(resolve(rules, "/robots.txt"), "cache-control", "/robots.txt"), NO_CACHE);
+  });
+
   test(`${host}: no header is set by two rules that match one path, unknown addresses included`, () => {
     const rules = parse(generated(host));
-    const probes = [...ROUTES, ...FILES.map(servedPath), "/no-such-page", "/_next/static/no-such-chunk.js", "/runtime/current.json"];
+    const probes = [...ROUTES, ...FILES.map(servedPath), "/robots.txt", "/no-such-page","/_next/static/no-such-chunk.js", "/runtime/current.json"];
     for (const path of probes) {
       for (const [name, values] of resolve(rules, path)) assert.equal(values.length, 1, `${path}: ${name} from ${values.length} rules`);
     }

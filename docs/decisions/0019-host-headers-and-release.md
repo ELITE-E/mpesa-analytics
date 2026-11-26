@@ -46,6 +46,40 @@ had no rule at all.
   checksums: the bundles hold inert documentation links), no sitemap, and an active service
   worker in Chrome. It is the only tool in the repo that makes network requests.
 
+## Host reporting exception
+
+Added after the first `check_deployed` run against Cloudflare Pages (2026-11-24).
+
+Cloudflare adds two headers to every response, `Report-To` and `NEL` (Network Error Logging).
+They ask the browser to send Cloudflare a short report if the site cannot be reached: the address
+that failed and the type of error (for example a DNS or connection failure). The report is sent by
+the browser itself, not by the app, and it never holds anything from a statement: the app has not
+run when the site cannot be reached, and statements never leave the device anyway. `NEL` here sets
+`success_fraction` to 0, so successful loads are not reported.
+
+`check_deployed` used to fail `no_third_party` on these headers, because `Report-To` names
+Cloudflare's reporting endpoint. The check is not silenced. It allows exactly this:
+
+- only the headers `Report-To` and `NEL`;
+- only the host `a.nel.cloudflare.com`, matched exactly (`HOST_REPORTING_DOMAIN` in
+  `tools/release/check_deployed.mjs`; a look-alike such as `a.nel.cloudflare.com.example.net` or
+  another subdomain fails);
+- and when they are present it prints `NOTE host reporting header present (documented)` on its
+  own line after `no_third_party`, so the exception is visible on every run.
+
+Any other third-party host still fails, wherever it appears: in a header, redirect, page,
+stylesheet, script or runtime file, and in those two headers too. That reporting domain in any
+other header also fails.
+The check now also reads JSON-escaped URLs (`https:\/\/host`), the form these headers use, so a
+host written that way can no longer slip past it.
+
+The same run found `/robots.txt` answered by the host with no Cache-Control from `_headers`: the
+build ships no robots.txt, so no rule matched it. The generator now writes a `no-cache` rule for
+it (`HOST_ANSWERED_PATHS` in `web/scripts/host_headers.mjs`), and `check_deployed` expects it.
+
+If the owner would rather not have the reports at all, Cloudflare's dashboard can turn off Network
+Error Logging for a zone on a custom domain; the exception then never shows its NOTE line.
+
 ## Alternatives considered
 
 | Option | Tradeoff |
@@ -61,7 +95,8 @@ had no rule at all.
   Cloudflare Pages if a line passes 2,000 characters; then the choice is ADR 0015's per-page form
   again or fewer inline scripts.
 - Hosts may add headers of their own. `check_deployed` reports a wrong value of a checked header,
-  any `Access-Control-Allow-Origin`, and any header that names another host (for example
-  error-reporting endpoints); the owner turns those off or accepts them in writing.
+  any `Access-Control-Allow-Origin`, and any header that names another host; the owner turns
+  those off or accepts them in writing. Cloudflare's `Report-To` and `NEL` are the one accepted
+  exception (see "Host reporting exception").
 - The deploy CLIs' versions and the host secrets are repository settings, set by the owner
   (`docs/RELEASE_CHECKLIST.md`).

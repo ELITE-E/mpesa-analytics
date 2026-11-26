@@ -9,7 +9,8 @@
 //   'unsafe-inline' or 'unsafe-eval'), nosniff, no referrer, a Permissions-Policy that denies the
 //   camera, microphone and geolocation, COOP same-origin and, during the private beta, noindex.
 // - Every other rule sets Cache-Control only: immutable for files whose names carry their hash
-//   (/_next/static, /runtime/<version>), no-cache for pages and every other shipped file.
+//   (/_next/static, /runtime/<version>), no-cache for pages, every other shipped file, and paths
+//   the host may answer itself (HOST_ANSWERED_PATHS: /robots.txt).
 //
 //   node web/scripts/host_headers.mjs --host cloudflare-pages|netlify [--out web/out] [--to DIR]
 import { createHash } from "node:crypto";
@@ -35,6 +36,9 @@ const CLOUDFLARE_DETACHED = ["Access-Control-Allow-Origin"];
 const CLOUDFLARE_MAX_RULES = 100;
 const CLOUDFLARE_MAX_LINE = 2000;
 const FILE_NAME = "_headers";
+// Paths the host may answer itself though the build ships no file there (Cloudflare can serve a
+// robots.txt of its own). Each gets its own Cache-Control rule, so no response goes without one.
+export const HOST_ANSWERED_PATHS = Object.freeze(["/robots.txt"]);
 
 /**
  * The rules for a built app on a host.
@@ -48,7 +52,8 @@ const FILE_NAME = "_headers";
 export function hostRules(outDir, host) {
   if (!HOSTS.includes(host))
     throw new Error(`unknown host: ${host} (expected ${HOSTS.join(" or ")})`);
-  const paths = shippedFiles(outDir).map(({ path }) => path);
+  const shipped = shippedFiles(outDir).map(({ path }) => path);
+  const paths = [...shipped, ...HOST_ANSWERED_PATHS.filter((path) => !shipped.includes(path))];
   const pages = shippedFiles(outDir).filter(({ file }) => file.endsWith(".html"));
   const csp = siteCsp(pages.map(({ file }) => readFileSync(file, "utf8")));
   const rules = [
